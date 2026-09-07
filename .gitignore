@@ -1,0 +1,7 @@
+/target/
+sessions/
+cache/
+.env
+.obscura/
+*.log
+.DS_Store

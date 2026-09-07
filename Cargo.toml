@@ -1,0 +1,28 @@
+[package]
+name = "web-agent-research"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Protótipo CLI de agente multi-turno para pesquisa na web sobre a engine Obscura"
+license = "MIT"
+
+[[bin]]
+name = "web-agent-research"
+path = "src/main.rs"
+
+[lib]
+name = "web_agent_research"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+anyhow = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embeddings, RAG e Memória em Agentes — Guia Visual</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#131a2e; --panel2:#0f1528; --line:#24304d;
+  --txt:#e8ecf6; --mut:#9aa6c2; --dim:#6b7694;
+  --ind:#7c8aff; --cyan:#38e1ff; --amber:#ffb224; --green:#3ddc84; --pink:#ff6b9d; --vio:#b388ff;
+  --rad:14px; --font:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);line-height:1.55}
+a{color:var(--cyan)}
+code,.mono{font-family:var(--mono);font-size:.86em;background:#0a0f1f;border:1px solid var(--line);border-radius:6px;padding:.1em .4em}
+pre{background:#0a0f1f;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;font-size:.82em;line-height:1.5}
+pre b,pre .k{color:var(--cyan)} pre .c{color:var(--dim)}
+/* layout */
+.shell{display:flex;min-height:100vh}
+aside.side{width:272px;flex:0 0 272px;background:var(--panel2);border-right:1px solid var(--line);
+  position:sticky;top:0;height:100vh;overflow:auto;padding:20px 14px}
+.brand{font-weight:800;font-size:1.02em;letter-spacing:.2px}
+.brand small{display:block;color:var(--mut);font-weight:400;font-size:.78em;margin-top:2px}
+.progress{height:6px;background:#1b2340;border-radius:99px;margin:12px 0 16px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ind),var(--cyan));border-radius:99px;transition:width .3s}
+.nav a{display:flex;gap:9px;align-items:center;text-decoration:none;color:var(--mut);font-size:.86em;
+  padding:7px 10px;border-radius:9px;border:1px solid transparent}
+.nav a:hover{color:var(--txt);background:#18203a}
+.nav a.on{color:var(--txt);background:#1a2450;border-color:#2c3a6e}
+.nav a .n{flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:.72em;font-weight:700;background:#1c2547;color:var(--cyan)}
+.nav a.on .n{background:var(--ind);color:#0b1020}
+.nav .grp{font-size:.68em;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin:14px 6px 6px}
+main{flex:1;min-width:0;padding:34px clamp(16px,4vw,54px) 120px;max-width:1060px}
+.page{display:none;animation:fade .25s ease}
+.page.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.eyebrow{color:var(--cyan);font-size:.75em;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+h1{font-size:clamp(1.7em,3.6vw,2.6em);line-height:1.12;margin:.25em 0 .4em}
+h2{font-size:1.35em;margin:1.6em 0 .5em} h3{font-size:1.02em;margin:1.2em 0 .4em;color:var(--cyan)}
+p.lead{color:var(--mut);font-size:1.05em;max-width:60ch}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))} .g3{grid-template-columns:repeat(3,minmax(0,1fr))} .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);padding:16px 18px}
+.card.hl{border-color:var(--ind);box-shadow:0 0 0 1px var(--ind) inset}
+.card h4{margin:.1em 0 .4em;font-size:.95em}
+.card p,.card li{font-size:.88em;color:var(--mut)}
+.card p b,.card li b{color:var(--txt)}
+.pill{display:inline-block;font-size:.68em;font-weight:700;letter-spacing:.06em;padding:.25em .7em;border-radius:99px;border:1px solid var(--line);color:var(--mut);text-transform:uppercase}
+.pill.i{background:#1a2450;color:#cdd6ff;border-color:#33407c}
+.pill.c{background:#0e2f3d;color:#aef0ff;border-color:#155e75}
+.pill.a{background:#3a2a08;color:#ffd98a;border-color:#7a5410}
+.pill.g{background:#0c3324;color:#a9f0cd;border-color:#17603f}
+.pill.p{background:#33122a;color:#ffaed2;border-color:#7a2c5c}
+.kpi{font-size:1.9em;font-weight:800}
+.btn{cursor:pointer;border:1px solid #33407c;background:#1a2450;color:#dfe6ff;border-radius:10px;padding:9px 15px;font-size:.86em;font-weight:600}
+.btn:hover{background:#232f68}
+.btn.ghost{background:transparent;color:var(--mut);border-color:var(--line)}
+.btn.on{background:var(--ind);color:#0b1020;border-color:var(--ind)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+input[type=range]{width:100%;accent-color:var(--ind)}
+input[type=text],input[type=search]{width:100%;background:#0a0f1f;border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px 12px;font-size:.9em}
+label.lbl{font-size:.76em;color:var(--mut);display:flex;justify-content:space-between;margin:.6em 0 .2em}
+label.lbl b{color:var(--cyan)}
+table{width:100%;border-collapse:collapse;font-size:.84em}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-size:.72em;text-transform:uppercase;letter-spacing:.08em}
+tr:hover td{background:#141c36}
+/* pager */
+.pager{display:flex;justify-content:space-between;gap:10px;margin:44px 0 0}
+.pager a{text-decoration:none}
+/* scatter map */
+.map{position:relative;height:340px;background:
+  radial-gradient(circle at 25% 65%,rgba(124,138,255,.14),transparent 55%),
+  radial-gradient(circle at 75% 30%,rgba(56,225,255,.12),transparent 55%),
+  radial-gradient(circle at 60% 80%,rgba(255,178,36,.08),transparent 50%),#0a0f1f;
+  border:1px solid var(--line);border-radius:var(--rad);overflow:hidden}
+.map .hood{position:absolute;font-size:.68em;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  border:1px dashed #2c3a6e;border-radius:10px;padding:4px 10px}
+.dot{position:absolute;transform:translate(-50%,-50%);cursor:pointer;text-align:center}
+.dot i{display:block;width:16px;height:16px;border-radius:50%;margin:0 auto;border:2px solid #0b1020}
+.dot span{display:block;font-size:.62em;color:var(--mut);margin-top:3px;max-width:110px}
+.dot.hot i{outline:3px solid var(--amber);outline-offset:2px}
+.dot.hot span{color:var(--amber)}
+.dot.q i{width:22px;height:22px}
+.tip{position:absolute;pointer-events:none;background:#05080f;border:1px solid var(--ind);border-radius:10px;
+  padding:8px 11px;font-size:.75em;max-width:230px;display:none;z-index:5}
+/* cosine */
+.coswrap{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.cosval{font-size:2.2em;font-weight:800;color:var(--cyan)}
+/* chunks */
+.chunk{border-radius:8px;padding:8px 10px;margin:6px 0;font-size:.8em;line-height:1.5;border:1px solid var(--line)}
+.chunk b{display:block;font-size:.68em;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.ov{background:rgba(255,178,36,.18);border-radius:3px;padding:0 2px}
+/* funnel */
+.bar{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:.8em}
+.bar .t{flex:0 0 190px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .fill{height:20px;border-radius:6px;background:linear-gradient(90deg,var(--ind),var(--cyan));min-width:4px;transition:width .3s}
+.bar .s{flex:0 0 46px;text-align:right;font-family:var(--mono)}
+.bar.cut{opacity:.28}.bar.cut .fill{background:#3a466e}
+/* stepper */
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.step{flex:1 1 120px;cursor:pointer;text-align:center;padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:#0f1730;font-size:.78em;color:var(--mut)}
+.step b{display:block;font-size:1.3em}
+.step.on{border-color:var(--cyan);color:var(--txt);box-shadow:0 0 0 1px var(--cyan) inset}
+.step.done{border-color:var(--green);color:var(--txt)}
+/* tokens */
+.tok{display:inline-block;padding:5px 10px;margin:4px;border-radius:8px;background:#1a2450;border:1px solid #33407c;font-size:.82em;cursor:pointer}
+.tok:hover{border-color:var(--cyan)}
+.tok.sel{background:var(--ind);color:#0b1020;font-weight:700}
+.tok.match{background:#0c3324;border-color:var(--green);color:#c9f5dd}
+/* graph */
+.gnode{cursor:pointer}
+.gnode circle{stroke:#0b1020;stroke-width:2}
+.gnode text{fill:var(--txt);font-size:10px}
+.gnode.dim{opacity:.25}
+/* loop */
+.loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media(max-width:860px){.loop{grid-template-columns:1fr 1fr}}
+.lstep{border:1px solid var(--line);border-radius:12px;padding:12px;font-size:.8em;color:var(--mut);background:#0f1730}
+.lstep.on{border-color:var(--amber);color:var(--txt);box-shadow:0 0 0 1px var(--amber) inset}
+.lstep b{display:block;font-size:1.5em}
+/* tabs */
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabp{display:none}.tabp.on{display:block;animation:fade .25s}
+/* matrix */
+.mx td:first-child{font-weight:700;color:var(--txt)}
+.tagv{font-size:.68em;font-weight:700;padding:.2em .6em;border-radius:99px;white-space:nowrap}
+.v-do{background:#0c3324;color:#7defb2}.v-me{background:#3a2a08;color:#ffd98a}.v-no{background:#3a1626;color:#ff9ec4}
+/* timeline */
+.tl{border-left:3px solid var(--ind);margin-left:10px;padding-left:20px}
+.tl div{position:relative;padding:0 0 22px}
+.tl div::before{content:"";position:absolute;left:-29px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--ind);border:3px solid #0b1020;box-shadow:0 0 0 2px var(--ind)}
+/* quiz */
+.q{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0;background:var(--panel)}
+.q p{margin:.2em 0 .6em;font-weight:600}
+.q label{display:block;font-size:.86em;color:var(--mut);padding:5px 8px;border-radius:8px;cursor:pointer}
+.q label:hover{background:#18203a}
+.q .ok{color:var(--green)} .q .bad{color:var(--pink)}
+/* gloss */
+.gcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.84em}
+.gcard b{color:var(--cyan)} .gcard p{margin:.3em 0 0;color:var(--mut)}
+.topbar{display:none}
+@media(max-width:980px){
+  aside.side{display:none}
+  .topbar{display:flex;gap:8px;align-items:center;position:sticky;top:0;z-index:20;background:#0d1327f0;border-bottom:1px solid var(--line);padding:10px 12px;overflow-x:auto}
+  .topbar a{flex:0 0 auto;font-size:.75em;color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 11px}
+  .topbar a.on{color:#0b1020;background:var(--cyan);border-color:var(--cyan);font-weight:700}
+  main{padding:20px 14px 120px}
+}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:14px 0}
+.fnode{flex:1 1 130px;background:#0f1730;border:1px solid var(--ind);border-radius:12px;padding:12px;text-align:center;font-size:.8em}
+.fnode b{display:block;font-size:1.05em;color:var(--txt)}
+.fnode small{color:var(--mut)}
+.farr{align-self:center;padding:0 8px;color:var(--amber);font-size:1.4em;font-weight:800}
+.note{border-left:4px solid var(--amber);background:#221a08;border-radius:0 12px 12px 0;padding:10px 14px;font-size:.85em;color:#f2ddb0;margin:12px 0}
+.note.blue{border-color:var(--cyan);background:#0c2733;color:#c4ecf7}
+.note.green{border-color:var(--green);background:#0a241a;color:#c2eed6}
+footer{margin-top:60px;color:var(--dim);font-size:.78em;border-top:1px solid var(--line);padding-top:16px}
+.kbd{font-family:var(--mono);font-size:.75em;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:0 6px;background:#0a0f1f}
+</style>
+</head>
+<body>
+<nav class="topbar" id="topbar"></nav>
+<div class="shell">
+<aside class="side">
+  <div class="brand">🧭 Embeddings · RAG · Agentes<small>guia visual interativo · pt-BR</small></div>
+  <div class="progress"><i id="pbar"></i></div>
+  <nav class="nav" id="sidenav">
+    <a href="#capa" data-p="capa"><span class="n">0</span>Visão em 5 min</a>
+    <div class="grp">Base para leigos</div>
+    <a href="#mapa" data-p="mapa"><span class="n">1</span>O mapa de significados</a>
+    <a href="#vetor" data-p="vetor"><span class="n">2</span>Anatomia do vetor</a>
+    <a href="#similaridade" data-p="similaridade"><span class="n">3</span>Similaridade</a>
+    <a href="#chunking" data-p="chunking"><span class="n">4</span>Chunking</a>
+    <a href="#trio" data-p="trio"><span class="n">5</span>Retrieval → rerank → grounded</a>
+    <div class="grp">O sistema RAG</div>
+    <a href="#pipeline" data-p="pipeline"><span class="n">6</span>Pipeline em 5 estágios</a>
+    <a href="#quando-nao" data-p="quando-nao"><span class="n">7</span>Quando NÃO usar</a>
+    <div class="grp">Catálogo de tecnologias</div>
+    <a href="#modelos" data-p="modelos"><span class="n">8</span>Modelos de embedding</a>
+    <a href="#stores" data-p="stores"><span class="n">9</span>Vector stores</a>
+    <a href="#hibrido" data-p="hibrido"><span class="n">10</span>Híbrido · sparse · rerank · ColBERT</a>
+    <a href="#grafos" data-p="grafos"><span class="n">11</span>Grafos &amp; GraphRAG</a>
+    <div class="grp">Agentes</div>
+    <a href="#memoria" data-p="memoria"><span class="n">12</span>Memória de agentes</a>
+    <a href="#cenarios" data-p="cenarios"><span class="n">13</span>5 cenários inteligentes</a>
+    <a href="#repo" data-p="repo"><span class="n">14</span>E neste repo?</a>
+    <div class="grp">Fixar</div>
+    <a href="#glossario" data-p="glossario"><span class="n">15</span>Glossário buscável</a>
+    <a href="#quiz" data-p="quiz"><span class="n">16</span>Quiz relâmpago</a>
+    <a href="#fontes" data-p="fontes"><span class="n">17</span>Fontes primárias</a>
+  </nav>
+</aside>
+<main>
+<!-- ==================== CAPA ==================== -->
+<section class="page" id="p-capa">
+  <span class="eyebrow">Research visual · docs/research/embeddings-systems</span>
+  <h1>Embeddings, RAG e memória em agentes <span style="color:var(--cyan)">sem decorar jargão</span></h1>
+  <p class="lead">Um guia em 18 telas interativas. Cada tela tem <b>uma ideia visual</b> + o mínimo de texto para entendê-la. Use <span class="kbd">←</span> <span class="kbd">→</span> para navegar.</p>
+  <div class="flow">
+    <div class="fnode"><b>🔤 texto</b><small>pergunta, página, evidência</small></div><div class="farr">→</div>
+    <div class="fnode"><b>🔢 vetor</b><small>embedding = endereço numérico</small></div><div class="farr">→</div>
+    <div class="fnode"><b>🎯 retrieval</b><small>top-K vizinhos + rerank</small></div><div class="farr">→</div>
+    <div class="fnode"><b>💬 resposta</b><small>grounded + citações</small></div>
+  </div>
+  <div class="grid g4">
+    <div class="card"><div class="kpi" style="color:var(--ind)">1536</div><p>números num vetor <span class="mono">text-embedding-3-small</span>. O <b>sentido inteiro</b> mora no padrão, não em 1 posição.</p></div>
+    <div class="card"><div class="kpi" style="color:var(--cyan)">50→5</div><p><b>retrieval</b> traz 50 barato · <b>rerank</b> escolhe 5 caros. Recall separado de precisão.</p></div>
+    <div class="card"><div class="kpi" style="color:var(--amber)">α</div><p><b>híbrido</b>: α=1 só vetor, α=0 só keyword. Termo exato pede BM25.</p></div>
+    <div class="card"><div class="kpi" style="color:var(--green)">3</div><p>regras da memória boa: indexar <b>sínteses</b>, <b>esquecer</b> com TTL, <b>filtrar antes</b> do vetor.</p></div>
+  </div>
+  <div class="note green"><b>Mapa do guia:</b> telas 1–5 = base · 6–7 = pipeline RAG · 8–11 = tecnologias · 12–14 = agentes + este repo · 15–17 = fixação + fontes.</div>
+  <div class="pager"><span></span><a class="btn" href="#mapa">Começar: o mapa →</a></div>
+</section>
+<!-- ==================== 1 MAPA ==================== -->
+<section class="page" id="p-mapa">
+  <span class="eyebrow">1 · a analogia central</span>
+  <h1>Cada texto é uma casa num <span style="color:var(--amber)">mapa de significados</span></h1>
+  <p class="lead">O <b>embedding</b> é o endereço numérico. Textos do mesmo assunto moram no mesmo bairro — mesmo <b>sem compartilhar palavras</b>. Clique nos botões e passe o mouse nos pontos.</p>
+  <div class="btnrow">
+    <button class="btn on" data-q="sopa">🍲 query: “amo sopa”</button>
+    <button class="btn ghost" data-q="clima">🌍 query: “mudança climática”</button>
+    <button class="btn ghost" data-q="codigo">💻 query: “ERR_TIMEOUT_CDP v2.4.1”</button>
+  </div>
+  <div class="map" id="map"><div class="tip" id="captip"></div></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card hl"><h4>🎯 O que observar</h4><p>Com a query <b>“amo sopa”</b>, os vizinhos quentes são paráfrases (“sopa é minha favorita”). Com <b>“mudança climática”</b>, o vizinho quente é <b>“aquecimento global”</b> — zero palavra em comum, sentido igual. É isso que busca por keyword <b>nunca</b> acharia.</p></div>
+    <div class="card"><h4>⚠️ E o código de erro?</h4><p>“ERR_TIMEOUT_CDP v2.4.1” cai <b>longe de tudo</b>, no bairro errado. Vetor denso <b>dilui termo raro/exato</b> — por isso existe busca híbrida (tela 10). Guarde essa intuição.</p></div>
+  </div>
+  <div class="pager"><a class="btn ghost" href="#capa">← capa</a><a class="btn" href="#vetor">Anatomia do vetor →</a></div>
+</section>
+<!-- ==================== 2 VETOR ==================== -->
+<section class="page" id="p-vetor">
+  <span class="eyebrow">2 · o que é um embedding, de verdade</span>
+  <h1>Uma lista de números. <span style="color:var(--cyan)">Nada mais — e nada menos.</span></h1>
+  <div class="card"><p style="font-size:1em">“Obscura é uma engine de browser” → <span class="mono">[-0.012, 0.044, -0.31, …, 0.007]</span> <b id="dimdemo">1536 números</b></p>
+    <label class="lbl">Troque de modelo e veja a dimensão mudar <b id="dimname">text-embedding-3-small</b></label>
+    <input type="range" id="dimrange" min="0" max="4" value="2" step="1">
+    <div class="btnrow" id="dimchips" style="margin-top:10px"></div>
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card hl"><span class="pill i">regra 1</span><h4>🗺️ Modelo diferente = mapa diferente</h4><p>Vetores OpenAI <b>não são comparáveis</b> com BGE ou E5. Escolheu o modelo: use o <b>mesmo para indexar e consultar</b>. Trocar de modelo = reindexar tudo.</p></div>
+    <div class="card"><span class="pill a">regra 2</span><h4>🪟 Janela de entrada limitada</h4><p>Cada modelo aceita no máximo N tokens (<span class="mono">3-small</span>: 8192 · Voyage-4: 32000). Texto maior é <b>truncado</b> — ou fatiado com chunking (tela 4).</p></div>
+    <div class="card"><span class="pill c">regra 3</span><h4>🧪 Significado distribuído</h4><p>Nenhuma posição isolada “significa” algo. E marque <span class="mono">input_type</span> quando o modelo distingue <b>query vs documento</b> (Cohere, Voyage).</p></div>
+  </div>
+  <h3>Exemplo mínimo — gerar um embedding (Python, API OpenAI)</h3>
+<pre><span class="c"># referência: developers.openai.com → guides → embeddings</span>
+<span class="k">from</span> openai <span class="k">import</span> OpenAI
+client = OpenAI()
+resp = client.embeddings.<span class="k">create</span>(
+    input=<b>"Obscura é uma engine de browser para agentes"</b>,
+    model=<b>"text-embedding-3-small"</b>)
+vetor = resp.data[0].embedding  <span class="c"># lista de 1536 floats</span></pre>
+  <div class="pager"><a class="btn ghost" href="#mapa">← mapa</a><a class="btn" href="#similaridade">Similaridade →</a></div>
+</section>
+<!-- ==================== 3 SIMILARIDADE ==================== -->
+<section class="page" id="p-similaridade">
+  <span class="eyebrow">3 · a régua do mapa</span>
+  <h1>Similaridade = <span style="color:var(--cyan)">ângulo entre vetores</span></h1>
+  <p class="lead">Arraste o slider: quanto <b>menor o ângulo</b>, maior o cosseno, mais relevantes entre si. É assim que o ranking do retrieval nasce.</p>
+  <div class="grid g2">
+    <div class="card" style="text-align:center">
+      <svg id="cossvg" width="240" height="240" viewBox="0 0 240 240" style="max-width:100%">
+        <circle cx="120" cy="120" r="90" fill="none" stroke="#24304d"/>
+        <circle cx="120" cy="120" r="60" fill="none" stroke="#24304d" stroke-dasharray="4 4"/>
+        <circle cx="120" cy="120" r="30" fill="none" stroke="#24304d" stroke-dasharray="4 4"/>
+        <line x1="120" y1="120" x2="120" y2="30" stroke="#24304d"/>
+        <line id="vecA" x1="120" y1="120" x2="200" y2="75" stroke="#3ddc84" stroke-width="4" stroke-linecap="round"/>
+        <line id="vecB" x1="120" y1="120" x2="200" y2="75" stroke="#38e1ff" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="120" cy="120" r="5" fill="#ffb224"/>
+        <text x="206" y="72" fill="#3ddc84" font-size="11">A</text>
+        <text id="lblB" x="206" y="72" fill="#38e1ff" font-size="11">B</text>
+      </svg>
+      <div class="cosval" id="cosval">1.00</div>
+      <div style="font-size:.8em;color:var(--mut)" id="coslabel">ângulo 0° — idênticos</div>
+      <label class="lbl">Ângulo entre A e B <b id="angval">0°</b></label>
+      <input type="range" id="ang" min="0" max="180" value="0" step="1">
+    </div>
+    <div>
+      <table>
+        <tr><th>Medida</th><th>Intuição</th><th>Onde aparece</th></tr>
+        <tr><td><b>Cosine</b></td><td>cosseno do ângulo; ignora magnitude</td><td>padrão em texto</td></tr>
+        <tr><td><b>Dot product</b></td><td>produto interno</td><td>rápido; = cosseno se normalizado</td></tr>
+        <tr><td><b>Euclidiana (L2)</b></td><td>linha reta no mapa</td><td><span class="mono">pgvector &lt;-&gt;</span></td></tr>
+        <tr><td><b>MaxSim</b></td><td>melhor par token-a-token</td><td>ColBERT (tela 10)</td></tr>
+      </table>
+      <div class="note blue"><b>Atalho que economiza horas:</b> com vetores de norma L2 = 1, cosine, dot e L2 <b>ordenam igual</b>. Não gaste energia na métrica no início — gaste em bons chunks e top-K. APIs como a Jina expõem flag <span class="mono">normalized: true</span>.</div>
+<pre><span class="c"># busca mínima, sem servidor — só NumPy</span>
+<span class="k">import</span> numpy <span class="k">as</span> np
+<span class="k">def</span> <b>cosine</b>(a, b):
+    a, b = np.array(a), np.array(b)
+    <span class="k">return</span> <b>float</b>(np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b)))
+scores = [(d, cosine(qvec, evec)) <span class="k">for</span> d, evec <span class="k">in</span> docs]
+top = <b>sorted</b>(scores, key=<span class="k">lambda</span> x: -x[1])[:<b>5</b>]</pre>
+    </div>
+  </div>
+  <div class="pager"><a class="btn ghost" href="#vetor">← vetor</a><a class="btn" href="#chunking">Chunking →</a></div>
+</section>
+<!-- ==================== 4 CHUNKING ==================== -->
+<section class="page" id="p-chunking">
+  <span class="eyebrow">4 · por que fatiar textos</span>
+  <h1>Um manual de 50 páginas vira <span style="color:var(--amber)">sopa sem graça</span> num vetor só</h1>
+  <p class="lead">Vetor de texto longo = <b>ponto médio diluído</b> no mapa. Por isso fatiamos em <b>chunks de 1 ideia</b>, com overlap. Teste abaixo:</p>
+  <div class="card">
+    <div class="grid g2">
+      <div><label class="lbl">Palavras por chunk <b id="csizev">24</b></label><input type="range" id="csize" min="8" max="60" value="24"></div>
+      <div><label class="lbl">Overlap (palavras) <b id="covv">6</b></label><input type="range" id="cov" min="0" max="20" value="6"></div>
+    </div>
+    <div id="chunks" style="margin-top:10px"></div>
+    <p style="font-size:.8em;color:var(--mut)" id="chunkstat"></p>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card hl"><h4>✅ Regras de bolso</h4><p>① Respeite fronteiras naturais (parágrafo, heading, <b>nunca</b> no meio da frase) · ② 200–800 tokens com <b>10–20% de overlap</b> · ③ 1 chunk = 1 ideia · ④ guarde <b>metadados</b>: URL, <span class="mono">fetched_at</span>, título, posição.</p></div>
+    <div class="card"><h4>🚫 Anti-padrões</h4><p>Página inteira = 1 vetor · corte de tamanho fixo <b>no meio da palavra</b> · jogar fora a URL após vetorizar (o “grounded” do RAG <b>morre aqui</b> — sem fonte, sem citação).</p></div>
+  </div>
+  <div class="pager"><a class="btn ghost" href="#similaridade">← similaridade</a><a class="btn" href="#trio">O trio do RAG →</a></div>
+</section>
+<!-- ==================== 5 TRIO ==================== -->
+<section class="page" id="p-trio">
+  <span class="eyebrow">5 · o trio do RAG</span>
+  <h1>Recall barato, precisão cara, <span style="color:var(--green)">resposta ancorada</span></h1>
+  <div class="flow">
+    <div class="fnode"><b>🔎 retrieval</b><small>barato · top-50 · recall alto</small></div><div class="farr">→</div>
+    <div class="fnode"><b>🎖️ rerank</b><small>caro · top-5 · precisão</small></div><div class="farr">→</div>
+    <div class="fnode"><b>💬 grounded</b><small>responder SÓ com os trechos + citar</small></div>
+  </div>
+  <div class="card">
+    <h4>🎛️ Simulador do funil — 40 evidências, qual entra na síntese?</h4>
+    <div class="grid g2">
+      <div><label class="lbl">Retrieval: candidatos <b id="rkv">30</b></label><input type="range" id="rk" min="5" max="40" value="30"></div>
+      <div><label class="lbl">Rerank: ficam no prompt <b id="rnv">6</b></label><input type="range" id="rn" min="1" max="12" value="6"></div>
+    </div>
+    <div id="funnel" style="margin-top:10px"></div>
+    <p style="font-size:.82em;color:var(--mut)" id="funnelstat"></p>
+  </div>
+  <div class="note"><b>“Lost in the middle”:</b> 40 trechos no prompt estouram contexto e o LLM se distrai com trecho fraco. 6–8 trechos fortes + URL de cada um = síntese melhor e mais barata. Se nenhum trecho presta, a resposta correta é <b>“não encontrei nas fontes”</b> — não inventar.</div>
+  <div class="pager"><a class="btn ghost" href="#chunking">← chunking</a><a class="btn" href="#pipeline">Pipeline em 5 estágios →</a></div>
+</section>
+<!-- ==================== 6 PIPELINE ==================== -->
+<section class="page" id="p-pipeline">
+  <span class="eyebrow">6 · visão canônica (LlamaIndex)</span>
+  <h1>RAG em <span style="color:var(--ind)">5 estágios</span> — clique em cada um</h1>
+  <p class="lead">Nomenclatura oficial do LlamaIndex: <b>Loading → Indexing → Storing → Querying → Evaluation</b>. O último é o que todo iniciante pula — e o mais importante.</p>
+  <div class="steps" id="plsteps">
+    <div class="step on" data-s="0"><b>📥</b>Loading</div>
+    <div class="step" data-s="1"><b>✂️</b>Indexing</div>
+    <div class="step" data-s="2"><b>💾</b>Storing</div>
+    <div class="step" data-s="3"><b>🔍</b>Querying</div>
+    <div class="step" data-s="4"><b>📏</b>Evaluation</div>
+  </div>
+  <div class="card" id="plbody"></div>
+  <div class="pager"><a class="btn ghost" href="#trio">← trio</a><a class="btn" href="#quando-nao">Quando NÃO usar →</a></div>
+</section>
+<!-- ==================== 7 QUANDO NAO ==================== -->
+<section class="page" id="p-quando-nao">
+  <span class="eyebrow">7 · honestidade técnica</span>
+  <h1>RAG é para <span style="color:var(--green)">“relevância aproximada sobre corpus estável”</span>. Fora disso, é custo sem benefício.</h1>
+  <p class="lead">Passe o mouse / toque em cada cartão para virar e ver a alternativa melhor.</p>
+  <div class="grid g3" id="flipgrid"></div>
+  <div class="pager"><a class="btn ghost" href="#pipeline">← pipeline</a><a class="btn" href="#modelos">Modelos →</a></div>
+</section>
+<!-- ==================== 8 MODELOS ==================== -->
+<section class="page" id="p-modelos">
+  <span class="eyebrow">8 · catálogo de modelos</span>
+  <h1>Qual embedding usar? <span style="color:var(--cyan)">Filtre pelo seu caso.</span></h1>
+  <div class="btnrow" id="mfilt">
+    <button class="btn on" data-f="all">todos</button>
+    <button class="btn ghost" data-f="api">💳 API paga</button>
+    <button class="btn ghost" data-f="oss">🆓 open-source local</button>
+    <button class="btn ghost" data-f="pt">🇧🇷 pt-BR forte</button>
+    <button class="btn ghost" data-f="dom">🧬 domínio específico</button>
+  </div>
+  <div class="grid g2" id="mgrid"></div>
+  <div class="note blue"><b>Como escolher (ordem prática):</b> ① precisa de pt-BR? prefira multilíngue (E5, BGE-M3, Cohere, Voyage) · ② pode chamar API? OpenAI/Voyage/Cohere vencem em qualidade, BGE/E5 vencem em custo/privacidade · ③ compare no <b>MTEB</b> (benchmark público) mas <b>valide no seu corpus</b> com 20–30 perguntas (tela do pipeline → Evaluation). Raiz acadêmica do retrieval denso: <b>DPR</b>, Karpukhin et al. 2020, <span class="mono">arxiv 2004.04906</span>; o paper do RAG é Lewis et al. 2020, <span class="mono">arxiv 2005.11401</span>.</div>
+  <div class="pager"><a class="btn ghost" href="#quando-nao">← quando não</a><a class="btn" href="#stores">Vector stores →</a></div>
+</section>
+<!-- ==================== 9 STORES ==================== -->
+<section class="page" id="p-stores">
+  <span class="eyebrow">9 · onde moram os vetores</span>
+  <h1>Do arquivo local ao <span style="color:var(--vio)">cluster bilionário</span></h1>
+  <p class="lead">Arraste o slider de <b>volume de vetores</b>: a recomendação muda — e mostra por que Qdrant/Milvus seriam over-engineering para este repo hoje.</p>
+  <label class="lbl">Vetores no índice <b id="volv">10 mil</b></label>
+  <input type="range" id="vol" min="0" max="4" value="1" step="1">
+  <div class="grid g2" id="sgrid" style="margin-top:12px"></div>
+  <div class="card" style="margin-top:14px"><h4>📜 Leitura para este repo (ADR-0002: sem DB, só arquivos)</h4><p>A única opção que <b>não viola a decisão</b> é o <span class="mono">sqlite-vec</span> — continua sendo “um arquivo”, sem docker, sem serviço. Todo o resto exige servidor/container/conta, ou seja, <b>exige revisitar o ADR</b>.</p>
+<pre><span class="c"># sqlite-vec: SQL vetorial num arquivo só</span>
+.load ./vec0
+<span class="k">CREATE VIRTUAL TABLE</span> evidencias <span class="k">USING</span> vec0(embedding <b>FLOAT[1536]</b>, url TEXT);
+<span class="k">SELECT</span> rowid, distance <span class="k">FROM</span> evidencias
+ <span class="k">WHERE</span> embedding <b>MATCH</b> <span class="c">'[...vetor da pergunta...]'</span>
+ <span class="k">ORDER BY</span> distance <b>LIMIT 5</b>;</pre></div>
+  <div class="pager"><a class="btn ghost" href="#modelos">← modelos</a><a class="btn" href="#hibrido">Híbrido e cia →</a></div>
+</section>
+<!-- ==================== 10 HIBRIDO ==================== -->
+<section class="page" id="p-hibrido">
+  <span class="eyebrow">10 · além do vetor denso</span>
+  <h1>Vetor erra termo exato. <span style="color:var(--amber)">A cura é combinar sinais.</span></h1>
+  <p class="lead">Mova o <b>α (alpha)</b>: α=1 é só vetor, α=0 é só keyword (Weaviate). Observe qual query cada extremo acerta.</p>
+  <label class="lbl">α — peso do vetor <b id="alphav">0.50</b></label>
+  <input type="range" id="alpha" min="0" max="100" value="50">
+  <div class="card" style="margin-top:10px"><div id="hyb"></div>
+  <p style="font-size:.84em;color:var(--mut)" id="hybverdict"></p></div>
+  <div class="tabs" style="margin-top:14px"><div class="btnrow tabs" style="margin:0">
+    <button class="btn on" data-t="bm25">BM25</button>
+    <button class="btn ghost" data-t="splade">Sparse / SPLADE</button>
+    <button class="btn ghost" data-t="colbert">ColBERT MaxSim</button>
+    <button class="btn ghost" data-t="rerank">Rerankers</button>
+  </div></div>
+  <div class="card tabp on" data-t="bm25" style="margin-top:10px"><h4>📇 BM25 — o keyword clássico imbatível no exato</h4><p>Conta frequência do termo com saturação + normaliza por tamanho do doc. Para <span class="mono">ERR_TIMEOUT_CDP</span>, SKU, versão <span class="mono">v2.4.1</span>: embedding dilui, BM25 acerta em cheio.</p></div>
+  <div class="card tabp" data-t="splade" style="margin-top:10px"><h4>🌵 Sparse / SPLADE — “BM25 aprendido”</h4><p>Vetor gigante e quase todo zero, com peso por termo do vocabulário. Qdrant e Chroma guardam sparse <b>ao lado</b> do denso; o <b>BGE-M3 gera os dois juntos</b> numa passada só.</p></div>
+  <div class="card tabp" data-t="colbert" style="margin-top:10px"><h4>🧩 ColBERT late-interaction — 1 vetor por token</h4><p>Cada token da query casa com o token mais parecido do doc (<b>MaxSim</b>). Clique nos tokens da query:</p><div id="colbert" style="margin-top:6px"></div><p id="colbertout" style="font-size:.85em"></p></div>
+  <div class="card tabp" data-t="rerank" style="margin-top:10px"><h4>🎖️ Rerankers — o maior salto qualidade/custo</h4><p>Cross-encoder lê <b>(query, documento) juntos</b> e dá nota fina. Padrão: retrieve 30–100 → rerank top 5–10. Opções: <b>Cohere Rerank</b> (multilíngue, 4096 tokens) ou <b>bge-reranker</b> open-source local.</p></div>
+  <div class="pager"><a class="btn ghost" href="#stores">← stores</a><a class="btn" href="#grafos">Grafos →</a></div>
+</section>
+<!-- ==================== 11 GRAFOS ==================== -->
+<section class="page" id="p-grafos">
+  <span class="eyebrow">11 · quando vetor não basta</span>
+  <h1>Perguntas multi-hop pedem <span style="color:var(--vio)">grafo, não top-K</span></h1>
+  <p class="lead">“Quais ferramentas citadas pelas Evidências X e Y <b>compartilham o mesmo mantenedor</b>?” — nenhum chunk isolado contém a resposta. Clique nos nós para explorar.</p>
+  <div class="grid g2">
+  <div class="card" style="text-align:center">
+  <svg id="gsvg" width="100%" height="300" viewBox="0 0 420 300" style="max-width:100%">
+    <line x1="90" y1="150" x2="210" y2="80" stroke="#24304d" stroke-width="2"/>
+    <line x1="90" y1="150" x2="210" y2="220" stroke="#24304d" stroke-width="2"/>
+    <line x1="210" y1="80" x2="330" y2="150" stroke="#24304d" stroke-width="2"/>
+    <line x1="210" y1="220" x2="330" y2="150" stroke="#24304d" stroke-width="2"/>
+    <line id="gedge" x1="210" y1="80" x2="210" y2="220" stroke="#ffb224" stroke-width="2" stroke-dasharray="6 4"/>
+    <g class="gnode" data-g="evx"><circle cx="90" cy="150" r="26" fill="#7c8aff"/><text x="90" y="154" text-anchor="middle">Ev X</text></g>
+    <g class="gnode" data-g="obs"><circle cx="210" cy="80" r="26" fill="#38e1ff"/><text x="210" y="84" text-anchor="middle">Obscura</text></g>
+    <g class="gnode" data-g="cli"><circle cx="210" cy="220" r="26" fill="#38e1ff"/><text x="210" y="224" text-anchor="middle">CLI-lib</text></g>
+    <g class="gnode" data-g="evy"><circle cx="330" cy="150" r="26" fill="#7c8aff"/><text x="330" y="154" text-anchor="middle">Ev Y</text></g>
+    <g class="gnode" data-g="levy"><circle id="glevy" cx="272" cy="150" r="22" fill="#ffb224"/><text x="272" y="154" text-anchor="middle">levy</text></g>
+  </svg>
+  <div class="card" id="ginfo" style="margin-top:8px;text-align:left"><h4>🖱️ Clique num nó</h4><p>Cada clique mostra entidade, tipo e relações — o que o GraphRAG extrai com LLM antes de responder.</p></div>
+  </div>
+  <div>
+  <div class="card hl"><h4>🔧 Pipeline GraphRAG (Microsoft, open-source)</h4><p>① extrair <b>entidades + relações</b> do texto com LLM → ② detectar <b>comunidades</b> → ③ responder perguntas <b>globais</b> atravessando o grafo. Refs: <span class="mono">github.com/microsoft/graphrag</span>, paper <span class="mono">arxiv 2404.16130</span>.</p></div>
+  <div class="note" style="margin-top:12px"><b>Avisos honestos:</b> o próprio README diz que é projeto de pesquisa, hoje em <b>modo manutenção</b>, e a indexação é <b>cara</b> (muitas chamadas LLM para extrair o grafo). Para pesquisas web pontuais, as <b>sub-buscas do loop</b> multi-turno já cobrem — GraphRAG fica estacionado (ver tela 14).</div>
+  <div class="card"><h4>Vetor × grafo — quando cada um</h4><table><tr><th>Pergunta</th><th>Vence</th></tr><tr><td>“docs sobre engine de browser”</td><td><span class="tagv v-do">vetor</span></td></tr><tr><td>“ERR_TIMEOUT_CDP v2.4.1”</td><td><span class="tagv v-me">keyword</span></td></tr><tr><td>“quem mantém as 2 ferramentas citadas em X e Y?”</td><td><span class="tagv v-no">grafo</span></td></tr></table></div>
+  </div></div>
+  <div class="pager"><a class="btn ghost" href="#hibrido">← híbrido</a><a class="btn" href="#memoria">Memória →</a></div>
+</section>
+<!-- ==================== 12 MEMORIA ==================== -->
+<section class="page" id="p-memoria">
+  <span class="eyebrow">12 · o outro uso de embeddings</span>
+  <h1>LLM esquece tudo entre chamadas. <span style="color:var(--green)">Memória = passado relevante no prompt.</span></h1>
+  <p class="lead">Aperte <b>rodar turno</b> e veja o loop: embed → recall → decidir → responder → escrever de volta.</p>
+  <div class="card" style="margin-bottom:12px"><div class="btnrow"><button class="btn" id="looprun">▶ rodar turno</button><button class="btn ghost" id="loopreset">recomeçar</button><span class="pill g" id="loopn">turno 0</span></div>
+  <div class="loop" id="loopsteps"><div class="lstep"><b>🔢</b>embed(pergunta)</div><div class="lstep"><b>🎯</b>recall top-K + thread</div><div class="lstep"><b>🧠</b>LLM decide</div><div class="lstep"><b>✍️</b>responde + salva</div></div>
+  <p style="font-size:.84em;color:var(--mut)" id="loopmsg">Cada turno enxerga o que o anterior aprendeu.</p></div>
+  <div class="grid g3">
+    <div class="card"><span class="pill i">curto prazo</span><h4>💬 Thread atual</h4><p>Últimos N turnos no prompt. LangChain/LangGraph: <span class="mono">checkpointer</span> por thread.</p></div>
+    <div class="card"><span class="pill c">longo prazo</span><h4>🗄️ Store entre sessões</h4><p>JSON + busca vetorial por namespace. LangGraph: <span class="mono">store</span> + <span class="mono">IndexConfig(embed=…)</span>. Letta/MemGPT: agentes stateful com recall vetorial.</p></div>
+    <div class="card"><span class="pill a">padrões</span><h4>🧩 Cache · episódica · agentica</h4><p><b>Cache semântico:</b> pergunta parecida → reusa resposta. <b>Episódica</b> (“na Sessão 12…”) vs <b>semântica</b> (“Obscura usa CDP”). <b>Agentic RAG:</b> o agente decide quando buscar.</p></div>
+  </div>
+  <div class="note blue"><b>3 regras que separam memória boa de pântano:</b> ① indexe <b>sínteses</b>, não dumps — vetor de texto sujo recupera sujeira · ② <b>esqueça</b> com TTL/consolidação (LangGraph filtra por <span class="mono">namespace</span>) · ③ <b>filtro antes do vetor</b>: metadados (mesma Pesquisa? data válida?) e só então similaridade.</div>
+  <div class="pager"><a class="btn ghost" href="#grafos">← grafos</a><a class="btn" href="#cenarios">Cenários →</a></div>
+</section>
+<!-- ==================== 13 CENARIOS ==================== -->
+<section class="page" id="p-cenarios">
+  <span class="eyebrow">13 · exemplos inteligentes em agentes</span>
+  <h1>5 cenários — <span style="color:var(--amber)">clique para abrir cada história</span></h1>
+  <div class="tabs"><div class="btnrow tabs" style="margin:0" id="scenbtns">
+    <button class="btn on" data-t="s1">1 · dedup</button>
+    <button class="btn ghost" data-t="s2">2 · rerank</button>
+    <button class="btn ghost" data-t="s3">3 · cache</button>
+    <button class="btn ghost" data-t="s4">4 · memória</button>
+    <button class="btn ghost" data-t="s5">5 · juiz ⚖️</button>
+  </div></div>
+  <div class="card tabp on" data-t="s1" style="margin-top:10px"><span class="pill a">“já vimos isso”</span><h4>Cenário 1 — Dedup semântica de Evidências</h4><p><b>Problema:</b> mesma página com URL diferente (<span class="mono">?utm=…</span>, http vs https) ou republicação — dedup por URL falha. <b>Solução:</b> embedding por Evidência; similaridade &gt; 0.93 → marca duplicada, não re-sintetiza. <b>Armadilha:</b> threshold alto junta coisas distintas — registre <span class="mono">(url_a, url_b, score)</span> para auditar.</p><div id="dedupdemo"></div></div>
+  <div class="card tabp" data-t="s2" style="margin-top:10px"><span class="pill c">“menos é mais”</span><h4>Cenário 2 — Rerank antes da síntese</h4><p><b>Problema:</b> 40 Evidências estouram o prompt (“lost in the middle”). <b>Solução:</b> retrieve 40 → rerank top 6–8 → só esses na síntese, cada um com URL. <b>Custo:</b> 1 chamada de rerank por Turno final — barato perto de re-sintetizar contexto gigante.</p></div>
+  <div class="card tabp" data-t="s3" style="margin-top:10px"><span class="pill g">“já respondemos isso”</span><h4>Cenário 3 — Cache semântico de Pesquisas</h4><p><b>Problema:</b> “o que é Obscura?” → “me explica a engine Obscura” re-busca tudo. <b>Solução:</b> embedding do objetivo + síntese; similaridade &gt; 0.9 e fontes frescas → reusa (marcando reuso). <b>Armadilha:</b> web envelhece — combine com <span class="mono">fetched_at</span>, senão vira resposta velha confiante.</p></div>
+  <div class="card tabp" data-t="s4" style="margin-top:10px"><span class="pill i">“continuar de onde parei”</span><h4>Cenário 4 — Memória de Sessão em 2 camadas</h4><p><b>a)</b> <i>resumo rolante</i>: ao fechar cada Turno, 3–5 linhas (achado, decisão, pendência). <b>b)</b> <i>recall vetorial</i> sobre resumos + Evidências: o Turno 16 pergunta “o que sabemos sobre preço?” sem reler 15 Turnos. Receita MemGPT/Letta + LangGraph store, adaptada para arquivo.</p></div>
+  <div class="card tabp" data-t="s5" style="margin-top:10px"><span class="pill p">bônus avançado</span><h4>Cenário 5 — Juiz de relevância</h4><p>Passo “juiz” pontua cada Evidência contra o objetivo (<b>0–2</b>: irrelevante/parcial/central) e decide: sintetizar, buscar mais ou reformular a query. Embeddings pré-ordenam antes do juiz LLM, barateando o passo. <b>Só quando o loop já funciona</b> — otimização, não fundação.</p><div class="btnrow"><button class="btn" id="judge">⚖️ julgar 6 evidências</button></div><div id="judgeout"></div></div>
+  <div class="pager"><a class="btn ghost" href="#memoria">← memória</a><a class="btn" href="#repo">E neste repo? →</a></div>
+</section>
+<!-- ==================== 14 REPO ==================== -->
+<section class="page" id="p-repo">
+  <span class="eyebrow">14 · só para este repo</span>
+  <h1>Web-search via Obscura: <span style="color:var(--green)">o que fazer primeiro</span></h1>
+  <p class="lead">CLI file-based, sem DB (ADR-0002), vocabulário Pesquisa → Sessão → Turno → Evidência. Filtre a matriz por veredito:</p>
+  <div class="btnrow" id="mxfilt">
+    <button class="btn on" data-f="all">todas (10)</button>
+    <button class="btn ghost" data-f="do">✅ faça</button>
+    <button class="btn ghost" data-f="later">⏳ adie</button>
+    <button class="btn ghost" data-f="no">🚫 não fazer</button>
+  </div>
+  <div class="card"><table class="mx"><tr><th>#</th><th>Ideia</th><th>Esforço</th><th>Valor</th><th>Veredito</th></tr><tbody id="mxbody"></tbody></table></div>
+  <h3>🗺️ Recomendação faseada</h3>
+  <div class="tl">
+    <div><b>Fase 0 — esta semana, sem ML.</b> Dedup URL+hash + corte top-N determinístico + registrar <span class="mono">score</span> e <span class="mono">motivo</span> em cada Evidência no JSONL (formato migrável para <span class="mono">turns</span>). Custo zero.</div>
+    <div><b>Fase 1 — com o harness.</b> Reranker (API) atrás de flag; comparar com/sem rerank em 20–30 perguntas; guardar decisão.</div>
+    <div><b>Fase 2 — quando paráfrase doer.</b> Embeddings só para dedup; vetores em arquivo lado a lado; threshold calibrado. Se virar gargalo → <span class="mono">sqlite-vec</span> (a “dor” que o ADR-0002 previu como gatilho).</div>
+    <div><b>Não-fases.</b> Qdrant/pgvector/GraphRAG estacionados até métrica pedir — escrito aqui para ninguém propor “vamos botar Qdrant” sem contexto daqui a 6 meses.</div>
+  </div>
+  <div class="pager"><a class="btn ghost" href="#cenarios">← cenários</a><a class="btn" href="#glossario">Glossário →</a></div>
+</section>
+<!-- ==================== 15 GLOSSARIO ==================== -->
+<section class="page" id="p-glossario">
+  <span class="eyebrow">15 · referência rápida</span>
+  <h1>Glossário <span style="color:var(--cyan)">buscável</span></h1>
+  <input type="search" id="gsearch" placeholder="filtrar termos… (ex.: rerank, sparse, hnsw)">
+  <div class="grid g3" id="ggrid" style="margin-top:12px"></div>
+  <div class="pager"><a class="btn ghost" href="#repo">← repo</a><a class="btn" href="#quiz">Quiz →</a></div>
+</section>
+<!-- ==================== 16 QUIZ ==================== -->
+<section class="page" id="p-quiz">
+  <span class="eyebrow">16 · fixe o essencial</span>
+  <h1>Quiz relâmpago — <span style="color:var(--amber)">5 perguntas</span></h1>
+  <p class="lead">Responda clicando. Placar ao final, sem cadastro, sem backend.</p>
+  <div id="quizbox"></div>
+  <div class="card" id="quizscore" style="display:none;text-align:center"><div class="kpi" id="quizkpi">0/5</div><p id="quizmsg"></p><button class="btn ghost" id="quizretry">tentar de novo</button></div>
+  <div class="pager"><a class="btn ghost" href="#glossario">← glossário</a><a class="btn" href="#fontes">Fontes →</a></div>
+</section>
+<!-- ==================== 17 FONTES ==================== -->
+<section class="page" id="p-fontes">
+  <span class="eyebrow">17 · mandato da skill: cada claim na fonte dona</span>
+  <h1>Fontes <span style="color:var(--cyan)">primárias</span></h1>
+  <div class="grid g2">
+    <div class="card"><span class="pill i">modelos &amp; APIs</span><h4>Embeddings</h4><p>· OpenAI — Vector embeddings (<span class="mono">-3</span>, Matryoshka, preços) — <span class="mono">developers.openai.com</span><br>· Cohere — input_type, multilíngue, Matryoshka, compressão — <span class="mono">docs.cohere.com</span><br>· Voyage — voyage-4/Code/Finance/Law, quantização — <span class="mono">docs.voyageai.com</span><br>· Jina — v5-text/v5-omni, flag <span class="mono">normalized</span> — <span class="mono">jina.ai/embeddings</span><br>· BGE-small — <span class="mono">huggingface.co/BAAI</span> · E5-multilingual — <span class="mono">huggingface.co/intfloat</span></p></div>
+    <div class="card"><span class="pill c">stores</span><h4>Onde moram os vetores</h4><p>· sqlite-vec (vec0, binding Rust) — <span class="mono">github.com/asg017/sqlite-vec</span><br>· pgvector (<span class="mono">&lt;-&gt;</span> <span class="mono">&lt;=&gt;</span> <span class="mono">&lt;#&gt;</span>, HNSW) — <span class="mono">github.com/pgvector/pgvector</span><br>· Qdrant overview (sparse, payload index) — <span class="mono">qdrant.tech/documentation</span><br>· Weaviate hybrid (alpha) — <span class="mono">docs.weaviate.io</span><br>· Chroma · Pinecone · Milvus — docs oficiais</p></div>
+    <div class="card"><span class="pill a">papers</span><h4>Fundamentos acadêmicos</h4><p>· <b>DPR</b> — Karpukhin et al. 2020 — <span class="mono">arxiv 2004.04906</span><br>· <b>RAG</b> — Lewis et al. 2020 — <span class="mono">arxiv 2005.11401</span><br>· <b>GraphRAG</b> — <span class="mono">arxiv 2404.16130</span> + <span class="mono">github.com/microsoft/graphrag</span><br>· <b>ColBERT</b> — late interaction, MaxSim — <span class="mono">github.com/stanford-futuredata/ColBERT</span></p></div>
+    <div class="card"><span class="pill g">agentes</span><h4>RAG + memória em agentes</h4><p>· Cohere Rerank — <span class="mono">docs.cohere.com/v2/docs/rerank</span><br>· LlamaIndex RAG (5 estágios, nodes, postprocessors) — <span class="mono">developers.llamaindex.ai</span><br>· LangChain short-term (checkpointer) + long-term (store) — <span class="mono">docs.langchain.com</span><br>· Letta/MemGPT — <span class="mono">github.com/cpacker/MemGPT</span></p></div>
+  </div>
+  <div class="card" style="margin-top:14px"><span class="pill p">este projeto</span><h4>Grounding da tela 14</h4><p><span class="mono">MISSION.md</span> · <span class="mono">CONTEXT.md</span> · <span class="mono">NOTES.md</span> · <span class="mono">docs/adr/0001-rust-linguagem-ancora.md</span> · <span class="mono">docs/adr/0002-sem-db-so-arquivos.md</span> — nota-irmã completa: <span class="mono">0001-embeddings-rag-memoria-agentes.md</span> (esta página é o companheiro visual).</p></div>
+  <div class="pager"><a class="btn ghost" href="#quiz">← quiz</a><a class="btn" href="#capa">↺ voltar à capa</a></div>
+  <footer>Guia visual companheiro de <span class="mono">docs/research/embeddings-systems/0001-embeddings-rag-memoria-agentes.md</span> · prosa em pt-BR, termos técnicos em inglês · fontes primárias acima · sem backend, sem tracking.</footer>
+</section>
+<script>
+(function(){
+"use strict";
+function $(s,r){return (r||document).querySelector(s)}
+function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+/* ---------- router ---------- */
+var order=["capa","mapa","vetor","similaridade","chunking","trio","pipeline","quando-nao","modelos","stores","hibrido","grafos","memoria","cenarios","repo","glossario","quiz","fontes"];
+var short={capa:"5 min",mapa:"mapa",vetor:"vetor",similaridade:"similaridade",chunking:"chunking",trio:"trio",pipeline:"pipeline","quando-nao":"quando não",modelos:"modelos",stores:"stores",hibrido:"híbrido",grafos:"grafos",memoria:"memória",cenarios:"cenários",repo:"neste repo",glossario:"glossário",quiz:"quiz",fontes:"fontes"};
+var tb=$("#topbar");
+order.forEach(function(p){var a=document.createElement("a");a.href="#"+p;a.textContent=short[p];a.dataset.p=p;tb.appendChild(a)});
+function show(p){
+  if(order.indexOf(p)<0)p="capa";
+  $all(".page").forEach(function(s){s.classList.toggle("on",s.id==="p-"+p)});
+  $all("#sidenav a").forEach(function(a){a.classList.toggle("on",a.dataset.p===p)});
+  $all("#topbar a").forEach(function(a){a.classList.toggle("on",a.dataset.p===p)});
+  $("#pbar").style.width=Math.round(order.indexOf(p)/(order.length-1)*100)+"%";
+  window.scrollTo(0,0);
+}
+function cur(){return (location.hash||"#capa").slice(1)}
+window.addEventListener("hashchange",function(){show(cur())});
+document.addEventListener("keydown",function(e){
+  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+  var i=order.indexOf(cur());
+  if(e.key==="ArrowRight"&&i<order.length-1)location.hash=order[i+1];
+  if(e.key==="ArrowLeft"&&i>0)location.hash=order[i-1];
+});
+show(cur());
+/* ---------- generic tabs (escopo: section mais proxima) ---------- */
+$all(".btnrow.tabs").forEach(function(wrap){
+  var btns=$all("[data-t]",wrap);if(!btns.length)return;
+  var scope=wrap.closest("section")||document;
+  btns.forEach(function(b){b.addEventListener("click",function(){
+    btns.forEach(function(x){x.classList.remove("on");x.classList.add("ghost")});
+    b.classList.add("on");b.classList.remove("ghost");
+    $all('.tabp[data-t="'+b.dataset.t+'"]',scope).forEach(function(p){p.classList.add("on")});
+    $all(".tabp",scope).forEach(function(p){if(p.dataset.t!==b.dataset.t)p.classList.remove("on")});
+  })});
+});
+/* ---------- 1 mapa ---------- */
+var dots=[
+ {x:22,y:62,t:"amo sopa",s:"query atual",c:"#ffb224",q:1,tip:"QUERY — ponto de referência. Todo o resto é ranqueado pela distância até aqui."},
+ {x:30,y:55,t:"“sopa é minha favorita”",s:"paráfrase · sim .97",c:"#3ddc84",hot:["sopa"],tip:"Paráfrase quase idêntica — vetor cola no mesmo bairro."},
+ {x:16,y:72,t:"“receita de caldo verde”",s:"mesmo bairro · sim .88",c:"#3ddc84",hot:["sopa"],tip:"Sem a palavra “sopa”, mas no bairro comida. Só vetor acha."},
+ {x:27,y:74,t:"“caldo Knorr vs caseiro”",s:"bairro vizinho · sim .74",c:"#7c8aff",tip:"Comida, mas outro sub-bairro. Entra no top-20, cai no rerank."},
+ {x:74,y:28,t:"“aquecimento global”",s:"outro bairro · sim .21",c:"#38e1ff",hot:["clima"],tip:"Zero palavra em comum com “mudança climática” — e é O vizinho certo."},
+ {x:70,y:40,t:"“mudança climática”",s:"query atual",c:"#ffb224",q:1,hot2:"clima",tip:"QUERY alternativa. Vizinho quente mora longe em palavras, perto em sentido."},
+ {x:82,y:22,t:"“CO₂ e efeito estufa”",s:"mesmo bairro · sim .90",c:"#38e1ff",hot:["clima"],tip:"Vocabulário técnico diferente, sentido igual."},
+ {x:80,y:70,t:"“ERR_TIMEOUT_CDP”",s:"query exata",c:"#ffb224",q:1,hot2:"codigo",tip:"QUERY exata. Vetor denso dilui códigos e versões."},
+ {x:55,y:80,t:"“guia de Londres 2024”",s:"ruído · sim .12",c:"#3a466e",tip:"Ruído: longe no mapa = irrelevante."},
+ {x:88,y:82,t:"“tabela do campeonato”",s:"ruído · sim .08",c:"#3a466e",tip:"Ruído total. Distância grande = descartado."}
+];
+var mapEl=$("#map");
+var hood1=document.createElement("div");hood1.className="hood";hood1.style.cssText="left:6%;top:44%;width:36%;height:44%;text-align:center;padding-top:4px";hood1.textContent="🍲 bairro comida";mapEl.appendChild(hood1);
+var hood2=document.createElement("div");hood2.className="hood";hood2.style.cssText="right:6%;top:8%;width:36%;height:44%;text-align:center;padding-top:4px";hood2.textContent="🌍 bairro clima";mapEl.appendChild(hood2);
+var tip=$("#captip");
+function renderMap(q){
+  $all(".dot",mapEl).forEach(function(d){d.remove()});
+  dots.forEach(function(d){
+    var show=d.q?(d.hot2===q||(q==="sopa"&&d.t.indexOf("amo")==0)):true;
+    if(!show)return;
+    var el=document.createElement("div");el.className="dot"+(d.q?" q":"")+((d.hot&&d.hot[0]===q)||(d.q&&((q==="sopa"&&d.t.indexOf("amo")==0)||d.hot2===q))?" hot":"");
+    el.style.left=d.x+"%";el.style.top=d.y+"%";
+    el.innerHTML="<i style='background:"+d.c+"'></i><span>"+d.t+"<br>"+d.s+"</span>";
+    el.addEventListener("mouseenter",function(){tip.style.display="block";tip.textContent=d.tip;tip.style.left=Math.min(d.x,62)+"%";tip.style.top=Math.max(d.y-24,4)+"%"});
+    el.addEventListener("mouseleave",function(){tip.style.display="none"});
+    mapEl.appendChild(el);
+  });
+}
+$all("[data-q]").forEach(function(b){b.addEventListener("click",function(){
+  $all("[data-q]").forEach(function(x){x.classList.remove("on");x.classList.add("ghost")});
+  b.classList.add("on");b.classList.remove("ghost");renderMap(b.dataset.q);
+})});
+renderMap("sopa");
+/* ---------- 2 dimensoes ---------- */
+var models=[["BGE-small (local, CPU)","384","leve, grátis, multilíngue fraco"],["E5-multilingual (local)","1024","default local p/ pt-BR"],["text-embedding-3-small","1536","custo-benefício via API"],["text-embedding-3-large","3072","máx. qualidade OpenAI"],["Voyage-4 (32k ctx)","2048","janela longa, domínios"]];
+var dr=$("#dimrange");
+function drawDim(){
+  var m=models[+dr.value];
+  $("#dimname").textContent=m[0];$("#dimdemo").textContent=m[1]+" números";
+  $("#dimchips").innerHTML='<span class="pill c">'+m[1]+' dims</span> <span class="pill">'+m[2]+'</span> <span class="pill i">mesmo modelo p/ indexar + consultar</span>';
+}
+if(dr){dr.addEventListener("input",drawDim);drawDim()}
+/* ---------- 3 cosseno ---------- */
+var ang=$("#ang");
+function drawCos(){
+  var a=+ang.value,rad=a*Math.PI/180,r=90;
+  var x2=120+r*Math.sin(rad),y2=120-r*Math.cos(rad);
+  var b=$("#vecB");b.setAttribute("x2",x2);b.setAttribute("y2",y2);
+  $("#lblB").setAttribute("x",x2+6);$("#lblB").setAttribute("y",y2+4);
+  var c=Math.cos(rad);
+  $("#cosval").textContent=c.toFixed(2);
+  $("#cosval").style.color=c>.8?"var(--green)":c>.4?"var(--amber)":"var(--pink)";
+  $("#angval").textContent=a+"°";
+  $("#coslabel").textContent=a===0?"ângulo 0° — idênticos":a<45?"perto — provavelmente relevante":a<100?"longe — provavelmente ruído":"opostos — irrelevante";
+}
+if(ang){ang.addEventListener("input",drawCos);drawCos()}
+/* ---------- 4 chunking ---------- */
+var sample=("Obscura Engine é um browser headless para agentes com suporte a CDP em modo headless e automação de abas. "+ "O cache de fetch usa URL normalizada com ETag e Last-Modified para revalidar páginas sem baixar tudo de novo. ".repeat(2)+"Sessões guardam Turnos em JSONL com Evidências citando URL e momento da coleta para a síntese final. ".repeat(2)).split(" ");
+function drawChunks(){
+  var size=+$("#csize").value,ov=+$("#cov").value;
+  $("#csizev").textContent=size;$("#covv").textContent=Math.min(ov,size-1);
+  ov=Math.min(ov,size-1);
+  var step=size-ov,chunks=[],i=0;
+  for(var s=0;s<sample.length;s+=step){chunks.push({w:slice_(s,s+size),ovFrom:s>0?ov:0});if(chunks.length>6)break}
+  function slice_(a,b){return sample.slice(a,Math.min(b,sample.length))}
+  var cols=["#7c8aff","#38e1ff","#3ddc84","#ffb224","#ff6b9d","#b388ff"];
+  $("#chunks").innerHTML=chunks.map(function(c,k){
+    var pre=c.w.slice(0,c.ovFrom).join(" "),rest=c.w.slice(c.ovFrom).join(" ");
+    return "<div class='chunk' style='border-color:"+cols[k%6]+"'><b style='color:"+cols[k%6]+"'>chunk "+(k+1)+"</b>"+(pre?"<span class='ov'>"+pre+"</span> ":"")+rest+"</div>";
+  }).join("");
+  $("#chunkstat").textContent=chunks.length+" chunks de ~"+size+" palavras · faixa amarela = overlap reaproveitado ("+ov+" palavras) · cada chunk vira 1 vetor + metadados {url, fetched_at}";
+}
+if($("#csize")){$("#csize").addEventListener("input",drawChunks);$("#cov").addEventListener("input",drawChunks);drawChunks()}
+/* ---------- 5 funil ---------- */
+var docs40=[];(function(){var t=["Obscura Engine: browser headless p/ automação","Obscura via CDP em modo headless","receita de bolo de cenoura","tabela do campeonato","guia de Londres 2024","Obscura Engine v2.4.1 changelog","cache de fetch com ETag","JSONL por Sessão sem DB","rerank top-6 antes da síntese","dedup semântica entre Turnos"];for(var i=0;i<40;i++){docs40.push({t:t[i%t.length]+(i>=t.length?" #"+(i+1):""),s:Math.max(.05,.96-i*.022+(Math.sin(i*7)*.02))})}})();
+function drawFunnel(){
+  var k=+$("#rk").value,n=+$("#rn").value;
+  $("#rkv").textContent=k;$("#rnv").textContent=n;
+  var got=docs40.slice(0,k);
+  var reranked=got.slice().sort(function(a,b){return (b.s+(b.t.indexOf("Obscura")>=0?.03:0))-(a.s+(a.t.indexOf("Obscura")>=0?.03:0))});
+  var keep={};reranked.slice(0,Math.min(n,reranked.length)).forEach(function(d){keep[d.t]=1});
+  $("#funnel").innerHTML=got.map(function(d){
+    var inn=keep[d.t];
+    return "<div class='bar"+(inn?"":" cut")+"'><div class='t'>"+(inn?"✅ ":"")+d.t+"</div><div class='fill' style='width:"+Math.round(d.s*100)+"%'></div><div class='s'>"+d.s.toFixed(2)+"</div></div>";
+  }).join("");
+  $("#funnelstat").textContent="retrieval trouxe "+k+" (recall) · rerank manteve "+Math.min(n,k)+" no prompt (precisão) · "+(k-Math.min(n,k))+" cortados economizam tokens e reduzem distração (“lost in the middle”)";
+}
+if($("#rk")){$("#rk").addEventListener("input",drawFunnel);$("#rn").addEventListener("input",drawFunnel);drawFunnel()}
+/* ---------- 6 pipeline ---------- */
+var pldata=[
+ {t:"📥 Loading — tirar o dado de onde ele vive",b:"<p>PDF, site, API, DB → texto do pipeline. <b>Neste repo:</b> páginas buscadas via <b>Obscura Engine Browser</b>. Atenções: extrair <b>texto principal</b> (boilerplate polui embedding) e <b>normalizar URL</b> (dedup + cache — eco do ADR-0002).</p>"},
+ {t:"✂️ Indexing — chunk + embed",b:"<p>chunking (tela 4) → 1 embedding por chunk. Boas práticas: batch, <span class='mono'>input_type=document</span> vs <span class='mono'>query</span> (Cohere/Voyage), truncamento explícito.</p><pre>chunks = chunk(pagina, size=500, overlap=50)\nvecs = embeddings.create(chunks, <b>model=\"text-embedding-3-small\"</b>)\n<span class='c'># guardar: (texto, vetor, {url, fetched_at})</span></pre>"},
+ {t:"💾 Storing — guardar p/ não reindexar",b:"<p>Vetores + metadados num <b>vector store</b>. Espectro: <span class='mono'>sqlite-vec</span> (1 arquivo, sem servidor) → pgvector/Qdrant/Chroma → Pinecone gerenciado. Detalhes na tela 9.</p>"},
+ {t:"🔍 Querying — retrieve → rerank → sintetizar",b:"<p>Variações reais: <b>sub-queries</b>, <b>multi-step</b> (buscar → ler → buscar de novo — exatamente o loop Pesquisa→Sessão→Turno deste repo) e estratégias híbridas.</p><pre>qvec = embed(<b>pergunta</b>)\ncand = store.search(qvec, top_k=<b>30</b>)   <span class='c'># recall</span>\ntop = rerank(pergunta, cand, top_k=<b>5</b>)  <span class='c'># precisão</span>\nresposta = llm(<b>\"use SÓ estes trechos + cite URLs\"</b>)</pre>"},
+ {t:"📏 Evaluation — a etapa que ninguém pula impune",b:"<p><b>Mínimo viável:</b> 20–30 perguntas com resposta esperada + URLs que <i>deveriam</i> voltar. Meça <b>recall@K</b> (a fonte certa veio?) e <b>fidelidade</b> (cita e não inventa?). Rode a cada mudança de chunking/modelo/rerank — sem isso, “melhoria” é achismo.</p>"}
+];
+function drawPl(i){
+  $all("#plsteps .step").forEach(function(s){s.classList.toggle("on",+s.dataset.s===i);s.classList.toggle("done",+s.dataset.s<i)});
+  $("#plbody").innerHTML="<h4>"+pldata[i].t+"</h4>"+pldata[i].b;
+}
+$all("#plsteps .step").forEach(function(s){s.addEventListener("click",function(){drawPl(+s.dataset.s)})});
+if($("#plsteps"))drawPl(0);
+/* ---------- 7 flip cards ---------- */
+var flips=[
+ {f:"📝 Resposta já está no prompt",w:"retrieval adiciona latência, custo e ruído",a:"passe os trechos direto no contexto"},
+ {f:"⚡ Dado muda a cada segundo",w:"preço, status — o índice nasce desatualizado",a:"function calling / API na hora, não índice"},
+ {f:"🔑 Busca por código exato",w:"ERR_CONN, SKU, CPF — “parecido” ≠ “igual”",a:"BM25 / keyword ou SQL WHERE (híbrido α=0)"},
+ {f:"🤏 Corpus minúsculo (<50 docs)",w:"infra de vetor não se paga",a:"grep / full-text ou tudo no prompt"},
+ {f:"🕸️ Multi-hop com garantias",w:"“CTO da empresa que comprou X?” — top-K não monta a cadeia",a:"GraphRAG / Knowledge Graph ou sub-buscas do agente"},
+ {f:"⚖️ Precisão auditável (jurídico/médico)",w:"LLM pode parafrasear errado mesmo grounded",a:"retrieval + citação de span literal + revisão humana"}
+];
+(function(){
+  var g=$("#flipgrid");if(!g)return;
+  g.innerHTML=flips.map(function(c,i){return "<div class='card' data-fl='"+i+"' style='cursor:pointer;min-height:150px'><span class='pill a'>não use RAG</span><h4>"+c.f+"</h4><p>"+c.w+"</p><p style='color:var(--cyan)'>🔄 tocar p/ ver alternativa</p></div>"}).join("");
+  $all("[data-fl]",g).forEach(function(el){el.addEventListener("click",function(){
+    var c=flips[+el.dataset.fl],open=el.dataset.open==="1";el.dataset.open=open?"0":"1";
+    el.innerHTML=open?"<span class='pill a'>não use RAG</span><h4>"+c.f+"</h4><p>"+c.w+"</p><p style='color:var(--cyan)'>🔄 tocar p/ ver alternativa</p>":"<span class='pill g'>use isto 👇</span><h4>"+c.a+"</h4><p>"+c.f+" → "+c.w+".</p><p style='color:var(--mut)'>🔄 tocar p/ voltar</p>";
+  })});
+})();
+/* ---------- 8 modelos ---------- */
+var mdata=[
+ {n:"OpenAI text-embedding-3",t:["api"],d:"1536 / 3072 dims · ctx 8192 · dimensions configurável (Matryoshka)",s:"custo-benefício; small faz ~62 mil páginas/dólar",tag:"padrão via API"},
+ {n:"Cohere embed v4 / multilingual",t:["api","pt"],d:"100+ idiomas · input_type query/document · int8/binary",s:"multilíngue + imagem/documento",tag:"pt-BR forte"},
+ {n:"Voyage 4 / code / finance / law",t:["api","pt","dom"],d:"ctx 32k · dims até 2048 · input_type",s:"modelos por domínio: código, finanças, jurídico",tag:"domínio"},
+ {n:"Jina v5-text / v5-omni",t:["api","pt"],d:"ctx 32k · Matryoshka · GGUF/MLX p/ edge · multimodal",s:"texto+imagem+áudio+vídeo no mesmo espaço",tag:"multimodal"},
+ {n:"BGE (small / m3)",t:["oss","pt"],d:"small=384 dims, leve p/ CPU · MIT",s:"rei do custo zero; m3 gera denso+sparse juntos",tag:"local grátis"},
+ {n:"E5 multilingual-e5-large",t:["oss","pt"],d:"multilíngue amplo · MIT",s:"forte em MTEB multilíngue; bom default local",tag:"local grátis"},
+ {n:"ada-002 (legado)",t:["api"],d:"1536 dims · antecessor da linha v3",s:"legado — trocar por v3",tag:"evitar"}
+];
+function drawModels(f){
+  $("#mgrid").innerHTML=mdata.filter(function(m){return f==="all"||m.t.indexOf(f)>=0}).map(function(m){
+    return "<div class='card'><span class='pill "+(m.t[0]==="oss"?"g":"i")+"'>"+m.tag+"</span><h4>"+m.n+"</h4><p>"+m.d+"<br><b>"+m.s+"</b>.</p></div>";
+  }).join("");
+}
+$all("#mfilt [data-f]").forEach(function(b){b.addEventListener("click",function(){
+  $all("#mfilt [data-f]").forEach(function(x){x.classList.remove("on");x.classList.add("ghost")});
+  b.classList.add("on");b.classList.remove("ghost");drawModels(b.dataset.f);
+})});
+if($("#mgrid"))drawModels("all");
+/* ---------- 9 stores ---------- */
+var vols=["1 mil","10 mil","500 mil","10 milhões","1 bilhão"];
+var sdata=[
+ {n:"sqlite-vec",d:"extensão SQLite · 1 arquivo · sem servidor · binding Rust",v:["do","do","do","me","no"],w:"protótipos file-based como este repo"},
+ {n:"pgvector",d:"extensão Postgres · <-> <=> <#> · HNSW/IVF · ACID + JOIN",v:["me","do","do","do","me"],w:"você já tem Postgres"},
+ {n:"Qdrant",d:"OSS em Rust + Cloud · filtros + denso/sparse · HNSW",v:["me","me","do","do","do"],w:"controle fino self-host"},
+ {n:"Weaviate",d:"híbrido BM25F+vetor (alpha) de fábrica",v:["me","do","do","do","me"],w:"híbrido sem montar na mão"},
+ {n:"Chroma",d:"OSS leve Python/JS · embutível ou Cloud",v:["do","do","me","no","no"],w:"RAG local rápido em Python"},
+ {n:"Pinecone",d:"serverless gerenciado (pago)",v:["no","me","do","do","do"],w:"não operar infra"},
+ {n:"Milvus",d:"distribuído · escala bilionária",v:["no","no","me","do","do"],w:"milhões p/ cima — overkill abaixo"}
+];
+var vlab={do:["✅ ideal","v-do"],me:["⏳ funciona","v-me"],no:["🚫 overkill/inadequado","v-no"]};
+function drawStores(){
+  var i=+$("#vol").value;$("#volv").textContent=vols[i]+" vetores";
+  $("#sgrid").innerHTML=sdata.map(function(s){
+    var v=vlab[s.v[i]];
+    return "<div class='card'><h4>"+s.n+"</h4><p>"+s.d+"<br>Quando: <b>"+s.w+"</b>.</p><p><span class='tagv "+v[1]+"'>"+v[0]+"</span></p></div>";
+  }).join("");
+}
+if($("#vol")){$("#vol").addEventListener("input",drawStores);drawStores()}
+/* ---------- 10 hibrido ---------- */
+function drawHyb(){
+  var a=+$("#alpha").value/100;$("#alphav").textContent=a.toFixed(2);
+  var rows=[{q:"🌍 “mudança climática” (conceito)",de:.91,bm:.12},{q:"💻 “ERR_TIMEOUT_CDP v2.4.1” (exato)",de:.31,bm:.97}];
+  $("#hyb").innerHTML=rows.map(function(r){
+    var c=a*r.de+(1-a)*r.bm;
+    return "<div class='bar'><div class='t'>"+r.q+"</div><div class='fill' style='width:"+Math.round(c*100)+"%'></div><div class='s'>"+c.toFixed(2)+"</div></div><p style='font-size:.72em;color:var(--dim)'>denso "+r.de.toFixed(2)+" × "+a.toFixed(2)+" + keyword "+r.bm.toFixed(2)+" × "+(1-a).toFixed(2)+"</p>";
+  }).join("");
+  $("#hybverdict").innerHTML=a>=.7?"<b style='color:var(--cyan)'>vetor domina:</b> conceito ✓ · código exato ✗ (dilui o termo raro)":a<=.3?"<b style='color:var(--amber)'>keyword domina:</b> código exato ✓ · conceito ✗ (perde “aquecimento global”)":"<b style='color:var(--green)'>zona híbrida:</b> os dois passam — fusão RRF/soma ponderada. Regra: nomes próprios, versões e SKUs pedem híbrido.";
+}
+if($("#alpha")){$("#alpha").addEventListener("input",drawHyb);drawHyb()}
+var cbt={obscura:[["Obscura",.98],["obscuro",.41],["navegador",.55]],cdp:[["CDP",.97],["API",.52],["protocolo",.60]],headless:[["headless",.99],["invisível",.44],["servidor",.38]]};
+(function(){
+  var box=$("#colbert");if(!box)return;
+  box.innerHTML=Object.keys(cbt).map(function(t){return "<span class='tok' data-ct='"+t+"'>"+t+"</span>"}).join("")+" <span style='font-size:.75em;color:var(--mut)'>← clique num token da query</span>";
+  $all("[data-ct]",box).forEach(function(el){el.addEventListener("click",function(){
+    $all("[data-ct]",box).forEach(function(x){x.classList.remove("sel")});el.classList.add("sel");
+    var t=el.dataset.ct;
+    $("#colbertout").innerHTML="doc “…Obscura via CDP em modo headless…” → "+cbt[t].map(function(p){return "<span class='tok"+(p[1]>.9?" match":"")+"'>"+p[0]+" "+p[1].toFixed(2)+"</span>"}).join("")+"<br><b style='color:var(--amber)'>MaxSim:</b> token <b>"+t+"</b> casa com o melhor do doc ("+cbt[t][0][0]+" "+cbt[t][0][1].toFixed(2)+") — match por token, não média do doc.";
+  })});
+})();
+/* ---------- 11 grafo ---------- */
+var ginfo={evx:["📄 Evidência X","tipo: documento","→ cita Obscura · → cita CLI-lib"],obs:["🧩 Obscura","tipo: ferramenta","→ mantida por levy · ← citada por Ev X"],cli:["🧩 CLI-lib","tipo: ferramenta","→ mantida por levy · ← citada por Ev X"],evy:["📄 Evidência Y","tipo: documento","→ cita CLI-lib"],levy:["👤 levy","tipo: pessoa","← mantém Obscura · ← mantém CLI-lib"]};
+$all(".gnode").forEach(function(n){n.addEventListener("click",function(){
+  $all(".gnode").forEach(function(x){x.classList.add("dim")});n.classList.remove("dim");
+  var g=ginfo[n.dataset.g];
+  $("#ginfo").innerHTML="<h4>"+g[0]+"</h4><p>"+g[1]+"<br>"+g[2]+"</p><p style='color:var(--amber)'>Resposta multi-hop: Obscura + CLI-lib compartilham mantenedor (levy) — nenhum chunk sozinho dizia isso.</p>";
+})});
+/* ---------- 12 loop ---------- */
+var li=0,ltimer=null;
+var lmsgs=["embed(pergunta) → vetor da intenção atual","recall top-K (episódios/fatos) + últimos N turnos do thread","LLM decide: responder? ferramenta/web? salvar memória?","responde + escreve de volta (store.put / append JSONL) — próximo turno enxerga"];
+function drawLoop(){
+  $all("#loopsteps .lstep").forEach(function(s,k){s.classList.toggle("on",k===li%4)});
+  $("#loopn").textContent="turno "+(Math.floor(li/4)+1)+" · passo "+(li%4+1)+"/4";
+  $("#loopmsg").textContent="→ "+lmsgs[li%4];
+}
+if($("#looprun")){$("#looprun").addEventListener("click",function(){
+  if(ltimer)return;drawLoop();
+  ltimer=setInterval(function(){li++;drawLoop();if(li>=8){clearInterval(ltimer);ltimer=null;$("#loopmsg").textContent="✅ 2 turnos completos: o turno 2 já recallou o que o turno 1 salvou. É assim que memória vetorial sobrevive ao JSONL."}},1100);
+});
+}
+if($("#loopreset")){$("#loopreset").addEventListener("click",function(){if(ltimer){clearInterval(ltimer);ltimer=null}li=0;drawLoop();$("#loopmsg").textContent="Cada turno enxerga o que o anterior aprendeu."})}
+/* ---------- 13 cenarios dedup + juiz ---------- */
+(function(){
+  var d=$("#dedupdemo");if(!d)return;
+  var pairs=[["/obscura?utm_source=x","/obscura",.98,"duplicada"],["blog A: “engine p/ agentes”","blog B: “navegador p/ automação agentica”",.94,"duplicada"],["“Obscura usa CDP”","“tabela do campeonato”",.31,"distintas"]];
+  d.innerHTML=pairs.map(function(p){
+    var dup=p[2]>.93;
+    return "<div class='bar"+(dup?"":" cut")+"'><div class='t'>"+p[0]+" × "+p[1]+"</div><div class='fill' style='width:"+Math.round(p[2]*100)+"%'></div><div class='s'>"+p[2].toFixed(2)+"</div></div>";
+  }).join("")+"<p style='font-size:.78em;color:var(--mut)'>threshold 0.93 → acima = <b>duplicada</b> (não re-sintetiza) · registre (url_a, url_b, score) p/ auditar o threshold</p>";
+})();
+if($("#judge")){$("#judge").addEventListener("click",function(){
+  var evs=["doc oficial Obscura (2026)","changelog v2.4.1","blog republicando o changelog","receita de bolo","issue GitHub sobre CDP","guia de Londres"];
+  var sum=[0,0,0];
+  $("#judgeout").innerHTML=evs.map(function(e){
+    var s=Math.floor(Math.random()*3);sum[s]++;
+    var c=["var(--pink)","var(--amber)","var(--green)"][s],l=["0 irrelevante","1 parcial","2 central"][s];
+    return "<div class='bar'><div class='t'>"+e+"</div><div class='fill' style='width:"+[8,55,100][s]+"%;background:"+c+"'></div><div class='s'>"+s+"</div></div>";
+  }).join("");
+  $("#judgeout").innerHTML+="<p style='font-size:.84em'>central: <b>"+sum[2]+"</b> → síntese · parcial: <b>"+sum[1]+"</b> → contexto · irrelevante: <b>"+sum[0]+"</b> → descarta"+(sum[2]===0?" · <b style='color:var(--amber)'>nenhuma central → buscar mais / reformular query</b>":"")+"</p>";
+})}
+/* ---------- 14 matriz ---------- */
+var mx=[
+ [1,"Dedup URL + hash (sem vetor)","P","Alto","do","canonicalizar URL + hash do texto; resolve 80% sem embedding"],
+ [2,"Rerank antes da síntese","P–M","Alto","do","heurística primeiro, reranker real com o harness (5)"],
+ [3,"Dedup semântica entre Turnos","M","Médio-Alto","do","embedding por Evidência, sim > 0.93; vetor em .jsonl ou sqlite-vec"],
+ [4,"Cache semântico de Pesquisas","M","Médio","later","só com política de frescura por fetched_at"],
+ [5,"Harness de avaliação","M","Alto ⬆","do","20–30 perguntas; recall@K + fidelidade — multiplica todos os outros"],
+ [6,"Memória vetorial de Sessão","M–G","Médio","later","adie até Sessões longas doerem"],
+ [7,"Busca híbrida BM25+vetor","M","Médio-Baixo","later","só se código/versão dominarem as queries"],
+ [8,"sqlite-vec local","M","Médio","later","caminho natural se o item 3 crescer; continua 1 arquivo"],
+ [9,"Qdrant/pgvector/Pinecone…","G","Baixo hoje","no","nenhum volume atual justifica; reavaliar com milhões"],
+ [10,"GraphRAG / Knowledge Graph","G","Baixo hoje","no","caro, em manutenção; sub-buscas do loop já cobrem"]
+];
+var mxl={do:"✅ faça",later:"⏳ adie",no:"🚫 não fazer"};
+function drawMx(f){
+  $("#mxbody").innerHTML=mx.filter(function(r){return f==="all"||r[4]===f}).map(function(r){
+    return "<tr><td>"+r[0]+"</td><td><b>"+r[1]+"</b><br><span style='color:var(--mut)'>"+r[5]+"</span></td><td>"+r[2]+"</td><td>"+r[3]+"</td><td><span class='tagv "+(r[4]==="do"?"v-do":r[4]==="later"?"v-me":"v-no")+"'>"+mxl[r[4]]+"</span></td></tr>";
+  }).join("");
+}
+$all("#mxfilt [data-f]").forEach(function(b){b.addEventListener("click",function(){
+  $all("#mxfilt [data-f]").forEach(function(x){x.classList.remove("on");x.classList.add("ghost")});
+  b.classList.add("on");b.classList.remove("ghost");drawMx(b.dataset.f);
+})});
+if($("#mxbody"))drawMx("all");
+/* ---------- 15 glossario ---------- */
+var gloss=[["Embedding","endereço numérico do significado; textos parecidos = vetores próximos"],["Vector store","guarda vetores e busca vizinhos: sqlite-vec, pgvector, Qdrant, Chroma"],["Chunking","fatiar em pedaços de 1 ideia, com overlap e metadados"],["Chunk / Node","cada pedaço indexado (LlamaIndex chama de Node)"],["Retrieval","trazer K candidatos rápido — recall alto, precisão média"],["Rerank","reordenar com modelo preciso: Cohere Rerank, bge-reranker"],["Grounded generation","responder SÓ com os trechos + citar; senão “não encontrei”"],["Hybrid search","vetor (sentido) + BM25 (exato); α controla o peso"],["Sparse / SPLADE","vetor de pesos por palavra — BM25 aprendido"],["ColBERT","1 vetor por token + MaxSim"],["Knowledge Graph / GraphRAG","grafo de entidades p/ multi-hop; poderoso e caro"],["DPR","ancestral do retrieval denso — Karpukhin et al. 2020, arxiv 2004.04906"],["RAG (paper)","Lewis et al. 2020 — arxiv 2005.11401"],["MTEB","benchmark público de embeddings"],["Cache semântico","reutilizar resposta de pergunta parecida (com validade!)"],["Memória (agente)","passado relevante no prompt: thread vs store"],["HNSW","índice aproximado de vizinhos em grafo"],["Cosine similarity","similaridade pelo ângulo; = dot/L2 se normalizado"],["BM25","keyword clássico: frequência com saturação + tamanho do doc"]];
+function drawGloss(q){
+  q=(q||"").toLowerCase();
+  $("#ggrid").innerHTML=gloss.filter(function(g){return !q||g[0].toLowerCase().indexOf(q)>=0||g[1].toLowerCase().indexOf(q)>=0}).map(function(g){
+    return "<div class='gcard'><b>"+g[0]+"</b><p>"+g[1]+"</p></div>";
+  }).join("")||"<p style='color:var(--mut)'>nada encontrado — tente “vetor”, “rerank”, “grafo”…</p>";
+}
+if($("#gsearch")){$("#gsearch").addEventListener("input",function(e){drawGloss(e.target.value)});drawGloss("")}
+/* ---------- 16 quiz ---------- */
+var quiz=[
+ {q:"O que é um embedding?",o:["Uma lista de números que captura o significado do texto","Um arquivo ZIP comprimido","Um hash criptográfico como SHA-256"],a:0},
+ {q:"Qual a ordem do trio do RAG?",o:["rerank → retrieval → geração","retrieval (top-50) → rerank (top-5) → geração grounded","geração → retrieval → rerank"],a:1},
+ {q:"Query “ERR_TIMEOUT_CDP v2.4.1”: o que acerta?",o:["vetor denso puro","BM25 / keyword (termo exato)","aumentar o top-K para 500"],a:1},
+ {q:"Troquei o modelo de embedding. E agora?",o:["nada — vetores são universais","reindexar tudo com o mesmo modelo","só reindexar a query"],a:1},
+ {q:"Fase 0 neste repo (sem ML)?",o:["instalar Qdrant + GraphRAG","dedup URL+hash + top-N determinístico","treinar um LLM próprio"],a:1}
+];
+var qans=[];
+function drawQuiz(){
+  $("#quizbox").innerHTML=quiz.map(function(qq,i){
+    return "<div class='q'><p>"+(i+1)+". "+qq.q+"</p>"+qq.o.map(function(o,j){
+      var st=qans[i]!==undefined?(j===qq.a?"ok":(qans[i]===j?"bad":"")):"";
+      return "<label class='"+st+"' data-qq='"+i+"' data-oo='"+j+"'>"+(j===qq.a&&qans[i]!==undefined?"✅ ":qans[i]===j&&j!==qq.a?"❌ ":"○ ")+o+"</label>";
+    }).join("")+"</div>";
+  }).join("");
+  $all("#quizbox [data-qq]").forEach(function(l){l.addEventListener("click",function(){
+    if(qans[+l.dataset.qq]!==undefined)return;
+    qans[+l.dataset.qq]=+l.dataset.oo;drawQuiz();
+    if(qans.filter(function(x){return x!==undefined}).length===quiz.length){
+      var ok=quiz.filter(function(qq,i){return qans[i]===qq.a}).length;
+      $("#quizscore").style.display="block";
+      $("#quizkpi").textContent=ok+"/5";
+      $("#quizmsg").textContent=ok===5?"🏆 perfeito — pode explicar RAG em voz alta agora.":ok>=3?"💪 sólido — revise as que errou clicando nas telas.":"🌱 releia as telas 1, 5 e 10 e tente de novo.";
+    }
+  })});
+}
+if($("#quizretry")){$("#quizretry").addEventListener("click",function(){qans=[];$("#quizscore").style.display="none";drawQuiz()})}
+if($("#quizbox"))drawQuiz();
+})();
+</script>
+</main>
+</div>
+</body>
+</html>
