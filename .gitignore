@@ -5,3 +5,9 @@ cache/
 .obscura/
 *.log
 .DS_Store
+
+# Ensino paralelo — exclusão permanente
+/assets/
+/lessons/
+/learning-records/
+/reference/
