@@ -12,3 +12,6 @@ cache/
 /learning-records/
 /reference/
 docs/research/embeddings-systems/
+
+# Local Planner/Implementer output, never committed (#20 Part A)
+.plans/
