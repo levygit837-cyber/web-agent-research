@@ -4,7 +4,9 @@
 //! model first (`GATEWAY_LIVE_MODEL`, else `glm-5p2`, else `mimo-v2.5-free` on
 //! 429) and makes exactly one attempt per model — never a probe loop.
 
-use web_agent_research::shared::gateway::{ChatMessage, Gateway, GatewayConfig, GatewayError};
+use web_agent_research::shared::gateway::{
+    ChatMessage, Gateway, GatewayConfig, GatewayError, ToolChoice, ToolDef,
+};
 
 fn candidate_models() -> Vec<String> {
     let mut models = Vec::new();
@@ -67,6 +69,77 @@ async fn live_round_trip() -> anyhow::Result<()> {
     }
     Err(anyhow::anyhow!(
         "all live models rate-limited: {}",
+        last_rate_limit.map_or("no attempts ran".to_owned(), |e| e.to_string())
+    ))
+}
+
+#[tokio::test]
+async fn live_tools_round_trip() -> anyhow::Result<()> {
+    if std::env::var("GATEWAY_LIVE").as_deref() != Ok("1") {
+        eprintln!("skipping live tools test (GATEWAY_LIVE != 1)");
+        return Ok(());
+    }
+    let mut base = GatewayConfig::from_env()?;
+    let tools = vec![ToolDef {
+        name: "get_time".to_owned(),
+        description: "Returns the current time.".to_owned(),
+        parameters: serde_json::json!({"type": "object", "properties": {}}),
+    }];
+    let messages = [ChatMessage {
+        role: "user".to_owned(),
+        content: "What time is it? Use the get_time tool.".to_owned(),
+    }];
+    let mut last_rate_limit: Option<GatewayError> = None;
+    for model in candidate_models() {
+        base.model.clone_from(&model);
+        let gateway = Gateway::new(base.clone());
+        // Exactly one attempt per model; a 429 moves to the next model.
+        match gateway
+            .chat_with_tools(&messages, &tools, Some(ToolChoice::Auto))
+            .await
+        {
+            Ok(reply) => {
+                eprintln!(
+                    "live tools reply: model={} finish_reason={:?} tool_calls={} thinking_len={} usage={:?}",
+                    model,
+                    reply.finish_reason,
+                    reply.tool_calls.len(),
+                    reply.thinking.len(),
+                    reply.usage,
+                );
+                for call in &reply.tool_calls {
+                    eprintln!(
+                        "live tool_call: id={} name={} arguments={}",
+                        call.id, call.name, call.arguments
+                    );
+                }
+                assert!(
+                    !reply.tool_calls.is_empty(),
+                    "expected at least one tool call, got {:?}",
+                    reply
+                );
+                let call = reply
+                    .tool_calls
+                    .iter()
+                    .find(|c| c.name == "get_time")
+                    .expect("expected a get_time tool call");
+                call.parsed_arguments().map_err(|err| {
+                    anyhow::anyhow!("get_time arguments are not valid JSON: {err}")
+                })?;
+                return Ok(());
+            }
+            Err(err @ GatewayError::RateLimited { .. }) => {
+                eprintln!(
+                    "live tools attempt with model={} rate-limited: {}; trying next",
+                    model, err
+                );
+                last_rate_limit = Some(err);
+            }
+            Err(err) => return Err(anyhow::anyhow!("live gateway tools chat failed: {err}")),
+        }
+    }
+    Err(anyhow::anyhow!(
+        "all live tools models rate-limited: {}",
         last_rate_limit.map_or("no attempts ran".to_owned(), |e| e.to_string())
     ))
 }

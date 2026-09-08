@@ -24,6 +24,68 @@ pub(crate) struct ChatRequest {
     pub(crate) reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tools: Option<Vec<ToolDef>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_choice: Option<ToolChoice>,
+}
+
+/// One callable function offered to the model. Serializes to the OpenAI
+/// `{type: "function", function: {name, description, parameters}}` shape;
+/// `parameters` is a real JSON Schema value and is always sent.
+#[derive(Debug, Clone)]
+pub struct ToolDef {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+/// How the model may use the offered tools: automatic, none, or one named
+/// function (`{type: "function", function: {name}}` on the wire).
+#[derive(Debug, Clone)]
+pub enum ToolChoice {
+    Auto,
+    None,
+    Named(String),
+}
+
+impl serde::Serialize for ToolDef {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut outer = serializer.serialize_map(Some(2))?;
+        outer.serialize_entry("type", "function")?;
+        outer.serialize_entry(
+            "function",
+            &serde_json::json!({
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            }),
+        )?;
+        outer.end()
+    }
+}
+
+impl serde::Serialize for ToolChoice {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Auto => serializer.serialize_str("auto"),
+            Self::None => serializer.serialize_str("none"),
+            Self::Named(name) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("type", "function")?;
+                map.serialize_entry("function", &serde_json::json!({"name": name}))?;
+                map.end()
+            }
+        }
+    }
 }
 
 impl ChatRequest {
@@ -31,11 +93,22 @@ impl ChatRequest {
         params: &super::config::ResolvedParams,
         messages: Vec<ChatMessage>,
     ) -> Self {
+        Self::from_resolved_with_tools(params, messages, None, None)
+    }
+
+    pub(crate) fn from_resolved_with_tools(
+        params: &super::config::ResolvedParams,
+        messages: Vec<ChatMessage>,
+        tools: Option<Vec<ToolDef>>,
+        tool_choice: Option<ToolChoice>,
+    ) -> Self {
         Self {
             model: params.model.clone(),
             messages,
             reasoning_effort: params.reasoning_effort.clone(),
             max_completion_tokens: params.max_tokens,
+            tools,
+            tool_choice,
         }
     }
 }
@@ -85,7 +158,7 @@ pub(crate) struct ResponseMessage {
     // ... plus detail blocks.
     #[serde(default, deserialize_with = "null_to_default")]
     pub(crate) reasoning_details: Vec<ReasoningDetail>,
-    // Present on the wire; denied, never executed (see `parse_reply`).
+    // Requested function calls; collected into `LlmReply::tool_calls`.
     #[serde(default, deserialize_with = "null_to_default")]
     pub(crate) tool_calls: Vec<ToolCall>,
 }
@@ -100,20 +173,17 @@ pub(crate) struct ReasoningDetail {
     pub(crate) text: Option<String>,
 }
 
-// Wire shape only: parsed solely to deny tool calls, never executed.
-#[allow(dead_code)]
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct ToolCall {
     #[serde(default)]
     pub(crate) id: Option<String>,
     #[serde(default, rename = "type")]
+    #[allow(dead_code)]
     pub(crate) kind: Option<String>,
     #[serde(default)]
     pub(crate) function: Option<ToolFunction>,
 }
 
-// Wire shape only: see `ToolCall`.
-#[allow(dead_code)]
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct ToolFunction {
     #[serde(default)]
@@ -147,9 +217,25 @@ pub struct LlmReply {
     pub thinking: String,
     /// Assistant message text. Never None: null content becomes "".
     pub output: String,
-    /// Wire `finish_reason` verbatim ("stop", "length", ...). None if absent.
+    /// Wire `finish_reason` verbatim ("stop", "length", "tool_calls", ...). None if absent.
     pub finish_reason: Option<String>,
+    /// Requested tool calls, in wire order. Empty when the model answered
+    /// with text; existing text-only consumers ignore this field.
+    pub tool_calls: Vec<RequestedToolCall>,
     pub usage: TokenUsage,
+}
+
+/// One function call requested by the model. The gateway never executes it;
+/// `arguments` is the raw JSON string; [`RequestedToolCall::parsed_arguments`]
+/// parses it on demand.
+#[derive(Debug, Clone, Default)]
+pub struct RequestedToolCall {
+    /// Wire `id` (`""` when absent).
+    pub id: String,
+    /// Requested function name (`""` when absent, but still returned).
+    pub name: String,
+    /// Raw arguments JSON string (`"{}"` when absent).
+    pub arguments: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -159,6 +245,14 @@ pub struct TokenUsage {
     pub total_tokens: u64,
     /// From nested `completion_tokens_details`; 0 if absent.
     pub reasoning_tokens: u64,
+}
+
+impl RequestedToolCall {
+    /// Parse the raw `arguments` string as JSON. Invalid JSON is a
+    /// non-retryable [`GatewayError::Parse`].
+    pub fn parsed_arguments(&self) -> Result<serde_json::Value, GatewayError> {
+        serde_json::from_str(&self.arguments).map_err(|err| GatewayError::Parse(err.to_string()))
+    }
 }
 
 pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> {
@@ -171,9 +265,23 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
     if let Some(text) = msg.refusal.as_deref().filter(|s| !s.is_empty()) {
         return Err(GatewayError::Refused(text.to_owned()));
     }
-    if !msg.tool_calls.is_empty() {
-        return Err(GatewayError::ToolCallsUnsupported);
-    }
+    let tool_calls = msg
+        .tool_calls
+        .iter()
+        .map(|call| RequestedToolCall {
+            id: call.id.clone().unwrap_or_default(),
+            name: call
+                .function
+                .as_ref()
+                .and_then(|f| f.name.clone())
+                .unwrap_or_default(),
+            arguments: call
+                .function
+                .as_ref()
+                .and_then(|f| f.arguments.clone())
+                .unwrap_or_else(|| "{}".to_owned()),
+        })
+        .collect();
     let mut parts: Vec<&str> = Vec::new();
     for part in [msg.reasoning_content.as_deref(), msg.reasoning.as_deref()] {
         if let Some(text) = part.filter(|s| !s.is_empty()) {
@@ -197,6 +305,7 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
         thinking: parts.join("\n"),
         output: msg.content.unwrap_or_default(),
         finish_reason: choice.finish_reason,
+        tool_calls,
         usage,
     })
 }
@@ -204,6 +313,7 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::gateway::config::ResolvedParams;
 
     fn parse(fixture: &str) -> Result<LlmReply, GatewayError> {
         let resp: ChatResponse = serde_json::from_str(fixture).expect("fixture must deserialize");
@@ -312,25 +422,123 @@ mod tests {
     }
 
     #[test]
-    fn tool_calls_denied() {
-        let err = parse(
+    fn tool_calls_returned() {
+        let reply = parse(
             r#"{
                 "choices": [{
                     "message": {
                         "role": "assistant",
-                        "content": "answer",
+                        "content": "",
+                        "reasoning_content": "calling get_time",
                         "tool_calls": [{
-                            "id": "call_1",
+                            "id": "chatcmpl-tool-abc123",
                             "type": "function",
-                            "function": {"name": "search", "arguments": "{}"}
+                            "function": {"name": "get_time", "arguments": "{}"}
                         }]
                     },
                     "finish_reason": "tool_calls"
                 }]
             }"#,
         )
-        .expect_err("tool calls must be denied");
-        assert!(matches!(err, GatewayError::ToolCallsUnsupported));
+        .expect("tool calls must parse");
+        assert_eq!(reply.finish_reason.as_deref(), Some("tool_calls"));
+        assert_eq!(reply.output, "");
+        assert_eq!(reply.thinking, "calling get_time");
+        assert_eq!(reply.tool_calls.len(), 1);
+        assert_eq!(reply.tool_calls[0].id, "chatcmpl-tool-abc123");
+        assert_eq!(reply.tool_calls[0].name, "get_time");
+        assert_eq!(reply.tool_calls[0].arguments, "{}");
+        assert_eq!(
+            reply.tool_calls[0]
+                .parsed_arguments()
+                .expect("arguments must parse"),
+            serde_json::json!({})
+        );
+    }
+
+    #[test]
+    fn refusal_wins_over_tool_calls() {
+        let err = parse(
+            r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "refusal": "I cannot help with that",
+                        "tool_calls": [{
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{}"}
+                        }]
+                    },
+                    "finish_reason": "stop"
+                }]
+            }"#,
+        )
+        .expect_err("refusal must win over tool calls");
+        assert!(matches!(err, GatewayError::Refused(text) if text == "I cannot help with that"));
+    }
+
+    #[test]
+    fn empty_tool_calls_is_text_answer() {
+        let reply = parse(
+            r#"{
+                "choices": [{
+                    "message": {"role": "assistant", "content": "answer"},
+                    "finish_reason": "stop"
+                }]
+            }"#,
+        )
+        .expect("text answer must parse");
+        assert!(reply.tool_calls.is_empty());
+        assert_eq!(reply.output, "answer");
+    }
+
+    #[test]
+    fn invalid_tool_arguments_is_parse_error() {
+        let reply = parse(
+            r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{bad json"}
+                        }]
+                    },
+                    "finish_reason": "tool_calls"
+                }]
+            }"#,
+        )
+        .expect("invalid arguments still parse at the wire level");
+        assert_eq!(reply.tool_calls.len(), 1);
+        let err = reply.tool_calls[0]
+            .parsed_arguments()
+            .expect_err("invalid arguments JSON must fail");
+        assert!(matches!(err, GatewayError::Parse(_)));
+    }
+
+    #[test]
+    fn missing_tool_fields_default() {
+        let reply = parse(
+            r#"{
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{"function": {}}]
+                    },
+                    "finish_reason": "tool_calls"
+                }]
+            }"#,
+        )
+        .expect("missing tool fields must parse");
+        assert_eq!(reply.tool_calls.len(), 1);
+        assert_eq!(reply.tool_calls[0].id, "");
+        assert_eq!(reply.tool_calls[0].name, "");
+        assert_eq!(reply.tool_calls[0].arguments, "{}");
     }
 
     #[test]
@@ -367,5 +575,88 @@ mod tests {
         assert_eq!(bare.usage.completion_tokens, 0);
         assert_eq!(bare.usage.total_tokens, 0);
         assert_eq!(bare.usage.reasoning_tokens, 0);
+    }
+    #[test]
+    fn request_omits_tools_when_none() {
+        let params = ResolvedParams {
+            model: "m".to_owned(),
+            reasoning_effort: None,
+            max_tokens: None,
+        };
+        let body = serde_json::to_value(ChatRequest::from_resolved_with_tools(
+            &params,
+            vec![],
+            None,
+            None,
+        ))
+        .expect("request must serialize");
+        let obj = body.as_object().expect("body is an object");
+        assert!(
+            !obj.contains_key("tools"),
+            "absent tools must be omitted, got {body}"
+        );
+        assert!(
+            !obj.contains_key("tool_choice"),
+            "absent tool_choice must be omitted, got {body}"
+        );
+    }
+
+    #[test]
+    fn request_serializes_tools_and_auto_choice() {
+        let params = ResolvedParams {
+            model: "m".to_owned(),
+            reasoning_effort: None,
+            max_tokens: None,
+        };
+        let tools = vec![ToolDef {
+            name: "get_time".to_owned(),
+            description: "Returns the current time.".to_owned(),
+            parameters: serde_json::json!({"type": "object", "properties": {}}),
+        }];
+        let body = serde_json::to_value(ChatRequest::from_resolved_with_tools(
+            &params,
+            vec![],
+            Some(tools),
+            Some(ToolChoice::Auto),
+        ))
+        .expect("request must serialize");
+        assert_eq!(
+            body["tools"],
+            serde_json::json!([{
+                "type": "function",
+                "function": {
+                    "name": "get_time",
+                    "description": "Returns the current time.",
+                    "parameters": {"type": "object", "properties": {}}
+                }
+            }]),
+            "tools must use the OpenAI function shape, got {body}"
+        );
+        assert_eq!(body["tool_choice"], serde_json::json!("auto"));
+        assert_eq!(
+            serde_json::to_value(ToolChoice::None).expect("choice must serialize"),
+            serde_json::json!("none")
+        );
+    }
+
+    #[test]
+    fn request_serializes_named_choice() {
+        let params = ResolvedParams {
+            model: "m".to_owned(),
+            reasoning_effort: None,
+            max_tokens: None,
+        };
+        let body = serde_json::to_value(ChatRequest::from_resolved_with_tools(
+            &params,
+            vec![],
+            Some(vec![]),
+            Some(ToolChoice::Named("get_time".to_owned())),
+        ))
+        .expect("request must serialize");
+        assert_eq!(
+            body["tool_choice"],
+            serde_json::json!({"type": "function", "function": {"name": "get_time"}}),
+            "named choice must use the OpenAI function shape, got {body}"
+        );
     }
 }
