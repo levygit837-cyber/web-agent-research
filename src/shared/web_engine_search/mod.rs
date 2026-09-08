@@ -1,6 +1,6 @@
 //! Fetch-only web search engine: DDG + Startpage over plain HTTP.
 //!
-//! Small Interface (`search_multi`, five pure helpers, two `#[doc(hidden)]`
+//! Small Interface (`search_multi`, eleven pure helpers, three `#[doc(hidden)]`
 //! base-URL overrides) over provider legs (`ddg`, `startpage`), merge
 //! (`dedup`), fan-out (`fanout`) and codecs (`decode`). Callers cross only
 //! this root; provider forms and deadlines stay inside.
@@ -17,8 +17,10 @@ pub use ddg::{
     DDG_REFERER,
 };
 pub use dedup::{dedup_key, merge_sources};
+#[doc(hidden)]
 pub use fanout::search_multi_with_bases;
 pub use fanout::{all_failed_message, search_multi};
+#[doc(hidden)]
 pub use startpage::startpage_search_with_base;
 pub use startpage::{
     is_startpage_challenge, parse_search_form_inputs, parse_startpage_html, sanitize_startpage_url,
