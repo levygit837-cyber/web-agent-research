@@ -19,11 +19,3 @@ _Avoid_: passo, iteração, ciclo
 **Evidência**:
 Conteúdo extraído da web com URL fonte e momento da coleta, usado na síntese.
 _Avoid_: fonte, documento, snippet, chunk
-
-**Modo**:
-Forma de execução de uma Pesquisa: `single` (um Turno, sem fan-out), `paralelo` (fan-out determinístico de N queries) ou `deep` (loop orchestrator-workers com re-planejamento por Turno).
-_Avoid_: workflow, estratégia
-
-**Síntese**:
-Resumo explicativo final das Evidências de uma Pesquisa, em tamanho `pequeno`, `médio`, `grande` ou `deep`.
-_Avoid_: relatório, sumário
