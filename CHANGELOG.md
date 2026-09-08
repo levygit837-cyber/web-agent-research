@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `AGENTS.md`, README intro, and the PR template rewritten in English; repo content stays English, chat replies follow the session language.
+
 ## [0.1.0] - 2026-09-08
 
 First versioned release: CLI prototype scaffold with the domain core in place.

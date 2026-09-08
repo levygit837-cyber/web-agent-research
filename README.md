@@ -1,6 +1,6 @@
 # web-agent-research
 
-CLI prototype of a multi-turn web research agent on the [Obscura](https://github.com/h4ckf0r0day/obscura) engine, evolving into an API without rewrite.
+CLI prototype of a multi-turn web research agent that extracts and synthesizes multiple pages on the [Obscura](https://github.com/h4ckf0r0day/obscura) engine, evolving into an API without rewrite.
 
 Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 

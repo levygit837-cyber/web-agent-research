@@ -1,15 +1,13 @@
 # AGENTS.md
 
-Prosa sempre em pt-BR; termos técnicos em inglês (crate, lib, handler, extractor).
-
-Exception: `CONTEXT.md`, `docs/adr/` and all code/comments/identifiers are in English (owner decision, 2026-09-08) — user-facing chat stays in pt-BR.
+Write all repo content in English: docs, code, comments, identifiers, commits, issues, PRs. Chat replies follow the session language; files stay English.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues vivem no GitHub Issues do repo via `gh`. See `docs/agents/issue-tracker.md`.
+GitHub issues hold issues and PRDs, operated via `gh`. Read `docs/agents/issue-tracker.md` when creating, reading, listing, commenting on, labeling, closing, or triaging an issue or PR.
 
 ### Domain docs
 
-Repo single-context: glossário em `CONTEXT.md`, decisões em `docs/adr/`. See `docs/agents/domain.md`.
+Single-context repo: `CONTEXT.md` defines the glossary, `docs/adr/` records decisions. Read `docs/agents/domain.md` when exploring code, naming a domain concept, or resolving a decision conflict.
