@@ -91,7 +91,7 @@ impl Gateway {
     }
 
     /// Test seam: caller-supplied HTTP client (e.g. short timeouts).
-    pub fn with_client(config: GatewayConfig, client: reqwest::Client) -> Self {
+    pub(crate) fn with_client(config: GatewayConfig, client: reqwest::Client) -> Self {
         Self { config, client }
     }
 
