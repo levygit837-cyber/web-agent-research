@@ -1,7 +1,9 @@
-//! Núcleo do agente de pesquisa (Pesquisa → Sessão → Turno → Evidência).
+//! Research agent core (Research → Session → Turn → Evidence).
 //!
-//! O binário em `src/main.rs` é só casca fina de CLI; toda lógica de
-//! domínio mora aqui para a futura API HTTP (Axum) reutilizar sem rewrite.
+//! The binary in `src/main.rs` is a thin CLI shell; all domain logic
+//! lives here so the future HTTP API (Axum) can reuse it without rewrite.
 
-/// Versão do formato JSONL de Sessão. Quebrar compatibilidade exige bump + migração.
+/// Session JSONL format version. Breaking compat requires bump + migration.
 pub const SESSION_FORMAT_VERSION: u32 = 1;
+
+pub mod shared;

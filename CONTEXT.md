@@ -1,21 +1,29 @@
 # Web Agent Research
 
-Protótipo CLI de agente multi-turno para pesquisa na web sobre a engine Obscura, que evolui para API.
+CLI prototype of a multi-turn web research agent on the Obscura engine, evolving into an API.
 
 ## Language
 
-**Pesquisa**:
-Objetivo de pesquisa do usuário executado pelo agente até síntese final.
-_Avoid_: query, tarefa, job
+**Research**:
+User's research goal executed by the agent until final synthesis.
+_Avoid_: query, task, job
 
-**Sessão**:
-Execução multi-turno de uma Pesquisa, com histórico recuperável de turnos.
-_Avoid_: conversa, thread, run
+**Session**:
+Multi-turn execution of a Research, with recoverable turn history.
+_Avoid_: conversation, thread, run
 
-**Turno**:
-Uma iteração do loop planejar → buscar → ler → sintetizar dentro de uma Sessão.
-_Avoid_: passo, iteração, ciclo
+**Turn**:
+One iteration of the plan → search → read → synthesize loop inside a Session.
+_Avoid_: step, iteration, cycle
 
-**Evidência**:
-Conteúdo extraído da web com URL fonte e momento da coleta, usado na síntese.
-_Avoid_: fonte, documento, snippet, chunk
+**Evidence**:
+Web-extracted content with source URL and collection time, used in synthesis.
+_Avoid_: source, document, snippet, chunk
+
+**Mode**:
+Execution shape of a Research: `search` (agent loop over search → fetch → synthesize) or `deep` (same loop with page interaction and re-planning).
+_Avoid_: workflow, strategy
+
+**Synthesis**:
+Final explanatory summary of a Research's Evidence, sized `small`, `medium`, `large` or `deep`.
+_Avoid_: report
