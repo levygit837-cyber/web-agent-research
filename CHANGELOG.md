@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Fetch-only search tools (`shared/tools/search.rs` + `shared/types/search.rs`): DuckDuckGo HTML POST (form `q`/`kl`/`df`/`b`, `s`+`vqd` continuation, regex parse) and Startpage (`sc`-token flow with direct-GET fallback, DOM parse), parallel multi-query fan-out with `dedup_key` + consensus `merge_sources`, `SearchProviderError` mapping (429 challenge / 504 timeout / 503 upstream + `AllFailed`), and a validated agent tool schema.
+
 ### Changed
 
 - `AGENTS.md`, README intro, and the PR template rewritten in English; repo content stays English, chat replies follow the session language.
