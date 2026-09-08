@@ -3,6 +3,7 @@
 //! are engines every slice consumes; the rest follows the 2+ rule:
 //! born for one Mode, stays in the slice; served a second, moves here.
 pub mod agent_loop;
+pub mod gateway;
 pub mod obscura;
 pub mod prompts;
 pub mod session;
