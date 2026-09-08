@@ -5,8 +5,7 @@
 url="$2"
 case "$url" in
   *slow*)
-    sleep 5
-    printf '# Title\n\nbody for %s' "$url"
+    exec sleep 5
     ;;
   *blocked*)
     printf 'access forbidden (bot denied)' >&2
