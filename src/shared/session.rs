@@ -61,11 +61,29 @@ fn format_timestamp(secs: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::format_timestamp;
+    use super::{format_timestamp, Evidence};
 
     #[test]
     fn known_timestamps_format_as_rfc3339_utc() {
         assert_eq!(format_timestamp(0), "1970-01-01T00:00:00Z");
         assert_eq!(format_timestamp(1_788_825_600), "2026-09-08T00:00:00Z");
+        assert_eq!(format_timestamp(951_782_400), "2000-02-29T00:00:00Z");
+    }
+
+    #[test]
+    fn evidence_new_stamps_plausible_utc_time() {
+        let ev = Evidence::new("https://example.com/x".to_string(), "body".to_string());
+        // Fixed-width RFC 3339 UTC sorts lexicographically == chronologically,
+        // so loose bounds pin the clock without an injectable source.
+        assert!(
+            ev.collected_at >= "2026-01-01T00:00:00Z".to_string(),
+            "collected_at = {}",
+            ev.collected_at
+        );
+        assert!(
+            ev.collected_at < "2027-06-01T00:00:00Z".to_string(),
+            "collected_at = {}",
+            ev.collected_at
+        );
     }
 }
