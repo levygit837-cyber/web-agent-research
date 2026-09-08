@@ -33,6 +33,7 @@ CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build) a
 - `docs/adr/` — architecture decisions
 - `docs/agents/` — engineering skills config (issue tracker, domain docs)
 - `docs/research/` — supporting research
+- `CHANGELOG.md` — version history (Keep a Changelog + SemVer)
 
 ## Issues
 
