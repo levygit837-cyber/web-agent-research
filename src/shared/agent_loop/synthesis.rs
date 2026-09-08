@@ -6,22 +6,16 @@
 
 use crate::shared::types::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnswerError {
-    pub reason: String,
-}
-
-impl AnswerError {
-    pub fn empty() -> Self {
-        Self {
-            reason: "empty answer block".to_owned(),
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AnswerError {
+    EmptyAnswer,
 }
 
 impl std::fmt::Display for AnswerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.reason)
+        match self {
+            Self::EmptyAnswer => write!(f, "empty answer block"),
+        }
     }
 }
 
@@ -134,11 +128,9 @@ fn bullet_text(line: &str) -> Option<String> {
     let text = line[digits + 2..].trim();
     (!text.is_empty()).then(|| text.to_owned())
 }
-
-/// Parse a tool-free FINAL answer into typed [`Synthesis`].
 pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis, AnswerError> {
     if body.trim().is_empty() {
-        return Err(AnswerError::empty());
+        return Err(AnswerError::EmptyAnswer);
     }
     let citations = dedupe_links(scan_links(body));
 
@@ -281,7 +273,7 @@ mod tests {
         for raw in ["", "   ", "\n\t \n"] {
             let err = parse_answer(raw, SynthesisSize::Medium).expect_err("empty body must fail");
             assert_eq!(err.to_string(), "empty answer block");
-            assert_eq!(err, AnswerError::empty());
+            assert_eq!(err, AnswerError::EmptyAnswer);
         }
     }
 
