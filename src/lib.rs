@@ -8,3 +8,8 @@ pub const SESSION_FORMAT_VERSION: u32 = 1;
 
 pub mod shared;
 pub mod slices;
+
+pub use slices::search::{
+    render, run_research, CitationDTO, ResearchError, ResearchRequest, ResearchResponse,
+    SynthesisDTO, ThemeDTO, UsageDTO,
+};
