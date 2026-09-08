@@ -24,16 +24,21 @@ pub struct Obscura {
 }
 
 impl Obscura {
-    /// Production handle: `obscura` on PATH, 30 s per-fetch timeout.
+    /// Production handle: `obscura` on PATH, 60 s per-fetch timeout (headroom
+    /// over the CLI's own 30 s navigation ceiling plus the 5 s adaptive settle,
+    /// mirroring `scrape`'s 60 s per-URL precedent).
     pub fn new(binary: PathBuf, timeout: Duration) -> Self;
 
-    /// Spawn `obscura fetch --dump markdown --quiet <normalized-url>`,
+    /// Spawn `obscura fetch <normalized-url> --dump markdown --quiet`,
     /// collect stdout as markdown, classify failures per §3.
-    pub async fn fetch_markdown(&self, raw_url: &str) -> Result<FetchedMarkdown, FetchError>;
+    /// Relies on CLI defaults: `--wait-until load`, adaptive settle when
+    /// `--wait` is omitted. The 60 s engine timeout stays above the CLI's
+    /// internal 30 s navigation ceiling + 5 s settle so a slow-but-healthy
+    /// fetch is not misclassified as `Timeout`.
 }
 
 impl Default for Obscura {
-    /// `Obscura { binary: "obscura".into(), timeout: Duration::from_secs(30) }`.
+    /// `Obscura { binary: "obscura".into(), timeout: Duration::from_secs(60) }`.
     fn default() -> Self;
 }
 
@@ -52,11 +57,15 @@ Rules:
 - **Normalization**: the URL passed to the child and stored in
   `FetchedMarkdown::url` is the parsed URL re-serialized (`Url::to_string`),
   so `Evidence.source_url` is canonical.
-- **Argv** (exact, in order): `fetch`, `--dump`, `markdown`, `--quiet`,
-  `<normalized-url>`. No stdin. Stdout = markdown bytes; stderr = diagnostics.
-- **Timeout**: `tokio::time::timeout(self.timeout, child.wait_with_output())`;
-  on expiry, kill the child (`child.kill().await`) and return
-  `FetchError::Timeout`.
+- **Argv** (exact, in order): `fetch`, `<normalized-url>`, `--dump`, `markdown`,
+  `--quiet`. URL is positional first, flags after (upstream default pipeline
+  order; `--quiet` keeps stdout payload-only). No stdin. Stdout = markdown
+  bytes; stderr = diagnostics.
+- **Timeout**: spawn with `kill_on_drop(true)`, then
+  `tokio::time::timeout(self.timeout, child.wait_with_output())`; on expiry the
+  future is dropped and the drop kills the child — return `FetchError::Timeout`.
+  (`child.kill().await` after `timeout` is unimplementable: `wait_with_output()`
+  takes ownership of the `Child`, so no handle remains to kill.)
 - **Trimming**: `markdown` is `stdout` decoded lossily (`String::from_utf8_lossy`)
   and trimmed. A whitespace-only stdout is empty.
 
@@ -93,25 +102,27 @@ impl fmt::Display for FetchError {
 impl std::error::Error for FetchError {}
 ```
 
-### `Display` mapping (exact strings)
-
 | Variant | Display |
 |---|---|
 | `InvalidUrl { input }` | `invalid url: {input} (expected absolute http(s) URL)` |
 | `EmptyBody { url }` | `empty body: {url} returned no markdown` |
 | `Blocked { url, reason }` | `blocked: {url}: {reason}` |
-| `Timeout { url, after }` | `timeout: {url} after {after:?}` (e.g. `after 30s`) |
+| `Timeout { url, after }` | `timeout: {url} after {after:?}` (e.g. `after 60s`) |
 | `CommandFailed { url, detail }` | `command failed: {url}: {detail}` |
 
 ## 3. Classification order and error matrix
 
-On process completion, classify in this order (first match wins):
-
+On process completion, classify in this order (first match wins).
 1. Spawn / I/O failure → `CommandFailed`.
 2. Timeout elapsed (child killed) → `Timeout`.
-3. Stderr contains a blocked marker (case-insensitive substring, checked
-   **regardless of exit code**): `403`, `forbidden`, `access denied`,
-   `blocked`, `bot`, `captcha`, `rate limit`, `rate-limited`, `too many requests`
+3. Stderr contains a blocked marker (case-insensitive, checked **regardless of
+   exit code**): `forbidden`, `access denied`, `blocked`, `captcha`,
+   `rate limit`, `rate-limited`, `too many requests`, plus two
+   boundary-guarded tokens: `403` matches only with non-digit boundaries on
+   both sides (so `14034` does not match); `bot` matches only with non-letter
+   boundaries on both sides (so `robots` chatter and `--obey-robots`
+   diagnostics never match, but `bot denied`, `(bot`, `bot-manager` do).
+   Implement with std-only boundary scans (no regex crate).
    → `Blocked` with the trimmed stderr tail as `reason`.
 4. Non-zero exit status → `CommandFailed` with `detail = "exit {status}: {tail}"`.
 5. Exit 0, trimmed stdout empty → `EmptyBody`.
@@ -124,6 +135,7 @@ Matrix (all four mandatory error cases):
 | `not-a-url`, `""`, `ftp://x/y`, `/relative/path` | `InvalidUrl`, no spawn |
 | exit 0, empty stdout | `EmptyBody` |
 | stderr `access forbidden (bot denied)` (any exit) | `Blocked` |
+| stderr `respecting robots.txt for /slow` only, exit 0, markdown on stdout | `Ok` (`robots` never matches `bot`) |
 | sleep 5 s, engine timeout 200 ms | `Timeout` |
 | non-zero exit, plain stderr | `CommandFailed` |
 | exit 0, `# Title\n\nbody` | `Ok`, markdown trimmed |
