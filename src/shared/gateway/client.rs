@@ -1,14 +1,17 @@
 //! OpenAI-compatible gateway client: request, status mapping, retry.
 //!
-//! The external seam is three items: `Gateway::new`, `Gateway::chat`, and
-//! `GatewayConfig::from_env`. Retry, backoff, and status mapping hide behind
-//! `chat`; `with_client` and `backoff_delay` exist only as the unit-test
-//! surface (no second adapter means no `trait`, per ADR-0004).
+//! The external seam is four items: `Gateway::new`, `Gateway::chat`,
+//! `Gateway::chat_with_tools`, and `GatewayConfig::from_env`. Retry,
+//! backoff, and status mapping hide behind `chat` and `chat_with_tools`;
+//! `with_client` and `backoff_delay` exist only as the unit-test surface
+//! (no second adapter means no `trait`, per ADR-0004).
 
 use std::time::Duration;
 
 use super::config::GatewayConfig;
-use super::reply::{parse_reply, ChatMessage, ChatRequest, ChatResponse, LlmReply};
+use super::reply::{
+    parse_reply, ChatMessage, ChatRequest, ChatResponse, LlmReply, ToolChoice, ToolDef,
+};
 
 /// Failures of one gateway turn. Retryable variants are retried inside
 /// `Gateway::chat` up to `GatewayConfig::max_attempts`; the caller only ever
@@ -35,8 +38,6 @@ pub enum GatewayError {
     EmptyChoices,
     /// Model refusal text. Not retryable.
     Refused(String),
-    /// Model asked for tool calls, which this client never executes.
-    ToolCallsUnsupported,
 }
 
 impl GatewayError {
@@ -64,12 +65,6 @@ impl std::fmt::Display for GatewayError {
             Self::Parse(detail) => write!(f, "gateway response parse error: {detail}"),
             Self::EmptyChoices => write!(f, "gateway returned no choices"),
             Self::Refused(text) => write!(f, "model refused the turn: {text}"),
-            Self::ToolCallsUnsupported => {
-                write!(
-                    f,
-                    "model requested tool calls, which the gateway client denies"
-                )
-            }
         }
     }
 }
@@ -96,6 +91,28 @@ impl Gateway {
     }
 
     pub async fn chat(&self, messages: &[ChatMessage]) -> Result<LlmReply, GatewayError> {
+        self.chat_with_body(messages, None, None).await
+    }
+
+    /// Same path as [`Gateway::chat`], but offers native function-calling
+    /// tools to the model and returns the requested calls on [`LlmReply`].
+    /// Execution of the calls stays in the agent loop (issue #12).
+    pub async fn chat_with_tools(
+        &self,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        tool_choice: Option<ToolChoice>,
+    ) -> Result<LlmReply, GatewayError> {
+        self.chat_with_body(messages, Some(tools.to_vec()), tool_choice)
+            .await
+    }
+
+    async fn chat_with_body(
+        &self,
+        messages: &[ChatMessage],
+        tools: Option<Vec<ToolDef>>,
+        tool_choice: Option<ToolChoice>,
+    ) -> Result<LlmReply, GatewayError> {
         if self.config.api_key().is_empty() {
             return Err(GatewayError::MissingApiKey);
         }
@@ -105,7 +122,15 @@ impl Gateway {
 
         let mut last_err: Option<GatewayError> = None;
         for attempt in 1..=attempts {
-            let body = ChatRequest::from_resolved(&params, messages.to_vec());
+            let body = match (&tools, &tool_choice) {
+                (None, None) => ChatRequest::from_resolved(&params, messages.to_vec()),
+                _ => ChatRequest::from_resolved_with_tools(
+                    &params,
+                    messages.to_vec(),
+                    tools.clone(),
+                    tool_choice.clone(),
+                ),
+            };
             match self.try_once(&url, &body).await {
                 Ok(reply) => return Ok(reply),
                 Err(err) => {
@@ -420,6 +445,72 @@ mod tests {
         let err = gateway.chat(&messages()).await.expect_err("401 must fail");
         assert!(matches!(err, GatewayError::Auth), "got {err:?} ({err})");
         // Give a would-be retry no chance to land: exactly one server hit.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+    }
+    const TOOL_CALL_BODY: &str = r#"{
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "calling get_time",
+                "tool_calls": [{
+                    "id": "chatcmpl-tool-abc123",
+                    "type": "function",
+                    "function": {"name": "get_time", "arguments": "{}"}
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}
+    }"#;
+
+    fn get_time_tools() -> Vec<ToolDef> {
+        vec![ToolDef {
+            name: "get_time".to_owned(),
+            description: "Returns the current time.".to_owned(),
+            parameters: serde_json::json!({"type": "object", "properties": {}}),
+        }]
+    }
+
+    #[tokio::test]
+    async fn chat_with_tools_returns_tool_calls() {
+        let (base_url, hits) = spawn_server(vec![CannedResponse {
+            status: 200,
+            retry_after: None,
+            body: TOOL_CALL_BODY,
+            delay_before_response: Duration::ZERO,
+        }]);
+        let gateway = single_attempt_gateway(base_url);
+        let reply = gateway
+            .chat_with_tools(&messages(), &get_time_tools(), Some(ToolChoice::Auto))
+            .await
+            .expect("tool_calls body must parse");
+        assert_eq!(reply.tool_calls.len(), 1);
+        assert_eq!(reply.tool_calls[0].id, "chatcmpl-tool-abc123");
+        assert_eq!(reply.tool_calls[0].name, "get_time");
+        assert_eq!(
+            reply.tool_calls[0]
+                .parsed_arguments()
+                .expect("arguments must parse"),
+            serde_json::json!({})
+        );
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn chat_with_tools_auth_does_not_retry() {
+        let (base_url, hits) = spawn_server(vec![CannedResponse::status(401)]);
+        let gateway = Gateway::with_client(
+            GatewayConfig::new(base_url, "test-key".to_owned(), "m".to_owned())
+                .with_max_attempts(3),
+            reqwest::Client::new(),
+        );
+        let err = gateway
+            .chat_with_tools(&messages(), &get_time_tools(), Some(ToolChoice::Auto))
+            .await
+            .expect_err("401 must fail");
+        assert!(matches!(err, GatewayError::Auth), "got {err:?} ({err})");
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(hits.load(Ordering::SeqCst), 1);
     }

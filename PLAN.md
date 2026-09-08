@@ -179,6 +179,30 @@ struct ChatRequest {
     reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ToolDef>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<ToolChoice>,
+}
+
+/// One callable function offered to the model. `parameters` is a real JSON
+/// Schema value and is always sent.
+#[derive(Debug, Clone)]
+pub struct ToolDef {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+}
+
+/// Serializes to `"auto"` / `"none"` / `{type: "function", function: {name}}`.
+/// `ToolDef` serializes to `{type: "function", function: {name, description,
+/// parameters}}`. Both fields are omitted from `ChatRequest` when `None`,
+/// so `chat()` without tools is byte-compatible with before.
+#[derive(Debug, Clone)]
+pub enum ToolChoice {
+    Auto,
+    None,
+    Named(String),
 }
 ```
 
@@ -313,9 +337,25 @@ pub struct LlmReply {
     pub thinking: String,
     /// Assistant message text. Never None: null content becomes "".
     pub output: String,
-    /// Wire `finish_reason` verbatim ("stop", "length", …). None if absent.
+    /// Wire `finish_reason` verbatim ("stop", "length", "tool_calls", …). None if absent.
     pub finish_reason: Option<String>,
+    /// Requested tool calls, in wire order. Empty when the model answered
+    /// with text; existing text-only consumers ignore this field.
+    pub tool_calls: Vec<RequestedToolCall>,
     pub usage: TokenUsage,
+}
+
+/// One function call requested by the model. The gateway never executes it;
+/// `arguments` is the raw JSON string; `parsed_arguments()` parses it on
+/// demand (invalid JSON → `GatewayError::Parse`, non-retryable).
+#[derive(Debug, Clone, Default)]
+pub struct RequestedToolCall {
+    /// Wire `id` (`""` when absent).
+    pub id: String,
+    /// Requested function name (`""` when absent, but still returned).
+    pub name: String,
+    /// Raw arguments JSON string (`"{}"` when absent).
+    pub arguments: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -330,18 +370,24 @@ pub fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError>;
 ```
 
 (`ChatResponse` is `pub(crate)`; `parse_reply` is `pub(crate)` — the public
-surface stays `LlmReply` + `TokenUsage`. `ChatMessage` is `pub` because the
-agent loop constructs it.)
+surface is `LlmReply` + `TokenUsage` + `RequestedToolCall` (+ `ToolDef` /
+`ToolChoice` / `ChatMessage` for the request side). `ChatMessage` is `pub`
+because the agent loop constructs it.)
+
 
 Parsing rules, in order:
 
 1. `choices` empty → `Err(GatewayError::EmptyChoices)`. Only `choices[0]`
    is used (we never send `n > 1`).
 2. `message.refusal` non-empty → `Err(GatewayError::Refused(text))`, even
-   if `content` is also present. A refusal is a policy outcome, not output.
-3. `message.tool_calls` non-empty → `Err(GatewayError::ToolCallsUnsupported)`.
-   Deny, don't ignore: silently dropping a tool call would let the loop
-   proceed as if the model answered. (Tool calling itself is a non-goal.)
+   if `content` is also present AND even when `tool_calls` are present.
+   A refusal is a policy outcome, not output.
+3. `message.tool_calls` → collected into `LlmReply::tool_calls` in wire
+   order as `RequestedToolCall { id, name, arguments }`: missing `id` → `""`,
+   missing `name` → `""` (but still returned), missing
+   `function`/`arguments` → `"{}"`. Execution stays in the agent loop
+   (issue #12); the gateway never executes. Empty `tool_calls` → empty vec,
+   so existing text-only (`stop`) consumers are unaffected.
 4. `thinking` = concatenation, in this precedence order, of each non-empty
    part joined with `"\n"`: `reasoning_content` (a), then `reasoning` (b
    scalar), then each `reasoning_details[i].text` (b blocks, in array
@@ -349,7 +395,8 @@ Parsing rules, in order:
    gateway emits both shapes for one turn they describe the same thinking,
    and order (a)→(b) matches most-specific-string first, blocks last.
 5. `output` = `content.unwrap_or_default()`. Null content with a
-   `finish_reason` of `"stop"` is a legal empty answer, not an error.
+   `finish_reason` of `"stop"` (or `"tool_calls"` with `content: ""`) is a
+   legal empty answer, not an error.
 6. `usage` = response usage or zeros when absent; `reasoning_tokens` from
    nested `completion_tokens_details`, else 0.
 
@@ -368,10 +415,9 @@ pub enum GatewayError {
     Client { status: u16 },                      // other 4xx (400, 404, 422 …)
     Timeout,                                     // per-attempt deadline
     Transport(String),                           // connection/DNS/TLS
-    Parse(String),                               // serde_json failure on 2xx body
+    Parse(String),                               // serde_json failure on 2xx body + invalid tool arguments
     EmptyChoices,                                // 2xx but choices: []
     Refused(String),                             // model refusal text
-    ToolCallsUnsupported,                        // model asked for tool calls
 }
 ```
 
@@ -388,8 +434,8 @@ Status mapping (checked before any body parse):
 | other `reqwest` error (connect/DNS/TLS) | `Transport` | **yes** (transient network) |
 | 2xx body fails serde | `Parse` | no (deterministic) |
 | 2xx, `choices: []` | `EmptyChoices` | no |
-| `refusal` present | `Refused` | no |
-| `tool_calls` non-empty | `ToolCallsUnsupported` | no |
+| `refusal` present (even with `tool_calls`) | `Refused` | no |
+| `tool_calls[].parsed_arguments()` invalid JSON | `Parse` | no |
 
 ### 5.1 Retry/timeout policy (numbers)
 
@@ -400,6 +446,7 @@ impl Gateway {
     pub fn new(config: GatewayConfig) -> Self;                    // builds client with config.request_timeout
     pub fn with_client(config: GatewayConfig, client: reqwest::Client) -> Self; // test seam
     pub async fn chat(&self, messages: &[ChatMessage]) -> Result<LlmReply, GatewayError>;
+    pub async fn chat_with_tools(&self, messages: &[ChatMessage], tools: &[ToolDef], tool_choice: Option<ToolChoice>) -> Result<LlmReply, GatewayError>;
 }
 
 pub(crate) fn backoff_delay(attempt: u32, retry_after_secs: Option<u64>) -> Duration;
@@ -437,7 +484,10 @@ features in `Cargo.toml`. No other dep changes.
 
 Issue #12 needs exactly: `Gateway::new`, `Gateway::chat(&[ChatMessage]) ->
 LlmReply { thinking, output, finish_reason, usage }`,
-`GatewayConfig::from_env`. Everything else (`ToolCall` structs,
+`Gateway::chat_with_tools(&[ChatMessage], &[ToolDef], Option<ToolChoice>) ->
+LlmReply { thinking, output, finish_reason, tool_calls, usage }` (tool
+schemas offered per turn; execution stays in `agent_loop/`),
+`GatewayConfig::from_env`. Everything else (wire `ToolCall` structs,
 `ResolvedParams`, `backoff_delay`, per-status variants) exists to serve
 that interface with locality. Cut from this issue: message-history
 builders, prompt templates (live in `prompts/`), role enums, multi-choice
@@ -460,8 +510,26 @@ the live test is `tests/gateway_live.rs`. No new dev-deps.
 4. `reply::tests::null_content_is_empty_output` — `"content": null`,
    `finish_reason: "stop"` → `output == ""`, no error.
 5. `reply::tests::refusal_wins` — `refusal` + `content` → `Err(Refused)`.
-6. `reply::tests::tool_calls_denied` — non-empty `tool_calls` →
-   `Err(ToolCallsUnsupported)`.
+6. `reply::tests::tool_calls_returned` — exact live shape (`content: ""`,
+   `reasoning_content` present, `finish_reason: "tool_calls"`,
+   `id`/`type`/`function`/`arguments`) → `Ok` with 1 call asserting
+   `id` + `name` + `arguments` + `parsed_arguments()` JSON.
+6b. `reply::tests::refusal_wins_over_tool_calls` — `refusal` + `tool_calls`
+   → `Err(Refused)`.
+6c. `reply::tests::empty_tool_calls_is_text_answer` — absent `tool_calls` →
+   empty vec (existing `stop` path unaffected).
+6d. `reply::tests::invalid_tool_arguments_is_parse_error` — non-JSON
+   `arguments` → `parsed_arguments()` is `Err(Parse)`.
+6e. `reply::tests::missing_tool_fields_default` — missing `id` → `""`,
+   missing `name` → `""` (still returned), missing
+   `function`/`arguments` → `"{}"`.
+6f. `reply::tests::request_omits_tools_when_none` — `tools`/`tool_choice`
+   omitted when `None` (`chat()` byte-compatible with before).
+6g. `reply::tests::request_serializes_tools_and_auto_choice` — OpenAI
+   `{type: "function", function: {name, description, parameters}}` shape +
+   `"auto"` (plus `"none"` check).
+6h. `reply::tests::request_serializes_named_choice` — named choice is
+   `{type: "function", function: {name}}`.
 7. `reply::tests::empty_choices` — `choices: []` → `Err(EmptyChoices)`.
 8. `reply::tests::usage_nesting` — `completion_tokens_details.reasoning_tokens`
    lands in `TokenUsage::reasoning_tokens`; absent `usage` → all zeros.
@@ -483,6 +551,10 @@ the live test is `tests/gateway_live.rs`. No new dev-deps.
     one `LlmReply`, two hits observed server-side.
 13. `client::tests::no_retry_on_auth` — 401 → exactly one server hit,
     `Err(Auth)`.
+13b. `client::tests::chat_with_tools_returns_tool_calls` — 200 tool_calls
+    body via `chat_with_tools` returns the `RequestedToolCall` + 1 hit.
+13c. `client::tests::chat_with_tools_auth_does_not_retry` — 401 via
+    `chat_with_tools` still `Auth`, no retry.
 14. `client::tests::backoff_shape` — `backoff_delay(1, None) == 1 s`,
     `backoff_delay(2, None) == 2 s`, `backoff_delay(_, Some(30)) == 30 s`,
     cap respected above 8 s.
@@ -495,13 +567,19 @@ the live test is `tests/gateway_live.rs`. No new dev-deps.
     `output` contains `gateway ok`; asserts `finish_reason` is `Some`;
     `thinking` may be empty (model-dependent) and is only logged, never
     asserted.
+16. `tests/gateway_live.rs::live_tools_round_trip` — env-gated like 15.
+    Sends `tools=[get_time]` + `tool_choice: auto` (exactly one attempt per
+    model, never `glm-5.3-flash` first), asserts at least one tool call named
+    `get_time` with parseable arguments; 429 `RateLimited` tries the next
+    model, all-rate-limited is `Err`.
 
 ## 8. Explicit non-goals
 
 - Streaming / SSE (`stream: true`, event parsing, partial deltas).
 - Remote-provider SDKs (`async-openai`, `rig`, vendor crates).
-- Tool calling: the wire field is parsed only to deny it; no function
-  execution, no second turn synthesis.
+- Tool execution and second-turn synthesis: `chat_with_tools` only offers
+  `tools`/`tool_choice` and returns first-class `tool_calls` on `LlmReply`;
+  execution stays in the agent loop (issue #12).
 - Second adapter / `trait` extraction (no `LlmPort`, no `dyn`, no fakes
   beyond `with_client`).
 - Sampling params (`temperature`, `top_p`), multi-choice (`n > 1`),
