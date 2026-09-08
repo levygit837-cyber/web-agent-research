@@ -1,39 +1,39 @@
 # web-agent-research
 
-Protótipo CLI de agente multi-turno para pesquisa na web sobre a engine [Obscura](https://github.com/h4ckf0r0day/obscura), evoluindo para API sem rewrite.
+CLI prototype of a multi-turn web research agent on the [Obscura](https://github.com/h4ckf0r0day/obscura) engine, evolving into an API without rewrite.
 
-Repo privado: `https://github.com/levygit837-cyber/web-agent-research`
+Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 
-## Stack (decisões registradas)
+## Stack (recorded decisions)
 
-- **Rust + tokio** como linguagem âncora — [ADR-0001](docs/adr/0001-rust-linguagem-ancora.md)
-- **Sem DB no protótipo**: Sessão em `sessions/<id>.jsonl` + cache HTTP em disco — [ADR-0002](docs/adr/0002-sem-db-so-arquivos.md)
-- **LLM via HTTP OpenAI-compatible próprio** (`reqwest` + `serde`, sem SDK) — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md)
-- **Obscura primeiro via subprocesso** (`obscura fetch`) / CDP; cliente nativo fora do escopo
+- **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-linguagem-ancora.md)
+- **No DB in the prototype**: Session in `sessions/<id>.jsonl` + on-disk HTTP cache — [ADR-0002](docs/adr/0002-sem-db-so-arquivos.md)
+- **Own OpenAI-compatible HTTP LLM** (`reqwest` + `serde`, no SDK) — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md)
+- **Obscura first via subprocess** (`obscura fetch`) / CDP; native client out of scope
 
 ## Quickstart
 
 ```bash
-cargo run -- "o que é Obscura headless browser?"
+cargo run -- "what is the Obscura headless browser?"
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI em push/PR na `main`: `ci.yml` (jobs `lint`: fmt + clippy; `test`: test + build) e `protect-main.yml` (falha se algum commit chegou sem PR). Toda mudança entra por PR — ver [ADR-0005](docs/adr/0005-protecao-main-sem-plano-pago.md). Após clonar, ative o bloqueio local de push direto: `git config core.hooksPath .githooks`.
+CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build) and `protect-main.yml` (fails if any commit landed without a PR). Every change goes through a PR — see [ADR-0005](docs/adr/0005-protecao-main-sem-plano-pago.md). After cloning, enable the local direct-push block: `git config core.hooksPath .githooks`.
 
-## Estrutura
+## Structure
 
 - `src/lib.rs` — agent core (all domain logic lives here)
 - `src/main.rs` — thin CLI shell over the lib
-- `src/shared/` — agent_loop, obscura, tools, prompts, types, schemas, session
+- `src/shared/` — agent_loop, obscura, tools, prompts, types, session
 - `src/slices/` — one folder per Mode (`search` now, `deep` later)
 - `sessions/`, `cache/` — created at runtime, out of git
 - `CONTEXT.md` — domain glossary (Research, Session, Turn, Evidence)
-- `docs/adr/` — decisões de arquitetura
-- `docs/agents/` — config das engineering skills (issue tracker, domain docs)
-- `docs/research/` — pesquisas de apoio
+- `docs/adr/` — architecture decisions
+- `docs/agents/` — engineering skills config (issue tracker, domain docs)
+- `docs/research/` — supporting research
 
 ## Issues
 
-GitHub Issues via `gh`. Ver `docs/agents/issue-tracker.md`.
+GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
