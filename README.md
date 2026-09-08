@@ -20,7 +20,7 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI (`.github/workflows/ci.yml`) roda fmt + clippy + test + build em push/PR na `main`.
+CI em push/PR na `main`: `ci.yml` (jobs `lint`: fmt + clippy; `test`: test + build) e `protect-main.yml` (falha se algum commit chegou sem PR). Toda mudança entra por PR — ver [ADR-0005](docs/adr/0005-protecao-main-sem-plano-pago.md). Após clonar, ative o bloqueio local de push direto: `git config core.hooksPath .githooks`.
 
 ## Estrutura
 

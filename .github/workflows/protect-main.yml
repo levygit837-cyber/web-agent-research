@@ -50,11 +50,9 @@ jobs:
 
           fail=0
           for c in "${commits[@]}"; do
-            # Commit raiz não tem base para PR; só existe na criação da main.
-            if [ -z "$(git log -1 --format=%P "$c")" ]; then
-              echo "ok $c é commit raiz (bootstrap, isento)"
-              continue
-            fi
+            # Sem isenções: até o commit raiz exige PR associado.
+            # Recriar a main via push falha fechado (o bootstrap histórico
+            # é anterior ao gate).
             msg="$(git log -1 --format=%s "$c")"
             # Landing de PR via merge commit: "Merge pull request #N from ..."
             # Compara o SHA com o mergeCommit real do PR: forjar a mensagem
@@ -87,12 +85,12 @@ jobs:
             cat <<'EOF'
           Push direto na main detectado. Toda mudança entra por PR (ADR-0005).
           Para regularizar:
-            1. git revert <sha> numa branch nova (não resete main pública sem avisar);
-            2. abra o PR do revert e faça merge por lá;
-            3. se o push foi há segundos e ninguém puxou:
-               git push --force-with-lease origin <sha-anterior>:main
-          Emergência nunca precisa de push direto: merge de PR funciona
-          mesmo com CI vermelho; quebrou a main, corrija com PR de revert.
+            1. git revert <sha> numa branch nova;
+            2. abra o PR do revert e faça merge por lá.
+          Não use force-push para "desfazer": reescrever a main também
+          dispara este gate (force-push é rejeitado acima). Emergência nunca
+          precisa de push direto: merge de PR funciona mesmo com CI vermelho;
+          quebrou a main, corrija com PR de revert.
           EOF
             exit 1
           fi
