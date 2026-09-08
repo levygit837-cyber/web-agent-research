@@ -12,8 +12,10 @@
 //! `#[ignore]` so default `cargo test` never touches the network). Provider
 //! DOM drift shows here first.
 
-use web_agent_research::shared::tools::search::{ddg_search_with_base, startpage_search_with_base};
 use web_agent_research::shared::types::search::{SearchProviderError, MAX_NUM_RESULTS};
+use web_agent_research::shared::web_engine_search::{
+    ddg_search_with_base, startpage_search_with_base,
+};
 
 const DDG_HTML_URL: &str = "https://html.duckduckgo.com/html/";
 const SP_HOME_URL: &str = "https://www.startpage.com/";

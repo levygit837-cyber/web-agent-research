@@ -6,8 +6,8 @@
 //! contract is the specified seam (PLAN step 5), doc-hidden so it never
 //! appears in rustdoc.
 
-use web_agent_research::shared::tools::search::search_multi_with_bases;
 use web_agent_research::shared::types::search::SearchInput;
+use web_agent_research::shared::web_engine_search::search_multi_with_bases;
 
 fn ddg_rows(url: &str, title: &str, snippet: &str) -> String {
     format!(
