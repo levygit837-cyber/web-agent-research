@@ -7,3 +7,4 @@
 pub const SESSION_FORMAT_VERSION: u32 = 1;
 
 pub mod shared;
+pub mod slices;
