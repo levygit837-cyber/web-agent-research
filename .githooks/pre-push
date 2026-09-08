@@ -1,0 +1,16 @@
+#!/bin/sh
+# Bloqueio local de push direto na main (ADR-0005).
+# A proteção nativa do GitHub exige plano pago neste repo privado;
+# este hook é o único bloqueio real até a migração. Ativar com:
+#   git config core.hooksPath .githooks
+set -eu
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "bloqueado: push direto na main. Abra um PR (ver ADR-0005)." >&2
+      echo "para regularizar um push já feito, use PR de revert." >&2
+      exit 1
+      ;;
+  esac
+done
