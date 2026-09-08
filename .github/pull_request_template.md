@@ -1,17 +1,17 @@
-## O que muda
+## What changes
 
-<!-- Comportamento de ponta a ponta, em pt-BR. Sem "scaffold"/"MVP"/"v1" sem entrega real. -->
+<!-- End-to-end behavior, in English. No "scaffold"/"MVP"/"v1" without real delivery. -->
 
 ## Issue
 
-<!-- `Closes #N`. Sem issue: justifique em uma linha. -->
+<!-- `Closes #N`. No issue: justify in one line. -->
 
 ## Checklist
 
 - [ ] `cargo fmt --all -- --check`
 - [ ] `cargo clippy --all-targets -- -D warnings`
 - [ ] `cargo test --locked --all-targets`
-- [ ] `CHANGELOG.md` atualizado em `[Unreleased]`
-- [ ] ADR novo/atualizado (só se há decisão arquitetural)
-- [ ] `CONTEXT.md` atualizado (só se há termo novo de domínio)
-- [ ] Entra por este PR na `main` — sem push direto (ADR-0005)
+- [ ] `CHANGELOG.md` updated under `[Unreleased]`
+- [ ] New/updated ADR (only with an architectural decision)
+- [ ] `CONTEXT.md` updated (only with a new domain term)
+- [ ] Lands via this PR on `main` — no direct push (ADR-0005)
