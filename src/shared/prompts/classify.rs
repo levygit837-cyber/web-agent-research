@@ -1,1 +1,1 @@
-//! Classification prompt: input → Mode (`single`/`parallel`/`deep`).
+//! Classification prompt: input → research scope.

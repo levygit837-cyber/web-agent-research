@@ -1,11 +1,8 @@
 //! Agent tools: one implementation each, consumed by the slices.
 //!
-//! Context catalog: a tool is born here even with a single consumer
-//! (e.g. `interact` only in `deep`); domain logic follows the 2+ rule.
+//! Executable behavior only (`search`, `fetch`). Scoring and caching
+//! are behaviors inside tools, not tools. LLM is not a tool: it drives
+//! the `agent_loop/` via the OpenAI-compatible gateway (see ADR-0003).
 
-pub mod cache;
 pub mod fetch;
-pub mod interact;
-pub mod llm;
-pub mod score_url;
 pub mod search;
