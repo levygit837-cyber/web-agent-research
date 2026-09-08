@@ -24,10 +24,12 @@ CI (`.github/workflows/ci.yml`) roda fmt + clippy + test + build em push/PR na `
 
 ## Estrutura
 
-- `src/lib.rs` — núcleo do agente (toda lógica de domínio mora aqui)
-- `src/main.rs` — casca fina de CLI sobre a lib
-- `sessions/`, `cache/` — criados em runtime, fora do git
-- `CONTEXT.md` — glossário do domínio (Pesquisa, Sessão, Turno, Evidência)
+- `src/lib.rs` — agent core (all domain logic lives here)
+- `src/main.rs` — thin CLI shell over the lib
+- `src/shared/` — agent_loop, obscura, tools, prompts, types, schemas, session
+- `src/slices/` — one folder per Mode (`search` now, `deep` later)
+- `sessions/`, `cache/` — created at runtime, out of git
+- `CONTEXT.md` — domain glossary (Research, Session, Turn, Evidence)
 - `docs/adr/` — decisões de arquitetura
 - `docs/agents/` — config das engineering skills (issue tracker, domain docs)
 - `docs/research/` — pesquisas de apoio
