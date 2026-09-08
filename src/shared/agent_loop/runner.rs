@@ -143,19 +143,26 @@ pub(crate) fn history_len(history: &[HistoryEntry]) -> usize {
     history.len()
 }
 
-fn roster_footer(tools: &ToolRegistry) -> String {
+fn allowed_roster(tools: &ToolRegistry, allowed: &[String]) -> Vec<(&'static str, &'static str)> {
     tools
         .tool_purposes()
+        .into_iter()
+        .filter(|(name, _)| allowed.iter().any(|entry| entry == name))
+        .collect()
+}
+
+fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
+    allowed_roster(tools, allowed)
         .iter()
         .map(|(name, purpose)| format!("{name} — {purpose}"))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-fn empty_answer_observation(tools: &ToolRegistry) -> String {
+fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
     format!(
         "TOOL ERROR: empty answer — use the offered tools to gather evidence, or answer directly when evidence suffices.\nAvailable tools:\n{}",
-        roster_footer(tools)
+        roster_footer(tools, allowed)
     )
 }
 
@@ -191,6 +198,7 @@ enum FailureKind {
 struct TurnOutcome {
     observation: String,
     evidence: Vec<ToolEvidence>,
+    had_success: bool,
     failure: Option<FailureKind>,
     failure_reason: String,
 }
@@ -199,6 +207,7 @@ async fn dispatch_turn(
     turn: u32,
     calls: &[RequestedToolCall],
     tools: &ToolRegistry,
+    allowed: &[String],
     budget: &LoopBudget,
 ) -> TurnOutcome {
     let cap = budget.max_tools_per_turn.max(1);
@@ -207,21 +216,19 @@ async fn dispatch_turn(
 
     let mut rows: Vec<String> = Vec::new();
     let mut evidence: Vec<ToolEvidence> = Vec::new();
+    let mut had_success = false;
     let mut failure: Option<FailureKind> = None;
     let mut failure_reason = String::new();
 
     for call in considered {
-        if failure.is_some() {
-            break;
-        }
-        let allowed = tools.tool_names().iter().any(|name| *name == call.name);
-        if !allowed {
+        let is_allowed = allowed.iter().any(|name| name == &call.name);
+        if !is_allowed {
             let reason = format!(
                 "unknown tool '{}' (available: {})",
                 call.name,
-                tools.tool_names().join(", ")
+                allowed.join(", ")
             );
-            rows.push(format!("TOOL ERROR: {reason}"));
+            rows.push(cap_excerpt(&format!("TOOL ERROR: {reason}"), budget));
             failure = Some(FailureKind::Dispatch);
             failure_reason = reason;
             break;
@@ -230,10 +237,13 @@ async fn dispatch_turn(
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
-                rows.push(format!(
-                    "TOOL RESULTS:\n[{} {} FAILED: {reason}]",
-                    display_id(&call.id),
-                    call.name
+                rows.push(cap_excerpt(
+                    &format!(
+                        "TOOL RESULTS:\n[{} {} FAILED: {reason}]",
+                        display_id(&call.id),
+                        call.name
+                    ),
+                    budget,
                 ));
                 evidence.push(ToolEvidence {
                     turn,
@@ -250,11 +260,15 @@ async fn dispatch_turn(
                 let dispatch_failure = is_dispatch_failure(&result);
                 let excerpt = cap_excerpt(&rendered, budget);
                 if result.is_success() {
-                    rows.push(format!(
-                        "TOOL RESULTS:\n[{} {}({})]: {rendered}",
-                        display_id(&call.id),
-                        call.name,
-                        call.arguments
+                    had_success = true;
+                    rows.push(cap_excerpt(
+                        &format!(
+                            "TOOL RESULTS:\n[{} {}({})]: {rendered}",
+                            display_id(&call.id),
+                            call.name,
+                            call.arguments
+                        ),
+                        budget,
                     ));
                     evidence.push(ToolEvidence {
                         turn,
@@ -264,14 +278,18 @@ async fn dispatch_turn(
                         url: result.url(),
                     });
                 } else if dispatch_failure {
-                    rows.push(format!("TOOL ERROR: {rendered}"));
+                    rows.push(cap_excerpt(&format!("TOOL ERROR: {rendered}"), budget));
                     failure = Some(FailureKind::Dispatch);
                     failure_reason = rendered;
+                    break;
                 } else {
-                    rows.push(format!(
-                        "TOOL RESULTS:\n[{} {} FAILED: {rendered}]",
-                        display_id(&call.id),
-                        call.name
+                    rows.push(cap_excerpt(
+                        &format!(
+                            "TOOL RESULTS:\n[{} {} FAILED: {rendered}]",
+                            display_id(&call.id),
+                            call.name
+                        ),
+                        budget,
                     ));
                     evidence.push(ToolEvidence {
                         turn,
@@ -298,7 +316,7 @@ async fn dispatch_turn(
         }
     }
     if failure == Some(FailureKind::Dispatch) {
-        let footer = roster_footer(tools);
+        let footer = roster_footer(tools, allowed);
         observation.push_str(&format!("\nAvailable tools:\n{footer}"));
     } else if failure.is_none() && !observation.is_empty() && !observation.contains("TOOL RESULTS:")
     {
@@ -307,6 +325,7 @@ async fn dispatch_turn(
     TurnOutcome {
         observation,
         evidence,
+        had_success,
         failure,
         failure_reason,
     }
@@ -340,7 +359,7 @@ pub async fn run_loop(
         ));
     }
 
-    let roster: Vec<(&str, &str)> = tools.tool_purposes();
+    let roster: Vec<(&str, &str)> = allowed_roster(tools, &input.allowed_tools);
     let system_prompt = build_system_prompt(&roster, input.size);
     let defs = tools.tool_defs(&input.allowed_tools);
 
@@ -349,7 +368,6 @@ pub async fn run_loop(
     let mut usage = TokenUsage::default();
     let mut consecutive_failures: u32 = 0;
     let mut failures_used: u32 = 0;
-    let mut last_failure_reason: Option<String>;
 
     for turn in 1..=budget.max_turns {
         let messages = context::assemble(&system_prompt, input, &history, budget);
@@ -398,13 +416,12 @@ pub async fn run_loop(
                 Err(_) => {
                     consecutive_failures += 1;
                     failures_used += 1;
-                    last_failure_reason = Some("empty answer".to_owned());
                     if consecutive_failures > budget.max_repairs {
                         return Err(LoopError::InvalidToolCall {
-                            reason: last_failure_reason.clone().unwrap_or_default(),
+                            reason: "empty answer".to_owned(),
                         });
                     }
-                    let observation = empty_answer_observation(tools);
+                    let observation = empty_answer_observation(tools, &input.allowed_tools);
                     if !reply.output.is_empty() {
                         history.push(HistoryEntry::Assistant(reply.output.clone()));
                     }
@@ -417,27 +434,27 @@ pub async fn run_loop(
             }
         }
 
-        let outcome = dispatch_turn(turn, &reply.tool_calls, tools, budget).await;
+        let outcome =
+            dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
         evidence.extend(outcome.evidence);
         if !reply.output.is_empty() {
             history.push(HistoryEntry::Assistant(reply.output.clone()));
         }
         history.push(HistoryEntry::Observation(outcome.observation));
-        match outcome.failure {
-            None => {
-                consecutive_failures = 0;
-            }
-            Some(kind) => {
+        if outcome.had_success {
+            consecutive_failures = 0;
+        }
+        if let Some(kind) = outcome.failure {
+            if !outcome.had_success {
                 consecutive_failures += 1;
-                failures_used += 1;
-                last_failure_reason = Some(outcome.failure_reason.clone());
-                if consecutive_failures > budget.max_repairs {
-                    let reason = last_failure_reason.clone().unwrap_or_default();
-                    return match kind {
-                        FailureKind::Dispatch => Err(LoopError::InvalidToolCall { reason }),
-                        FailureKind::Execution => Err(LoopError::ToolFailed { reason }),
-                    };
-                }
+            }
+            failures_used += 1;
+            let reason = outcome.failure_reason.clone();
+            if consecutive_failures > budget.max_repairs {
+                return match kind {
+                    FailureKind::Dispatch => Err(LoopError::InvalidToolCall { reason }),
+                    FailureKind::Execution => Err(LoopError::ToolFailed { reason }),
+                };
             }
         }
 
@@ -1289,6 +1306,109 @@ mod tests {
         assert_eq!(lengths.len(), 3);
         assert!(lengths[0] < lengths[1], "context must grow: {lengths:?}");
         assert!(lengths[1] < lengths[2], "context must grow: {lengths:?}");
+    }
+
+    #[tokio::test]
+    async fn partial_execution_failure_continues_with_next_call() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![
+                        tool_call("c1", "search", r#"{"query": "a"}"#),
+                        tool_call("c2", "search", r#"{"query": "b"}"#),
+                    ],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![
+                ToolResult::Failed {
+                    tool: "search".to_owned(),
+                    reason: "boom".to_owned(),
+                },
+                canned_search(),
+            ]),
+            &loop_input(&["search"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("execution failure must not stop sibling calls");
+        assert_eq!(report.turns_used, 2);
+        assert_eq!(report.evidence.len(), 2);
+        assert_eq!(report.failures_used, 1);
+        assert_eq!(report.evidence[0].tool, "search");
+    }
+
+    #[tokio::test]
+    async fn mixed_success_resets_failure_streak() {
+        let failing = tools_body(vec![tool_call("c1", "search", "{}")], "");
+        let mixed = tools_body(
+            vec![
+                tool_call("c1", "search", r#"{"query": "a"}"#),
+                tool_call("c2", "search", r#"{"query": "b"}"#),
+            ],
+            "",
+        );
+        let double = spawn_double(vec![
+            (200, failing),
+            (200, mixed),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![
+                ToolResult::Failed {
+                    tool: "search".to_owned(),
+                    reason: "boom".to_owned(),
+                },
+                ToolResult::Failed {
+                    tool: "search".to_owned(),
+                    reason: "boom".to_owned(),
+                },
+                canned_search(),
+            ]),
+            &loop_input(&["search"]),
+            &LoopBudget {
+                max_repairs: 1,
+                ..LoopBudget::default()
+            },
+        )
+        .await
+        .expect("a later success must reset the consecutive counter");
+        assert_eq!(report.turns_used, 3);
+    }
+
+    #[tokio::test]
+    async fn unknown_tool_after_success_still_repairs() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c1",
+                        "fetch",
+                        r#"{"url": "https://example.com/a"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_fetch()]),
+            &loop_input(&["search"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("call outside allowed_tools must repair, not execute");
+        assert_eq!(report.turns_used, 2);
+        assert_eq!(report.failures_used, 1);
+        assert!(report.evidence.is_empty());
     }
 
     #[test]
