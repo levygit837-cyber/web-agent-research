@@ -5,12 +5,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
 use web_agent_research::{render, run_research, ResearchError, ResearchRequest};
 #[derive(Debug, Parser)]
-#[command(name = "web-agent-research", version)]
+#[command(name = "web-agent-research", version, arg_required_else_help = true)]
 struct Cli {
     #[command(subcommand)]
-    command: Option<Command>,
-    /// Research goal to execute (legacy positional form without subcommand).
-    goal: Option<String>,
+    command: Command,
 }
 
 #[derive(Debug, Subcommand)]
@@ -72,26 +70,14 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let research = match cli.command {
-        Some(Command::Research {
-            goal,
-            size,
-            max_turns,
-            session_id,
-            session_out,
-            json,
-        }) => (goal, size, max_turns, session_id, session_out, json),
-        None => (
-            cli.goal
-                .unwrap_or_else(|| "what is the Obscura headless browser?".to_owned()),
-            SizeArg::Medium,
-            8,
-            None,
-            None,
-            false,
-        ),
-    };
-    let (goal, size, max_turns, session_id, session_out, json) = research;
+    let Command::Research {
+        goal,
+        size,
+        max_turns,
+        session_id,
+        session_out,
+        json,
+    } = cli.command;
     let req = ResearchRequest {
         goal,
         size: size.as_size(),
@@ -142,22 +128,34 @@ mod tests {
             "s-1",
             "--json",
         ]);
-        let Some(Command::Research {
+        let Command::Research {
             goal,
             size,
             max_turns,
             session_id,
             json,
             ..
-        }) = cli.command
-        else {
-            panic!("expected research subcommand");
-        };
+        } = cli.command;
         assert_eq!(goal, "what is the Obscura headless browser?");
         assert_eq!(size, SizeArg::Small);
         assert_eq!(max_turns, 4);
         assert_eq!(session_id.as_deref(), Some("s-1"));
         assert!(json);
+    }
+    #[test]
+    fn bare_invocation_prints_help_without_research() {
+        let err = Cli::try_parse_from(["web-agent-research"])
+            .expect_err("bare invocation must not parse into a research");
+        assert!(
+            err.to_string().to_lowercase().contains("usage"),
+            "bare invocation must print help/usage, got {err}",
+        );
+    }
+
+    #[test]
+    fn bare_positional_goal_without_subcommand_is_rejected() {
+        Cli::try_parse_from(["web-agent-research", "some goal"])
+            .expect_err("goal without the research subcommand must not parse");
     }
 
     #[test]
