@@ -1,6 +1,7 @@
-//! Módulos usados por 2+ slices. Regra: nasceu para 1 Modo, fica na slice; serviu ao 2º, move para cá.
-
-pub mod cache;
-pub mod fetch;
-pub mod llm;
-pub mod sessao;
+//! Shared: `tools/` and `prompts/` are context catalogs
+//! (born here even with a single consumer); the rest follows the 2+ rule:
+//! born for one Mode, stays in the slice; served a second, moves here.
+pub mod prompts;
+pub mod session;
+pub mod tools;
+pub mod types;

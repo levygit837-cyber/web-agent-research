@@ -1,1 +1,1 @@
-//! Modo `single`: 1 Turno direto, sem fan-out, síntese pequena.
+//! `single` Mode: one direct Turn, no fan-out, small synthesis.

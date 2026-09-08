@@ -1,3 +1,3 @@
-//! Modo `deep`.
+//! `deep` Mode.
 
 pub mod handler;

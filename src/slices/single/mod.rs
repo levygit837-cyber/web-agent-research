@@ -1,3 +1,3 @@
-//! Modo `single`.
+//! `single` Mode.
 
 pub mod handler;

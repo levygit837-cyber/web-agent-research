@@ -1,1 +1,1 @@
-//! Modo `deep`: loop orchestrator-workers com re-planejamento (futuro).
+//! `deep` Mode: orchestrator-workers loop with re-planning (future).

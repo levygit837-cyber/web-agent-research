@@ -2,12 +2,12 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-/// CLI protótipo do agente de pesquisa web (engine Obscura).
+/// Prototype CLI for the web research agent (Obscura engine).
 #[derive(Debug, Parser)]
 #[command(name = "web-agent-research", version)]
 struct Cli {
-    /// Objetivo da Pesquisa a executar
-    #[arg(default_value = "o que é Obscura headless browser?")]
+    /// Research goal to execute
+    #[arg(default_value = "what is the Obscura headless browser?")]
     query: String,
 }
 
@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
-    println!("pesquisa: {}", cli.query);
-    println!("sessão: ainda não implementada (ver MISSION.md)");
+    println!("research: {}", cli.query);
+    println!("session: not implemented yet");
     Ok(())
 }

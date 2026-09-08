@@ -1,5 +1,4 @@
-//! 1 pasta por Modo. `single` ativo; `paralelo` e `deep` nascem aqui sem tocar nas irmãs.
-
+//! One folder per Mode. `single` active; `parallel` and `deep` grow here without touching siblings.
 pub mod deep;
-pub mod paralelo;
+pub mod parallel;
 pub mod single;
