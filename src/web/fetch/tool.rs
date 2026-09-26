@@ -7,6 +7,9 @@ use serde_json::Value;
 
 /// Tool name registered with the agent loop.
 pub const FETCH_TOOL_NAME: &str = "fetch";
+/// One-line purpose for the system-prompt roster.
+pub const FETCH_TOOL_PURPOSE: &str =
+    "Fetch a URL from search results and return its content as markdown Evidence.";
 
 /// Caller-supplied tool input: exactly what the §6 schema advertises.
 #[derive(Debug, Clone, PartialEq, Eq)]

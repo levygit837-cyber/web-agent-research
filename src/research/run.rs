@@ -14,7 +14,8 @@ use crate::llm::{Gateway, GatewayConfig, TokenUsage};
 use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
 use crate::research::session::{append_header, append_turn, SessionHeader, SessionUsage, TurnRow};
 use crate::research::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
-use crate::web::fetch::Evidence;
+use crate::web::fetch::{Evidence, Fetcher};
+use crate::web::search::tool::Searcher;
 
 /// Default turn budget when the caller omits `max_turns`.
 pub fn default_max_turns() -> u32 {
@@ -251,6 +252,14 @@ fn generate_session_id() -> String {
 /// `allowed_tools` is fixed to `["search", "fetch"]` in registry order.
 /// The key comes only from env (`GATEWAY_API_KEY`), never from the request.
 pub async fn run_research(req: ResearchRequest) -> Result<ResearchResponse, ResearchError> {
+    run_research_with(req, ToolRegistry::new(Searcher::new(), Fetcher::new())).await
+}
+
+/// [`run_research`] over an injected registry (test seam for hermetic runs).
+pub(crate) async fn run_research_with(
+    req: ResearchRequest,
+    tools: ToolRegistry,
+) -> Result<ResearchResponse, ResearchError> {
     if req.goal.trim().is_empty() {
         return Err(ResearchError::NotConfigured(
             "research goal is empty".to_owned(),
@@ -264,7 +273,6 @@ pub async fn run_research(req: ResearchRequest) -> Result<ResearchResponse, Rese
     let config =
         GatewayConfig::from_env().map_err(|err| ResearchError::NotConfigured(err.to_string()))?;
     let gateway = Gateway::new(config);
-    let tools = ToolRegistry::live();
     let input = LoopInput {
         goal: req.goal.clone(),
         size: req.size,
@@ -418,10 +426,6 @@ mod tests {
         .to_string()
     }
 
-    fn final_text() -> String {
-        "The Obscura engine powers headless browsing.\n\n## Findings\n\n- Point one with [t](https://example.com/t).\n".to_owned()
-    }
-
     fn spawn_server(responses: Vec<String>) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
         let addr = listener.local_addr().expect("listener has an address");
@@ -508,84 +512,96 @@ mod tests {
         std::env::remove_var("GATEWAY_MODEL");
     }
 
+    /// Local web: a page server plus a search stub whose Hits point at it.
+    async fn local_web() -> (ToolRegistry, String) {
+        use crate::web::search::test_support::{
+            ddg_rows, sp_home_form, sp_rows, FanoutStub, StubReply, StubServer,
+        };
+        let pages = StubServer::serve(|_: &str, _: &str| {
+            StubReply::text(
+                200,
+                &format!(
+                    "<html><body><h1>Obscura</h1><p>{}</p></body></html>",
+                    "Obscura is a headless browser written in Rust. ".repeat(8)
+                ),
+            )
+        })
+        .await;
+        let page_url = format!("{}/obscura", pages.base());
+        let (search_base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows(&page_url, "Obscura", "headless browser"),
+            sp_home_form(),
+            sp_rows(&page_url, "Obscura", "headless browser"),
+            false,
+        ))
+        .await;
+        let searcher = Searcher::with_bases(
+            &format!("{search_base}/html/"),
+            &format!("{search_base}/"),
+            &format!("{search_base}/sp/search"),
+        );
+        let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
+            "/nonexistent/obscura".into(),
+            std::time::Duration::from_secs(1),
+        ));
+        // Keep the page server alive for the whole test.
+        std::mem::forget(pages);
+        (ToolRegistry::new(searcher, fetcher), page_url)
+    }
+
     #[tokio::test]
-    async fn hermetic_run_prints_synthesis_with_citation() {
+    async fn hermetic_run_uses_real_tools_and_persists_fetched_evidence() {
         let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let (tools, page_url) = local_web().await;
+        let final_answer = format!(
+            "Obscura is a Rust headless browser.\n\n## Findings\n\n- Written in Rust per [Obscura]({page_url}).\n"
+        );
         let base_url = spawn_server(vec![
             tools_body(
-                vec![tool_call("c1", "search", r#"{"query": "obscura"}"#)],
+                vec![tool_call("c1", "search", r#"{"queries": ["obscura"]}"#)],
                 "",
             ),
             tools_body(
                 vec![tool_call(
                     "c2",
                     "fetch",
-                    r#"{"url": "https://example.com/obscura"}"#,
+                    &serde_json::json!({ "url": page_url }).to_string(),
                 )],
                 "fetching now",
             ),
-            text_body(&final_text()),
+            text_body(&final_answer),
         ]);
         point_env_at(&base_url);
         let req = hermetic_request("a1");
         let session_out = req.session_out.clone().expect("session out set");
-        let response = run_research(req).await.expect("hermetic run must succeed");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("hermetic run must succeed");
 
-        assert!(!response.synthesis.summary.is_empty());
-        assert!(
-            !response.synthesis.citations.is_empty(),
-            "FINAL link must surface as a citation"
-        );
+        assert_eq!(response.session_id, "test-a1");
         assert_eq!(response.turns_used, 3);
-
-        let printed = render(&response);
-        assert!(printed.contains(&response.synthesis.summary));
-        assert!(printed.contains("Sources:"));
-        assert!(printed.contains("https://example.com/t"));
-
-        let _ = std::fs::remove_file(&session_out);
-    }
-
-    #[tokio::test]
-    async fn hermetic_response_shape_echoes_session_and_sums_usage() {
-        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
-        let base_url = spawn_server(vec![
-            tools_body(
-                vec![tool_call("c1", "search", r#"{"query": "obscura"}"#)],
-                "",
-            ),
-            tools_body(
-                vec![tool_call(
-                    "c2",
-                    "fetch",
-                    r#"{"url": "https://example.com/obscura"}"#,
-                )],
-                "fetching now",
-            ),
-            text_body(&final_text()),
-        ]);
-        point_env_at(&base_url);
-        let req = hermetic_request("a3");
-        let session_out = req.session_out.clone().expect("session out set");
-        let response = run_research(req).await.expect("hermetic run must succeed");
-
-        assert_eq!(response.session_id, "test-a3");
-        // Live registry returns the same canned stub URL per tool turn,
-        // in turn order.
-        assert_eq!(
-            response.evidence_urls,
-            vec![
-                "https://example.com/obscura".to_owned(),
-                "https://example.com/obscura".to_owned()
-            ]
-        );
-        assert_eq!(response.usage.prompt_tokens, 3);
-        assert_eq!(response.usage.completion_tokens, 3);
+        // Search Hits are not Evidence: only the fetched page is.
+        assert_eq!(response.evidence_urls, vec![page_url.clone()]);
+        assert!(response
+            .synthesis
+            .citations
+            .iter()
+            .any(|citation| citation.url == page_url));
         assert_eq!(response.usage.total_tokens, 6);
+        assert!(render(&response).contains(&page_url));
 
         let content = std::fs::read_to_string(&session_out).expect("session file must exist");
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 4, "header + 3 turn rows, got {content}");
+        assert!(
+            lines[2].contains("headless browser written in Rust"),
+            "turn 2 must persist fetched markdown: {}",
+            lines[2]
+        );
+        assert!(
+            !lines[1].contains("\"source_url\""),
+            "search turn has no Evidence"
+        );
         let _ = std::fs::remove_file(&session_out);
     }
 

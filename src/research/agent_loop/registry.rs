@@ -1,58 +1,30 @@
-//! Concrete tool dispatch for the agent loop: one adapter per tool.
+//! Tool dispatch for the agent loop: `search` → [`Searcher`], `fetch` → [`Fetcher`].
 //!
-//! Zero `trait`, zero `dyn` (ADR-0006 one-adapter rule). Tool names
-//! (`"search"`, `"fetch"`) are stable registry keys so #13/#14 integrate at
-//! #16 without rename. Until then, live mode validates args against the
-//! local schemas below and returns canned stub results; the schemas mirror
-//! the shapes #13/#14 will own (`query`/`top_k`, `url`/`max_chars`) but live
-//! here until #32 wires `web::search`/`web::fetch`. Tests use
-//! [`ToolRegistry::stub`] with a canned queue. The runner applies the
-//! per-call timeout around [`ToolRegistry::execute`] so stub and live paths
-//! share one deadline.
+//! Schemas, argument parsing, and result types come from `web/` (ADR-0006 §4);
+//! this module only routes calls and renders results for the model. Zero
+//! `trait`, zero `dyn`. Tests swap the live tools for a `#[cfg(test)]` queue.
+//! The runner applies the per-call timeout around [`ToolRegistry::execute`].
 
+#[cfg(test)]
 use std::collections::VecDeque;
 
 use crate::llm::{RequestedToolCall, ToolDef};
-
-const SEARCH_TOOL_NAME: &str = "search";
-const SEARCH_TOOL_DESCRIPTION: &str = "Search the web for pages matching a query.";
-const FETCH_TOOL_NAME: &str = "fetch";
-const FETCH_TOOL_DESCRIPTION: &str = "Fetch a URL and return its content as markdown.";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SearchHit {
-    pub title: String,
-    pub url: String,
-    pub snippet: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FetchedPage {
-    pub url: String,
-    pub title: String,
-    pub markdown: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SearchArgs {
-    query: String,
-    top_k: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct FetchArgs {
-    url: String,
-    max_chars: usize,
-}
+use crate::web::fetch::tool::{fetch_tool, fetch_tool_schema, FETCH_TOOL_NAME, FETCH_TOOL_PURPOSE};
+use crate::web::fetch::{Evidence, FetchError, Fetcher};
+use crate::web::search::tool::{
+    parse_search_args, search_tool_schema, Searcher, SEARCH_TOOL_NAME, SEARCH_TOOL_PURPOSE,
+};
+use crate::web::search::types::MergedResult;
 
 /// One executed tool call, rendered into the observation transcript.
 #[derive(Debug, Clone)]
 pub enum ToolResult {
+    /// Hits are candidates: rendered for the model, never Evidence.
     Search {
-        hits: Vec<SearchHit>,
+        hits: Vec<MergedResult>,
     },
     Fetch {
-        page: FetchedPage,
+        evidence: Evidence,
     },
     #[cfg(test)]
     Hang,
@@ -72,15 +44,12 @@ impl ToolResult {
                     return "no results".to_owned();
                 }
                 hits.iter()
-                    .map(|hit| format!("- [{}]({})\n  {}", hit.title, hit.url, hit.snippet))
+                    .map(|hit| format!("- [{}]({})\n  {}", hit.title, hit.display_url, hit.snippet))
                     .collect::<Vec<_>>()
                     .join("\n")
             }
-            Self::Fetch { page } => {
-                format!(
-                    "# {}\n{}\n\nSource: {}",
-                    page.title, page.markdown, page.url
-                )
+            Self::Fetch { evidence } => {
+                format!("{}\n\nSource: {}", evidence.markdown, evidence.source_url)
             }
             #[cfg(test)]
             Self::Hang => "hanging".to_owned(),
@@ -88,14 +57,11 @@ impl ToolResult {
         }
     }
 
-    /// Source URL carried by successful results, if any.
+    /// Source URL of fetched Evidence. Search Hits carry none: they are not Evidence.
     pub fn url(&self) -> Option<String> {
         match self {
-            Self::Search { hits } => hits.first().map(|hit| hit.url.clone()),
-            Self::Fetch { page } => Some(page.url.clone()),
-            #[cfg(test)]
-            Self::Hang => None,
-            Self::Failed { .. } => None,
+            Self::Fetch { evidence } => Some(evidence.source_url.clone()),
+            _ => None,
         }
     }
 
@@ -105,203 +71,48 @@ impl ToolResult {
     }
 }
 
-enum RegistryMode {
-    Live,
-    #[allow(dead_code)]
-    Stub {
-        queue: tokio::sync::Mutex<VecDeque<ToolResult>>,
+enum Backend {
+    Live {
+        searcher: Searcher,
+        fetcher: Fetcher,
     },
+    #[cfg(test)]
+    Queue(tokio::sync::Mutex<VecDeque<ToolResult>>),
 }
 
-/// Concrete dispatch table for the tools one run may offer.
+/// Dispatch table for the tools one run may offer.
 pub struct ToolRegistry {
-    mode: RegistryMode,
-}
-
-fn value_kind(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => "null".to_owned(),
-        serde_json::Value::Bool(flag) => format!("{flag} (boolean)"),
-        serde_json::Value::Number(number) => format!("{number} (number)"),
-        serde_json::Value::String(text) => format!("{text:?} (string)"),
-        serde_json::Value::Array(_) => "an array".to_owned(),
-        serde_json::Value::Object(_) => "an object".to_owned(),
-    }
-}
-
-fn stub_search_def() -> ToolDef {
-    ToolDef {
-        name: SEARCH_TOOL_NAME.to_owned(),
-        description: SEARCH_TOOL_DESCRIPTION.to_owned(),
-        parameters: serde_json::json!({
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Web-search query; must be non-empty."
-                },
-                "top_k": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 10,
-                    "default": 5,
-                    "description": "How many hits to return (1-10)."
-                }
-            },
-            "required": ["query"]
-        }),
-    }
-}
-
-fn stub_fetch_def() -> ToolDef {
-    ToolDef {
-        name: FETCH_TOOL_NAME.to_owned(),
-        description: FETCH_TOOL_DESCRIPTION.to_owned(),
-        parameters: serde_json::json!({
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "http(s) URL to fetch."
-                },
-                "max_chars": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 100000,
-                    "default": 4000,
-                    "description": "Maximum characters to return (1-100000)."
-                }
-            },
-            "required": ["url"]
-        }),
-    }
-}
-
-fn validate_search(args: &serde_json::Value) -> Result<SearchArgs, String> {
-    let object = args
-        .as_object()
-        .ok_or_else(|| format!("Provide arguments as an object; got {}.", value_kind(args)))?;
-    let query = match object.get("query") {
-        Some(serde_json::Value::String(text)) if !text.trim().is_empty() => text.clone(),
-        Some(serde_json::Value::String(_)) => {
-            return Err("Provide query as a non-empty string; got an empty string.".to_owned());
-        }
-        Some(other) => {
-            return Err(format!(
-                "Provide query as a non-empty string; got {}.",
-                value_kind(other)
-            ));
-        }
-        None => return Err("Provide query as a non-empty string; got missing.".to_owned()),
-    };
-    let top_k = match object.get("top_k") {
-        None => 5,
-        Some(serde_json::Value::Number(number)) => match number.as_u64() {
-            Some(value) if (1..=10).contains(&value) => value as u8,
-            Some(value) => {
-                return Err(format!("Provide top_k as an integer 1..=10; got {value}."));
-            }
-            None => {
-                return Err(format!(
-                    "Provide top_k as an integer 1..=10; got {number} (non-integer)."
-                ));
-            }
-        },
-        Some(other) => {
-            return Err(format!(
-                "Provide top_k as an integer 1..=10; got {}.",
-                value_kind(other)
-            ));
-        }
-    };
-    Ok(SearchArgs { query, top_k })
-}
-
-fn validate_fetch(args: &serde_json::Value) -> Result<FetchArgs, String> {
-    let object = args
-        .as_object()
-        .ok_or_else(|| format!("Provide arguments as an object; got {}.", value_kind(args)))?;
-    let url = match object.get("url") {
-        Some(serde_json::Value::String(text))
-            if text.starts_with("http://") || text.starts_with("https://") =>
-        {
-            text.clone()
-        }
-        Some(serde_json::Value::String(_)) => {
-            return Err(
-                "Provide url as an http(s) URL; got a string with another scheme.".to_owned(),
-            );
-        }
-        Some(other) => {
-            return Err(format!(
-                "Provide url as an http(s) URL; got {}.",
-                value_kind(other)
-            ));
-        }
-        None => return Err("Provide url as an http(s) URL; got missing.".to_owned()),
-    };
-    let max_chars = match object.get("max_chars") {
-        None => 4_000,
-        Some(serde_json::Value::Number(number)) => match number.as_u64() {
-            Some(value) if (1..=100_000).contains(&value) => value as usize,
-            Some(value) => {
-                return Err(format!(
-                    "Provide max_chars as a positive integer <= 100000; got {value}."
-                ));
-            }
-            None => {
-                return Err(format!(
-                    "Provide max_chars as a positive integer <= 100000; got {number} (non-integer)."
-                ));
-            }
-        },
-        Some(other) => {
-            return Err(format!(
-                "Provide max_chars as a positive integer <= 100000; got {}.",
-                value_kind(other)
-            ));
-        }
-    };
-    Ok(FetchArgs { url, max_chars })
-}
-
-async fn stub_execute_search(_args: SearchArgs) -> ToolResult {
-    ToolResult::Search {
-        hits: vec![SearchHit {
-            title: "Obscura engine overview".to_owned(),
-            url: "https://example.com/obscura".to_owned(),
-            snippet: "Stub search hit; the real engine lands in #13.".to_owned(),
-        }],
-    }
-}
-
-async fn stub_execute_fetch(_args: FetchArgs) -> ToolResult {
-    ToolResult::Fetch {
-        page: FetchedPage {
-            url: "https://example.com/obscura".to_owned(),
-            title: "Obscura engine overview".to_owned(),
-            markdown: "Stub fetch body; the real Obscura integration lands in #14.".to_owned(),
-        },
-    }
+    backend: Backend,
 }
 
 impl ToolRegistry {
-    /// Live dispatch: validate args against the local schemas and return
-    /// canned stub results until #13/#14 own the real bodies.
-    pub fn live() -> Self {
+    /// Live dispatch over the real web tools.
+    pub fn new(searcher: Searcher, fetcher: Fetcher) -> Self {
         Self {
-            mode: RegistryMode::Live,
+            backend: Backend::Live { searcher, fetcher },
         }
     }
 
-    /// Internal test seam: pop canned results in wire order.
-    #[allow(dead_code)]
+    /// Test seam: pop canned results in wire order, ignoring arguments.
+    #[cfg(test)]
     pub(crate) fn stub(results: VecDeque<ToolResult>) -> Self {
         Self {
-            mode: RegistryMode::Stub {
-                queue: tokio::sync::Mutex::new(results),
-            },
+            backend: Backend::Queue(tokio::sync::Mutex::new(results)),
         }
+    }
+
+    /// Test seam: live dispatch whose endpoints are unreachable, for
+    /// argument-validation paths that must fail before any I/O.
+    #[cfg(test)]
+    pub(crate) fn offline() -> Self {
+        let dead = "http://127.0.0.1:9/";
+        Self::new(
+            Searcher::with_bases(dead, dead, dead),
+            Fetcher::with_obscura(crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            )),
+        )
     }
 
     /// Tools known to this registry, in deterministic wire order.
@@ -312,8 +123,8 @@ impl ToolRegistry {
     /// One-line purposes aligned with the sysprompt roster.
     pub fn tool_purposes(&self) -> Vec<(&'static str, &'static str)> {
         vec![
-            (SEARCH_TOOL_NAME, SEARCH_TOOL_DESCRIPTION),
-            (FETCH_TOOL_NAME, FETCH_TOOL_DESCRIPTION),
+            (SEARCH_TOOL_NAME, SEARCH_TOOL_PURPOSE),
+            (FETCH_TOOL_NAME, FETCH_TOOL_PURPOSE),
         ]
     }
 
@@ -321,21 +132,18 @@ impl ToolRegistry {
     /// Unknown names are skipped silently: the runner's pre-flight already
     /// rejected them, and double-reporting would confuse the model.
     pub fn tool_defs(&self, allowed: &[String]) -> Vec<ToolDef> {
-        let mut defs = Vec::new();
-        for name in self.tool_names() {
-            if allowed.iter().any(|allowed| allowed == name) {
-                defs.push(match name {
-                    SEARCH_TOOL_NAME => stub_search_def(),
-                    FETCH_TOOL_NAME => stub_fetch_def(),
-                    _ => continue,
-                });
-            }
-        }
-        defs
-    }
-
-    fn is_known(name: &str) -> bool {
-        name == SEARCH_TOOL_NAME || name == FETCH_TOOL_NAME
+        [search_tool_schema(), fetch_tool_schema()]
+            .into_iter()
+            .filter(|schema| allowed.iter().any(|name| schema["name"] == name.as_str()))
+            .map(|schema| ToolDef {
+                name: schema["name"].as_str().unwrap_or_default().to_owned(),
+                description: schema["description"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
+                parameters: schema["parameters"].clone(),
+            })
+            .collect()
     }
 
     /// Parse args + validate + run one call. Never panics: unknown names,
@@ -344,58 +152,80 @@ impl ToolRegistry {
     /// validation-kind; executor failures are execution-kind — the runner
     /// distinguishes them from the rendered text.
     pub async fn execute(&self, call: &RequestedToolCall) -> ToolResult {
-        if let RegistryMode::Stub { queue } = &self.mode {
-            let next = queue
-                .lock()
-                .await
-                .pop_front()
-                .unwrap_or_else(|| ToolResult::Failed {
-                    tool: call.name.clone(),
-                    reason: "stub queue exhausted".to_owned(),
-                });
+        let (searcher, fetcher) = match &self.backend {
+            Backend::Live { searcher, fetcher } => (searcher, fetcher),
             #[cfg(test)]
-            if matches!(next, ToolResult::Hang) {
-                std::future::pending::<()>().await;
-                unreachable!("stub Hang pends until the runner timeout fires");
-            }
-            return next;
-        }
-        if !Self::is_known(&call.name) {
-            return ToolResult::Failed {
-                tool: call.name.clone(),
-                reason: format!("unknown tool '{}'", call.name),
-            };
-        }
-        let parsed = call.parsed_arguments();
-        let args = match parsed {
-            Ok(args) => args,
-            Err(err) => {
-                return ToolResult::Failed {
-                    tool: call.name.clone(),
-                    reason: format!("arguments are not valid JSON: {err}"),
-                };
+            Backend::Queue(queue) => {
+                let next = queue
+                    .lock()
+                    .await
+                    .pop_front()
+                    .unwrap_or_else(|| failed(call, "stub queue exhausted".to_owned()));
+                if matches!(next, ToolResult::Hang) {
+                    std::future::pending::<()>().await;
+                }
+                return next;
             }
         };
+        let args = match call.parsed_arguments() {
+            Ok(args) => args,
+            Err(err) => return failed(call, format!("arguments are not valid JSON: {err}")),
+        };
         match call.name.as_str() {
-            SEARCH_TOOL_NAME => match validate_search(&args) {
-                Ok(valid) => stub_execute_search(valid).await,
-                Err(reason) => ToolResult::Failed {
-                    tool: call.name.clone(),
-                    reason: format!("invalid args for 'search': {reason}"),
-                },
+            SEARCH_TOOL_NAME => {
+                let input = match parse_search_args(&args) {
+                    Ok(input) => input,
+                    Err(reason) => {
+                        return failed(call, format!("invalid args for 'search': {reason}"))
+                    }
+                };
+                match searcher.search(input).await {
+                    Ok(output) => ToolResult::Search {
+                        hits: output.results,
+                    },
+                    Err(err) => failed(call, format!("search failed: {}", search_error(&err))),
+                }
+            }
+            FETCH_TOOL_NAME => match fetch_tool(&args, fetcher).await {
+                Ok(evidence) => ToolResult::Fetch { evidence },
+                Err(err @ FetchError::InvalidUrl { .. }) => {
+                    failed(call, format!("invalid args for 'fetch': {err}"))
+                }
+                Err(err) => failed(call, format!("fetch failed: {err}")),
             },
-            FETCH_TOOL_NAME => match validate_fetch(&args) {
-                Ok(valid) => stub_execute_fetch(valid).await,
-                Err(reason) => ToolResult::Failed {
-                    tool: call.name.clone(),
-                    reason: format!("invalid args for 'fetch': {reason}"),
-                },
-            },
-            _ => ToolResult::Failed {
-                tool: call.name.clone(),
-                reason: format!("unknown tool '{}'", call.name),
-            },
+            _ => failed(call, format!("unknown tool '{}'", call.name)),
         }
+    }
+}
+
+fn failed(call: &RequestedToolCall, reason: String) -> ToolResult {
+    ToolResult::Failed {
+        tool: call.name.clone(),
+        reason,
+    }
+}
+
+fn search_error(err: &crate::web::search::types::SearchProviderError) -> String {
+    use crate::web::search::types::SearchProviderError as E;
+    match err {
+        E::AllFailed { failures } => format!("all engines failed: {failures}"),
+        other => other.code().to_owned(),
+    }
+}
+
+/// Test helper: one Hit with the given title and URL.
+#[cfg(test)]
+pub(crate) fn test_hit(title: &str, url: &str) -> MergedResult {
+    MergedResult {
+        title: title.to_owned(),
+        canonical_url: url.to_owned(),
+        display_url: url.to_owned(),
+        snippet: "S".to_owned(),
+        providers: vec![],
+        queries: vec![],
+        best_rank: 0,
+        hit_count: 1,
+        published_date: None,
     }
 }
 
@@ -411,160 +241,82 @@ mod tests {
         }
     }
 
-    #[test]
-    fn registry_names_are_deterministic() {
-        let registry = ToolRegistry::live();
-        assert_eq!(registry.tool_names(), vec!["search", "fetch"]);
+    fn reason(result: ToolResult) -> String {
+        match result {
+            ToolResult::Failed { reason, .. } => reason,
+            other => panic!("expected Failed, got {other:?}"),
+        }
     }
 
     #[test]
-    fn tool_defs_filter_in_registry_order() {
-        let registry = ToolRegistry::live();
+    fn tool_defs_come_from_web_schemas_in_registry_order() {
+        let registry = ToolRegistry::offline();
         let defs = registry.tool_defs(&["fetch".to_owned(), "search".to_owned()]);
         assert_eq!(defs.len(), 2);
         assert_eq!(defs[0].name, "search");
+        assert_eq!(defs[0].parameters, search_tool_schema()["parameters"]);
         assert_eq!(defs[1].name, "fetch");
-        for def in &defs {
-            assert_eq!(
-                def.parameters.get("type").and_then(|v| v.as_str()),
-                Some("object"),
-                "each ToolDef must carry a real JSON Schema"
-            );
-        }
-        let only_search = registry.tool_defs(&["search".to_owned()]);
-        assert_eq!(only_search.len(), 1);
-        assert_eq!(only_search[0].name, "search");
+        assert_eq!(defs[1].parameters, fetch_tool_schema()["parameters"]);
+        assert_eq!(registry.tool_defs(&["search".to_owned()]).len(), 1);
         assert!(registry.tool_defs(&["nope".to_owned()]).is_empty());
-        assert!(registry.tool_defs(&[]).is_empty());
-    }
-
-    #[test]
-    fn tool_defs_carry_required_fields() {
-        let registry = ToolRegistry::live();
-        let defs = registry.tool_defs(&["search".to_owned(), "fetch".to_owned()]);
-        let search = defs
-            .iter()
-            .find(|def| def.name == "search")
-            .expect("search def");
-        let required = search
-            .parameters
-            .get("required")
-            .and_then(|v| v.as_array())
-            .expect("search schema must list required fields");
-        assert!(required.contains(&serde_json::json!("query")));
-        let fetch = defs
-            .iter()
-            .find(|def| def.name == "fetch")
-            .expect("fetch def");
-        let required = fetch
-            .parameters
-            .get("required")
-            .and_then(|v| v.as_array())
-            .expect("fetch schema must list required fields");
-        assert!(required.contains(&serde_json::json!("url")));
     }
 
     #[tokio::test]
     async fn stub_pops_in_order_then_exhausts() {
-        let registry = ToolRegistry::stub(VecDeque::from([
-            ToolResult::Search { hits: vec![] },
-            ToolResult::Failed {
-                tool: "fetch".to_owned(),
-                reason: "boom".to_owned(),
-            },
-        ]));
-        let first = registry.execute(&call("search", "{}")).await;
-        assert!(matches!(first, ToolResult::Search { .. }));
-        let second = registry.execute(&call("fetch", "{}")).await;
-        assert!(matches!(second, ToolResult::Failed { .. }));
-        let third = registry.execute(&call("search", "{}")).await;
-        match third {
-            ToolResult::Failed { reason, .. } => {
-                assert!(reason.contains("stub queue exhausted"), "got {reason}");
-            }
-            other => panic!("exhausted stub must fail deterministically, got {other:?}"),
-        }
+        let registry = ToolRegistry::stub(VecDeque::from([ToolResult::Search { hits: vec![] }]));
+        assert!(matches!(
+            registry.execute(&call("search", "{}")).await,
+            ToolResult::Search { .. }
+        ));
+        assert!(reason(registry.execute(&call("search", "{}")).await).contains("exhausted"));
     }
 
     #[tokio::test]
-    async fn unknown_name_is_failed_not_panic() {
-        let registry = ToolRegistry::live();
-        let result = registry.execute(&call("Search", "{}")).await;
-        match result {
-            ToolResult::Failed { tool, reason } => {
-                assert_eq!(tool, "Search");
-                assert!(reason.contains("unknown tool"), "got {reason}");
-            }
-            other => panic!("unknown name must fail, got {other:?}"),
-        }
+    async fn dispatch_failures_are_classified_before_io() {
+        let registry = ToolRegistry::offline();
+        assert!(reason(registry.execute(&call("Search", "{}")).await).contains("unknown tool"));
+        assert!(reason(registry.execute(&call("search", "{bad")).await).contains("not valid JSON"));
+        assert!(
+            reason(registry.execute(&call("search", r#"{"query": "x"}"#)).await)
+                .starts_with("invalid args for 'search'")
+        );
+        assert!(reason(
+            registry
+                .execute(&call("fetch", r#"{"url": "ftp://x/y"}"#))
+                .await
+        )
+        .starts_with("invalid args for 'fetch'"));
     }
 
     #[tokio::test]
-    async fn bad_json_args_are_failed() {
-        let registry = ToolRegistry::live();
-        let result = registry.execute(&call("search", "{bad json")).await;
-        match result {
-            ToolResult::Failed { reason, .. } => {
-                assert!(reason.contains("not valid JSON"), "got {reason}");
-            }
-            other => panic!("bad JSON must fail, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn validator_rejection_is_failed() {
-        let registry = ToolRegistry::live();
-        let result = registry.execute(&call("search", r#"{"query": ""}"#)).await;
-        match result {
-            ToolResult::Failed { reason, .. } => {
-                assert!(reason.contains("invalid args for 'search'"), "got {reason}");
-            }
-            other => panic!("invalid args must fail, got {other:?}"),
-        }
-        let fetch_result = registry
-            .execute(&call("fetch", r#"{"url": "ftp://x/y"}"#))
-            .await;
-        match fetch_result {
-            ToolResult::Failed { reason, .. } => {
-                assert!(reason.contains("invalid args for 'fetch'"), "got {reason}");
-            }
-            other => panic!("invalid fetch args must fail, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn live_valid_args_return_canned_results() {
-        let registry = ToolRegistry::live();
-        let search = registry
-            .execute(&call("search", r#"{"query": "obscura"}"#))
-            .await;
-        assert!(matches!(search, ToolResult::Search { .. }));
-        let fetch = registry
-            .execute(&call("fetch", r#"{"url": "https://example.com/a"}"#))
-            .await;
-        assert!(matches!(fetch, ToolResult::Fetch { .. }));
+    async fn unreachable_endpoints_are_execution_failures() {
+        let registry = ToolRegistry::offline();
+        let search = reason(
+            registry
+                .execute(&call("search", r#"{"queries": ["x"]}"#))
+                .await,
+        );
+        assert!(search.starts_with("search failed"), "{search}");
+        let fetch = reason(
+            registry
+                .execute(&call("fetch", r#"{"url": "http://127.0.0.1:9/page"}"#))
+                .await,
+        );
+        assert!(fetch.starts_with("fetch failed"), "{fetch}");
     }
 
     #[test]
-    fn render_shapes() {
-        let empty = ToolResult::Search { hits: vec![] };
-        assert_eq!(empty.render(), "no results");
-        assert!(empty.is_success());
-        let failed = ToolResult::Failed {
-            tool: "search".to_owned(),
-            reason: "boom".to_owned(),
+    fn only_fetch_results_carry_evidence_urls() {
+        let search = ToolResult::Search {
+            hits: vec![test_hit("T", "https://example.com/t")],
         };
-        assert_eq!(failed.render(), "FAILED: boom");
-        assert!(!failed.is_success());
-        assert_eq!(failed.url(), None);
-        let hit = ToolResult::Search {
-            hits: vec![SearchHit {
-                title: "T".to_owned(),
-                url: "https://example.com/t".to_owned(),
-                snippet: "S".to_owned(),
-            }],
+        assert!(search.render().contains("[T](https://example.com/t)"));
+        assert_eq!(search.url(), None);
+        let fetch = ToolResult::Fetch {
+            evidence: Evidence::new("https://example.com/p".to_owned(), "Body".to_owned()),
         };
-        assert!(hit.render().contains("https://example.com/t"));
-        assert_eq!(hit.url().as_deref(), Some("https://example.com/t"));
+        assert_eq!(fetch.url().as_deref(), Some("https://example.com/p"));
+        assert!(fetch.render().ends_with("Source: https://example.com/p"));
+        assert_eq!(ToolResult::Search { hits: vec![] }.render(), "no results");
     }
 }

@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Research agent calls the real web tools (#32): `ToolRegistry::new(Searcher, Fetcher)` dispatches `search` to the DDG + Startpage fan-out and `fetch` to `Fetcher`; schemas come from `web/`. Only fetched pages become Evidence; search Hits no longer count as evidence URLs.
 - `web::fetch::Fetcher` (#31): `reqwest` + `htmd` static fetch first; Obscura fallback only on HTTP 403/429/503, challenge pages, JS shells (<200 chars of markdown) or non-text content. Missing `obscura` binary → `FetchError::FallbackUnavailable`. New `FetchError::Http` for 404/5xx/transport/oversize (5 MiB cap). Live: docs.rs 0.25 s, wikipedia 0.63 s, react.dev 0.41 s, all static (was 1.5–8.2 s via Obscura).
 - Fetch-only search tools (`shared/tools/search.rs` + `shared/types/search.rs`): DuckDuckGo HTML POST (form `q`/`kl`/`df`/`b`, `s`+`vqd` continuation, regex parse) and Startpage (`sc`-token flow with direct-GET fallback, DOM parse), parallel multi-query fan-out with `dedup_key` + consensus `merge_sources`, `SearchProviderError` mapping (429 challenge / 504 timeout / 503 upstream + `AllFailed`), and a validated agent tool schema.
 
 ### Changed
 
+- Removed `ToolRegistry::live()` canned stubs, registry-local `query`/`max_chars` schemas, `SearchHit`, `FetchedPage` (closes #25, #26).
 - `AGENTS.md`, README intro, and the PR template rewritten in English; repo content stays English, chat replies follow the session language.
 - ADR-0006 supersedes ADR-0004: one product (the Web Search agent via CLI), modules `web/`, `llm/`, `research/` where `research` depends on the other two and never the reverse, reqwest-first fetch with Obscura fallback. Glossary adds Web Search, Harness, Hit.
 - `src/shared/` + `src/slices/` replaced by `src/web/`, `src/llm/`, `src/research/` (#30); `Evidence` moves to `web::fetch`; empty `classify`/`research` placeholders removed. No behavior change.

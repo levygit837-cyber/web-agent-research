@@ -13,6 +13,8 @@ use web_agent_research::research::agent_loop::{
     run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry,
 };
 use web_agent_research::research::synthesis::SynthesisSize;
+use web_agent_research::web::fetch::Fetcher;
+use web_agent_research::web::search::tool::Searcher;
 
 fn candidate_models() -> Vec<String> {
     let mut models = Vec::new();
@@ -42,7 +44,7 @@ async fn live_loop_terminates_within_budget() -> anyhow::Result<()> {
         let mut config = base.clone();
         config.model.clone_from(&model);
         let gateway = Gateway::new(config);
-        let tools = ToolRegistry::live();
+        let tools = ToolRegistry::new(Searcher::new(), Fetcher::new());
         let input = LoopInput {
             goal: "What is the Obscura headless browser? Answer briefly.".to_owned(),
             size: SynthesisSize::Small,
@@ -91,6 +93,6 @@ async fn live_loop_terminates_within_budget() -> anyhow::Result<()> {
 
 #[test]
 fn live_loop_tool_names_stay_stable() {
-    let tools = ToolRegistry::live();
+    let tools = ToolRegistry::new(Searcher::new(), Fetcher::new());
     assert_eq!(tools.tool_names(), vec!["search", "fetch"]);
 }
