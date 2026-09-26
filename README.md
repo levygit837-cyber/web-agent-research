@@ -26,7 +26,7 @@ CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build) a
 
 - `src/main.rs` — thin CLI shell over the lib
 - `src/lib.rs` — public interface: `run_research`
-- Target module layout (`web/`, `llm/`, `research/`) and dependency rule: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md). `src/shared/` + `src/slices/` are the legacy layout until the migration issue lands.
+- Target module layout (`web/`, `llm/`, `research/`) and dependency rule: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md). `src/shared/` + `src/slices/` are the legacy layout until #30 lands.
 - `sessions/`, `cache/` — created at runtime, out of git
 - `CONTEXT.md` — domain glossary (Research, Session, Turn, Evidence)
 - `docs/adr/` — architecture decisions

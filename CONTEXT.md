@@ -25,7 +25,7 @@ Multi-turn execution of a Research, with recoverable turn history.
 _Avoid_: conversation, thread, run
 
 **Turn**:
-One iteration of the plan → search → read → synthesize loop inside a Session.
+One iteration of the plan → search → fetch → synthesize loop inside a Session.
 _Avoid_: step, iteration, cycle
 
 **Evidence**:

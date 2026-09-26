@@ -1,4 +1,4 @@
-# One product: the web_search agent over a stable web layer
+# One product: the Web Search agent over a stable web layer
 
 Supersedes ADR-0004. Amends ADR-0001 (Obscura is no longer the first fetch path).
 
@@ -26,14 +26,15 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
 ## Considered Options
 
 - Keep ADR-0004 (vertical slices + `shared/`): rejected. With one Mode the slice is a pass-through, and `shared/` became a mixed bag where catalogs, engines, and duplicates coexist without a dependency rule.
-- Expose raw `search`/`fetch` alongside `web_search`: rejected. Three public contracts to keep stable, and it brings back the two-product split.
+- Expose raw `search`/`fetch` alongside Web Search: rejected. Three public contracts to keep stable, and it brings back the two-product split.
 - MCP server now: deferred. CLI + `--json` works in every Harness that has a shell; revisit when a Harness needs typed tool discovery.
 - Obscura-only fetch: rejected for latency (5–15× slower) and a hard binary dependency. Obscura-free fetch: rejected because SPAs and anti-bot pages would lose content.
 
 ## Consequences
 
 - `src/shared/` and `src/slices/` go away. The move is mechanical, done in one PR, with no behavior change, before any feature work.
-- `ToolRegistry` stub mode, its local schemas (`query`/`max_chars`), and `SearchHit`/`FetchedPage` are deleted when the real tools are wired; #25 and #26 close there.
+- `ToolRegistry` stub mode, its local schemas (`query`/`top_k`, `url`/`max_chars`), and `SearchHit`/`FetchedPage` are deleted when the real tools are wired; #25 and #26 close there.
 - Empty placeholders (`prompts/classify.rs`, `types/research.rs`) are deleted; classification comes back only with a second Mode.
 - New dependency: `htmd` (HTML→markdown). `scraper` stays for search parsing.
+- The ADR-0002 on-disk fetch cache stays unbuilt; decide after real tools are wired and repeat fetches are measured.
 - `trait` is still banned until a second adapter exists; Obscura is a fallback branch inside `web::fetch`, not an adapter behind a seam.
