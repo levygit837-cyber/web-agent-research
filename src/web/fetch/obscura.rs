@@ -43,9 +43,15 @@ impl Obscura {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| FetchError::CommandFailed {
-                url: normalized.clone(),
-                detail: e.to_string(),
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => FetchError::FallbackUnavailable {
+                    url: normalized.clone(),
+                    reason: format!("{} not found", self.binary.display()),
+                },
+                _ => FetchError::CommandFailed {
+                    url: normalized.clone(),
+                    detail: e.to_string(),
+                },
             })?;
 
         let output = match tokio::time::timeout(self.timeout, child.wait_with_output()).await {
@@ -110,7 +116,7 @@ pub struct FetchedMarkdown {
 
 /// Parse `raw_url` with `reqwest::Url`, requiring an absolute URL whose
 /// scheme is `http` or `https`. Returns the re-serialized canonical URL.
-fn normalize_url(raw_url: &str) -> Result<String, FetchError> {
+pub(crate) fn normalize_url(raw_url: &str) -> Result<String, FetchError> {
     match reqwest::Url::parse(raw_url) {
         Ok(url) if url.scheme() == "http" || url.scheme() == "https" => Ok(url.to_string()),
         _ => Err(FetchError::InvalidUrl {
@@ -135,6 +141,11 @@ pub enum FetchError {
     /// Spawn failure or any other non-zero exit / I/O error.
     /// `detail` carries the OS error or `status + stderr tail` (max 500 chars).
     CommandFailed { url: String, detail: String },
+    /// Static HTTP failure that a browser would not fix (404, 500, transport, oversize).
+    Http { url: String, detail: String },
+    /// Browser needed (or requested) but the Obscura binary is missing.
+    /// `reason` says why the static path was not enough.
+    FallbackUnavailable { url: String, reason: String },
 }
 
 impl fmt::Display for FetchError {
@@ -151,6 +162,11 @@ impl fmt::Display for FetchError {
             FetchError::CommandFailed { url, detail } => {
                 write!(f, "command failed: {url}: {detail}")
             }
+            FetchError::Http { url, detail } => write!(f, "http error: {url}: {detail}"),
+            FetchError::FallbackUnavailable { url, reason } => write!(
+                f,
+                "browser fallback unavailable: {url}: {reason}; install obscura on PATH"
+            ),
         }
     }
 }
