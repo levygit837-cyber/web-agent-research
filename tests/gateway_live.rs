@@ -4,7 +4,7 @@
 //! model first (`GATEWAY_LIVE_MODEL`, else `glm-5p2`, else `mimo-v2.5-free` on
 //! 429) and makes exactly one attempt per model — never a probe loop.
 
-use web_agent_research::shared::gateway::{
+use web_agent_research::llm::{
     ChatMessage, Gateway, GatewayConfig, GatewayError, ToolChoice, ToolDef,
 };
 

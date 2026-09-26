@@ -43,8 +43,8 @@ enum SizeArg {
 }
 
 impl SizeArg {
-    fn as_size(self) -> web_agent_research::shared::types::synthesis::SynthesisSize {
-        use web_agent_research::shared::types::synthesis::SynthesisSize;
+    fn as_size(self) -> web_agent_research::research::synthesis::SynthesisSize {
+        use web_agent_research::research::synthesis::SynthesisSize;
         match self {
             Self::Small => SynthesisSize::Small,
             Self::Medium => SynthesisSize::Medium,
@@ -186,7 +186,7 @@ mod tests {
         let response = ResearchResponse {
             session_id: "s".to_owned(),
             synthesis: SynthesisDTO {
-                size: web_agent_research::shared::types::synthesis::SynthesisSize::Small,
+                size: web_agent_research::research::synthesis::SynthesisSize::Small,
                 summary: "summary text".to_owned(),
                 themes: vec![ThemeDTO {
                     title: "Findings".to_owned(),

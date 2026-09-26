@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AGENTS.md`, README intro, and the PR template rewritten in English; repo content stays English, chat replies follow the session language.
 - ADR-0006 supersedes ADR-0004: one product (the Web Search agent via CLI), modules `web/`, `llm/`, `research/` where `research` depends on the other two and never the reverse, reqwest-first fetch with Obscura fallback. Glossary adds Web Search, Harness, Hit.
+- `src/shared/` + `src/slices/` replaced by `src/web/`, `src/llm/`, `src/research/` (#30); `Evidence` moves to `web::fetch`; empty `classify`/`research` placeholders removed. No behavior change.
 
 ## [0.1.0] - 2026-09-08
 

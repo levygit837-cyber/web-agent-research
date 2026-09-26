@@ -6,7 +6,7 @@
 //! `GatewayExhausted` (retry-or-abort), never a hang or panic. Model order:
 //! `GATEWAY_LIVE_MODEL`, else `glm-5p2` (never `glm-5.3-flash`).
 
-use web_agent_research::shared::types::synthesis::SynthesisSize;
+use web_agent_research::research::synthesis::SynthesisSize;
 use web_agent_research::{run_research, ResearchError, ResearchRequest};
 
 fn candidate_models() -> Vec<String> {

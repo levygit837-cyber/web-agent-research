@@ -6,11 +6,11 @@
 
 use std::path::PathBuf;
 use std::time::Duration;
-use web_agent_research::shared::obscura::browser::{FetchError, Obscura};
-use web_agent_research::shared::session::Evidence;
-use web_agent_research::shared::tools::fetch::{
+use web_agent_research::web::fetch::obscura::{FetchError, Obscura};
+use web_agent_research::web::fetch::tool::{
     fetch_tool, fetch_tool_schema, FetchInput, FETCH_TOOL_NAME,
 };
+use web_agent_research::web::fetch::Evidence;
 
 fn fake_engine() -> Obscura {
     Obscura::new(fixture_binary(), Duration::from_secs(10))
