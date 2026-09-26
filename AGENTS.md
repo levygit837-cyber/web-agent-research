@@ -2,6 +2,10 @@
 
 Write all repo content in English: docs, code, comments, identifiers, commits, issues, PRs. Chat replies follow the session language; files stay English.
 
+## Architecture
+
+One product: the Web Search agent behind `run_research`. Read `docs/adr/0006-web-search-tool-architecture.md` before adding a module, a tool, a dependency, or a public entry point; it holds the module layout and the dependency rule (`research → web`, `research → llm`, never the reverse).
+
 ## Agent skills
 
 ### Issue tracker

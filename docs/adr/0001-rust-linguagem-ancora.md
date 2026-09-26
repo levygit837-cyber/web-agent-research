@@ -1,3 +1,5 @@
+> **Amended by [ADR-0006](0006-web-search-tool-architecture.md):** fetch is reqwest-first; Obscura is the fallback, not the first path.
+
 # Rust como linguagem âncora
 
 CLI protótipo que evolui para API multi-turno sobre Obscura exige async estável e overhead mínimo; decidimos Rust + tokio, aceitando iteração mais lenta em troca de binário único e afinidade nativa com Obscura (também Rust, via CDP).
