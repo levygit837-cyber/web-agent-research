@@ -16,7 +16,7 @@ async fn live_obscura_fetch_returns_markdown() {
                 "live fetch returned empty markdown"
             );
         }
-        Err(FetchError::CommandFailed { .. }) => {
+        Err(FetchError::FallbackUnavailable { .. }) => {
             // Binary absent: skip, not failure.
         }
         Err(other) => panic!("live fetch failed unexpectedly: {other}"),
