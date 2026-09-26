@@ -1,3 +1,5 @@
+> **Superseded by [ADR-0006](0006-web-search-tool-architecture.md).** Kept for history.
+
 # Vertical Slice with strong shared/ foundation, no traits
 
 Research grows by Mode (`search` today, `deep` later), not by external tech: Obscura is the single engine (subprocess today, ported code tomorrow — same shape, no real 2nd adapter) and the LLM gateway plus file persistence are already pinned in ADRs 0002/0003; we keep one folder per Mode with glued logic and a strong `shared/` (tools, prompts, types, session, obscura, agent_loop), with concrete functions and zero `trait` until real variation appears.

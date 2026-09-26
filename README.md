@@ -1,6 +1,6 @@
 # web-agent-research
 
-CLI prototype of a multi-turn web research agent that extracts and synthesizes multiple pages on the [Obscura](https://github.com/h4ckf0r0day/obscura) engine, evolving into an API without rewrite.
+CLI **Web Search** tool for coding-agent Harnesses: one call runs a multi-turn research agent (search → fetch → synthesize) and returns only the Synthesis, so the calling model never spends context on raw pages. Architecture: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md).
 
 Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 
@@ -9,12 +9,12 @@ Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 - **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-linguagem-ancora.md)
 - **No DB in the prototype**: Session in `sessions/<id>.jsonl` + on-disk HTTP cache — [ADR-0002](docs/adr/0002-sem-db-so-arquivos.md)
 - **Own OpenAI-compatible HTTP LLM** (`reqwest` + `serde`, no SDK) — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md)
-- **Obscura first via subprocess** (`obscura fetch`) / CDP; native client out of scope
+- **reqwest-first fetch, Obscura fallback** for JS/blocked pages — [ADR-0006](docs/adr/0006-web-search-tool-architecture.md)
 
 ## Quickstart
 
 ```bash
-cargo run -- "what is the Obscura headless browser?"
+cargo run -- research "what is the Obscura headless browser?" --json
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
@@ -24,10 +24,9 @@ CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build) a
 
 ## Structure
 
-- `src/lib.rs` — agent core (all domain logic lives here)
 - `src/main.rs` — thin CLI shell over the lib
-- `src/shared/` — agent_loop, obscura, tools, prompts, types, session
-- `src/slices/` — one folder per Mode (`search` now, `deep` later)
+- `src/lib.rs` — public interface: `run_research`
+- Target module layout (`web/`, `llm/`, `research/`) and dependency rule: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md). `src/shared/` + `src/slices/` are the legacy layout until the migration issue lands.
 - `sessions/`, `cache/` — created at runtime, out of git
 - `CONTEXT.md` — domain glossary (Research, Session, Turn, Evidence)
 - `docs/adr/` — architecture decisions
