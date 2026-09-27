@@ -1,7 +1,7 @@
 //! Fetch tool seam: schema + input parsing over [`Fetcher`].
 
+use crate::web::fetch::error::FetchError;
 use crate::web::fetch::fetcher::Fetcher;
-use crate::web::fetch::obscura::FetchError;
 use crate::web::fetch::Evidence;
 use serde_json::Value;
 
@@ -64,11 +64,14 @@ pub fn fetch_tool_schema() -> Value {
 
 /// Validate input, fetch (static first, browser fallback), wrap in Evidence.
 /// `Evidence.source_url` / `.markdown` come from `FetchedMarkdown`;
-/// `collected_at` is stamped by `Evidence::new`.
+/// `collected_at` is stamped by `Evidence::new`; `fetch_path` records which
+/// engine produced `markdown` (#31).
 pub async fn fetch_tool(input: &Value, fetcher: &Fetcher) -> Result<Evidence, FetchError> {
     let parsed = FetchInput::parse(input)?;
-    let (fetched, _path) = fetcher.fetch(&parsed.url).await?;
-    Ok(Evidence::new(fetched.url, fetched.markdown))
+    let (fetched, path) = fetcher.fetch(&parsed.url).await?;
+    let mut evidence = Evidence::new(fetched.url, fetched.markdown);
+    evidence.fetch_path = Some(path);
+    Ok(evidence)
 }
 
 /// Compact JSON rendering for `InvalidUrl` payloads.
