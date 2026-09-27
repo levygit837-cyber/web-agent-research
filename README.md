@@ -2,6 +2,8 @@
 
 CLI **Web Search** tool for coding-agent Harnesses: one call runs a multi-turn research agent (search → fetch → synthesize) and returns only the Synthesis, so the calling model never spends context on raw pages. Architecture: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md).
 
+Harness integration (command, JSON shape, exit codes): [docs/harness.md](docs/harness.md).
+
 Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 
 ## Stack (recorded decisions)
