@@ -58,6 +58,13 @@ fn text_block(text: &str) -> serde_json::Value {
     serde_json::json!({"type": "text", "text": text})
 }
 
+/// `Some(text)` unless it is empty or whitespace-only: the Messages API
+/// rejects such text blocks with 400 ("text content blocks must contain
+/// non-whitespace text"), so they are dropped instead of sent.
+fn non_blank(text: &str) -> Option<&str> {
+    (!text.trim().is_empty()).then_some(text)
+}
+
 /// Tool-call arguments as the JSON object `tool_use.input` requires. The
 /// model sent them as an object; a non-object or unparsable string (only
 /// possible from an OpenAI-shaped history) degrades to `{}`.
@@ -96,13 +103,15 @@ fn map_messages(messages: &[ChatMessage]) -> (Vec<serde_json::Value>, Vec<serde_
             }
             "system" => {
                 flush(&mut wire, &mut pending_results);
-                system.push(text_block(message.content_text()));
+                if let Some(text) = non_blank(message.content_text()) {
+                    system.push(text_block(text));
+                }
             }
             "assistant" => {
                 flush(&mut wire, &mut pending_results);
                 let mut content: Vec<serde_json::Value> = message.replay.blocks.clone();
-                if !message.content_text().is_empty() {
-                    content.push(text_block(message.content_text()));
+                if let Some(text) = non_blank(message.content_text()) {
+                    content.push(text_block(text));
                 }
                 for call in message.tool_calls.iter().flatten() {
                     content.push(serde_json::json!({
@@ -118,10 +127,12 @@ fn map_messages(messages: &[ChatMessage]) -> (Vec<serde_json::Value>, Vec<serde_
             }
             _ => {
                 flush(&mut wire, &mut pending_results);
-                wire.push(serde_json::json!({
-                    "role": "user",
-                    "content": [text_block(message.content_text())],
-                }));
+                if let Some(text) = non_blank(message.content_text()) {
+                    wire.push(serde_json::json!({
+                        "role": "user",
+                        "content": [text_block(text)],
+                    }));
+                }
             }
         }
     }
@@ -593,6 +604,41 @@ mod tests {
             .expect("message parses");
             assert_eq!(reply.finish_reason.as_deref(), Some(finish), "{stop}");
         }
+    }
+
+    #[test]
+    fn whitespace_only_text_never_reaches_the_wire() {
+        // Empty-answer repair path: the model replied "\n\n", the loop keeps
+        // it as assistant commentary and appends a user repair nudge.
+        let transcript = vec![
+            ChatMessage::system("sys"),
+            ChatMessage::user("goal"),
+            ChatMessage::assistant("\n\n"),
+            ChatMessage::user("answer with markdown"),
+            ChatMessage::assistant_tool_calls(
+                "  ",
+                &[call("c1", "search", "{}")],
+                &ReplayBlocks::default(),
+            ),
+            ChatMessage::tool("c1", "hits"),
+            ChatMessage::user(" \t"),
+        ];
+        let body = request_body(&params(), &transcript, None, None, None);
+        let messages = body["messages"].as_array().expect("messages");
+        let roles: Vec<&str> = messages
+            .iter()
+            .map(|m| m["role"].as_str().unwrap_or_default())
+            .collect();
+        assert_eq!(roles, vec!["user", "user", "assistant", "user"], "{body}");
+        for message in messages {
+            for block in message["content"].as_array().expect("block array") {
+                if block["type"] == "text" {
+                    let text = block["text"].as_str().unwrap_or_default();
+                    assert!(!text.trim().is_empty(), "blank text block sent: {body}");
+                }
+            }
+        }
+        assert_eq!(messages[2]["content"][0]["type"], "tool_use");
     }
 
     #[test]
