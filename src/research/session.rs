@@ -2,7 +2,7 @@
 //!
 //! Evidence itself is owned by `web::fetch`; this module only records it.
 //!
-//! Record schema (CONTRACT §3, ADR-0002): one JSON object per line in
+//! Record schema (ADR-0002): one JSON object per line in
 //! `sessions/<id>.jsonl`, UTF-8, `\n`-terminated, append-only.
 //! `format_version` rides on EVERY row so a single row stays self-describing
 //! and 1:1 migratable to the future `turns` table (`turn→id`,

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::client::GatewayError;
 
-/// One message in a chat request. The agent loop (issue #12) owns roles/content.
+/// One message in a chat request. `research::agent_loop` owns roles/content.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatMessage {
     pub role: String,

@@ -7,7 +7,7 @@ use serde_json::Value;
 /// Tool name registered with the agent loop.
 pub const FETCH_TOOL_NAME: &str = "fetch";
 
-/// Caller-supplied tool input: exactly what the §6 schema advertises.
+/// Caller-supplied tool input: exactly what `fetch_tool_schema` advertises.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FetchInput {
     pub url: String,
@@ -15,7 +15,7 @@ pub struct FetchInput {
 
 impl FetchInput {
     /// Shape check only: `value` must be an object with a string `url`.
-    /// URL *validity* is the engine's job (§1); parse errors surface as
+    /// URL *validity* is the engine's job; parse errors surface as
     /// `FetchError::InvalidUrl { input }`.
     pub fn parse(value: &Value) -> Result<Self, FetchError> {
         let obj = match value.as_object() {
@@ -40,7 +40,7 @@ impl FetchInput {
     }
 }
 
-/// The mandatory tool-definition object consumed by the agent loop (#12).
+/// The mandatory tool-definition object consumed by the agent loop.
 /// Single source of truth: loop wiring and tests share this value.
 pub fn fetch_tool_schema() -> Value {
     serde_json::json!({

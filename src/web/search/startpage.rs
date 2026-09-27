@@ -69,8 +69,7 @@ enum FormFetch {
 /// Startpage form fetch (Omp `fetchFormInputs`, best effort): GET the homepage
 /// and extract hidden inputs incl. the anti-bot `sc` token. Failures, non-OK
 /// status, a homepage challenge, and markup drift (no `sc`) are all
-/// `FormFetch::Miss` and degrade to the direct-GET fallback per SPEC §7
-/// step 3.
+/// `FormFetch::Miss` and degrade to the direct-GET fallback.
 async fn fetch_startpage_form_inputs(
     client: &reqwest::Client,
     home_url: &str,
@@ -484,8 +483,8 @@ mod tests {
     #[tokio::test]
     async fn startpage_homepage_challenge_maps_429() {
         // Homepage answers the challenge wall: the leg degrades to the GET
-        // fallback per SPEC §7 step 3, and the fallback wall body re-triggers
-        // challenge detection, so the leg still reports Challenge (429).
+        // fallback, and the fallback wall body re-triggers challenge
+        // detection, so the leg still reports Challenge (429).
         let stub = StubServer::serve(|_: &str, _: &str| {
             StubReply::text(200, "xx component---src-pages-captcha yy")
         })

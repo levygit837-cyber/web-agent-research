@@ -62,7 +62,7 @@ mod tests {
     fn tool_schema_shape_and_roundtrip() {
         let schema = search_tool_schema();
         assert_eq!(schema["name"], json!("search"));
-        // SPEC §5: `additionalProperties: false` everywhere — root, the
+        // `additionalProperties: false` everywhere — root, the
         // `parameters` object, and every `type: object` level below it. Only
         // `queries.items` is a non-object subschema and carries no flag.
         for pointer in ["", "/parameters"] {
