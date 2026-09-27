@@ -14,13 +14,27 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 
 ## Environment
 
-| Variable | Required | Default |
-|---|---|---|
-| `GATEWAY_API_KEY` | yes | none; missing key exits `2` |
-| `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (any OpenAI-compatible endpoint) |
-| `GATEWAY_MODEL` | no | `glm-5p2` |
+| Variable | Required | Default | Invalid value |
+|---|---|---|---|
+| `GATEWAY_API_KEY` | yes | none | empty/missing exits `2` (`NotConfigured`) |
+| `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (any OpenAI-compatible endpoint) | n/a (any non-empty string accepted) |
+| `GATEWAY_MODEL` | no | `glm-5p2` | n/a (any non-empty string accepted) |
+| `GATEWAY_REASONING_EFFORT` | no | unset (no reasoning-effort sent) | n/a (any non-empty string accepted) |
+| `GATEWAY_MAX_TOKENS` | no | unset (no `max_completion_tokens` cap sent) | not a valid `u32` exits `2` (`NotConfigured`) |
+| `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
+| `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
 
-`obscura` on `PATH` is optional. Without it, pages that need a browser (JS shells, anti-bot 403/429/503) fail with a typed error, and the agent moves on to other sources.
+`obscura` on `PATH` is optional. Without it, pages that need a browser fallback (JS shells, challenge pages, non-text content) fail with a typed error, and the agent moves on to other Hits.
+
+## Latency
+
+Measured tool numbers, not end-to-end run time:
+
+- Search fan-out: ~1.7 s live for 1 query returning 5 Hits.
+- Static fetch (reqwest + htmd, no browser): 0.25–0.96 s — docs.rs 0.25 s, react.dev 0.41 s, wikipedia 0.63 s, github.com 0.96 s.
+- Browser fallback (Obscura, JS shells/challenge pages): 1.5–8.2 s.
+
+End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by search/fetch. A full live end-to-end timing run is pending #33.
 
 ## Output (`--json`, exit 0)
 
@@ -39,7 +53,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 }
 ```
 
-- `evidence_urls`: pages actually fetched in this run. Search results that were never fetched are not included.
+- `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - Without `--json`, stdout is human-readable markdown: summary, `##` themes, and a numbered `Sources:` list.
 
 ## Exit codes
