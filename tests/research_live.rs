@@ -3,24 +3,19 @@
 //! Runs only with `GATEWAY_LIVE=1` and `GATEWAY_API_KEY` set. Uses the real
 //! gateway through the public `run_research` interface with `max_turns <= 4`.
 //! The 429-credit wall counts as pass-with-note: the error must be
-//! `GatewayExhausted` (retry-or-abort), never a hang or panic. Model order:
-//! `GATEWAY_LIVE_MODEL`, else `glm-5p2` (never `glm-5.3-flash`).
+//! `GatewayExhausted` (retry-or-abort), never a hang or panic. Model:
+//! `GATEWAY_LIVE_MODEL`, else `GATEWAY_MODEL`, else the config default.
 
 use web_agent_research::research::synthesis::SynthesisSize;
 use web_agent_research::{run_research, ResearchError, ResearchRequest};
 
-fn candidate_models() -> Vec<String> {
-    let mut models = Vec::new();
-    if let Ok(explicit) = std::env::var("GATEWAY_LIVE_MODEL") {
-        let explicit = explicit.trim().to_owned();
-        if !explicit.is_empty() {
-            models.push(explicit);
-        }
-    }
-    if !models.iter().any(|model| model == "glm-5p2") {
-        models.push("glm-5p2".to_owned());
-    }
-    models
+/// The one live model: no fallback chain.
+fn live_model() -> Option<String> {
+    ["GATEWAY_LIVE_MODEL", "GATEWAY_MODEL"]
+        .into_iter()
+        .filter_map(|key| std::env::var(key).ok())
+        .map(|value| value.trim().to_owned())
+        .find(|value| !value.is_empty())
 }
 
 #[tokio::test]
@@ -36,11 +31,10 @@ async fn live_research_terminates_within_budget() -> anyhow::Result<()> {
         eprintln!("skipping live research test (GATEWAY_API_KEY not set)");
         return Ok(());
     }
-    let model = candidate_models()
-        .into_iter()
-        .next()
-        .expect("one candidate model");
-    std::env::set_var("GATEWAY_MODEL", &model);
+    if let Some(model) = live_model() {
+        std::env::set_var("GATEWAY_MODEL", model);
+    }
+    let model = std::env::var("GATEWAY_MODEL").unwrap_or_else(|_| "<config default>".to_owned());
     let req = ResearchRequest {
         goal: "what is the Obscura headless browser?".to_owned(),
         size: SynthesisSize::Small,

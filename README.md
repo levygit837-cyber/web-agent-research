@@ -16,6 +16,7 @@ Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 ## Quickstart
 
 ```bash
+set -a; . ./.env; set +a   # GATEWAY_* from the git-ignored .env (see docs/harness.md)
 cargo run -- research "what is the Obscura headless browser?" --json
 cargo test
 cargo clippy --all-targets -- -D warnings
