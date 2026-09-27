@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `synthesis.citations` and theme citations keep only pages fetched as Evidence in the run (matched by `dedup_key`), so every citation a Harness sees was actually read; sub-page links copied from fetched markdown and unfetched Hits are dropped. `Evidence.fetch_path` is now persisted in Session rows (it was always `null`).
 - HTTP 403 from the gateway is now `GatewayError::Forbidden` with the upstream `error.message` (`gateway refused access (HTTP 403): …`) instead of `Auth` ("bad API key"); 401 stays `Auth`. Both still exit `3` and are not retried.
 - Default `GATEWAY_MODEL` is now `muse-spark-1.3` (was `glm-5p2`). Live tests (`GATEWAY_LIVE=1`) use one model — `GATEWAY_LIVE_MODEL`, else `GATEWAY_MODEL`, else the default — with no `glm-5p2`/`mimo-v2.5-free` fallback chain.
 - Removed `ToolRegistry::live()` canned stubs, registry-local `query`/`max_chars` schemas, `SearchHit`, `FetchedPage` (closes #25, #26).

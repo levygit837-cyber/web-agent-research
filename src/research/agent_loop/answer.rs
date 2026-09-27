@@ -5,6 +5,7 @@
 //! non-emptiness: markdown pedantry never fails a good answer.
 
 use crate::research::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
+use crate::web::search::dedup_key;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AnswerError {
@@ -201,6 +202,22 @@ pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis,
         themes: sections,
         citations,
     })
+}
+
+/// Drop every citation whose URL was not fetched as Evidence in this
+/// Research, from the whole-answer set and from each theme. `fetched`
+/// holds `dedup_key`s, so `www.`/trailing-slash/redirect variants of a
+/// fetched page still count. Models link sub-pages they only saw inside
+/// fetched markdown; the Harness contract is that every citation was read.
+pub(crate) fn retain_fetched_citations(
+    synthesis: &mut Synthesis,
+    fetched: &std::collections::HashSet<String>,
+) {
+    let keep = |citation: &Citation| fetched.contains(&dedup_key(&citation.url));
+    synthesis.citations.retain(keep);
+    for theme in &mut synthesis.themes {
+        theme.citations.retain(keep);
+    }
 }
 
 #[cfg(test)]
