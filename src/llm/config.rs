@@ -45,6 +45,32 @@ impl std::str::FromStr for ReasoningEffort {
     }
 }
 
+/// Wire format of the gateway endpoint. One enum, two branches inside
+/// `Gateway` (ADR-0007): `research` never learns which one is active.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ApiFormat {
+    /// OpenAI Chat Completions: `POST {base}/chat/completions`, Bearer auth.
+    #[default]
+    Openai,
+    /// Anthropic Messages: `POST {base}/messages`, `x-api-key` +
+    /// `anthropic-version`, explicit `cache_control` breakpoints.
+    Anthropic,
+}
+
+impl std::str::FromStr for ApiFormat {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "openai" => Ok(Self::Openai),
+            "anthropic" => Ok(Self::Anthropic),
+            other => Err(format!(
+                "invalid GATEWAY_API_FORMAT {other:?}: expected openai|anthropic"
+            )),
+        }
+    }
+}
+
 /// Per-model parameter overrides. All fields optional; unset falls back
 /// to the gateway-level default.
 #[derive(Debug, Clone, Default)]
@@ -72,6 +98,8 @@ pub struct ResolvedParams {
 
 #[derive(Clone)]
 pub struct GatewayConfig {
+    /// Wire format; `GATEWAY_API_FORMAT`, default OpenAI.
+    pub api_format: ApiFormat,
     /// Base URL, e.g. "http://localhost:8317/v1". No trailing slash assumed;
     /// constructors trim one trailing `/`.
     pub base_url: String,
@@ -105,6 +133,7 @@ pub struct GatewayConfig {
 impl std::fmt::Debug for GatewayConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GatewayConfig")
+            .field("api_format", &self.api_format)
             .field("base_url", &self.base_url)
             .field("api_key", &"<redacted>")
             .field("model", &self.model)
@@ -128,6 +157,7 @@ fn trim_one_slash(url: &str) -> &str {
 impl GatewayConfig {
     pub fn new(base_url: String, api_key: String, model: String) -> Self {
         Self {
+            api_format: ApiFormat::Openai,
             base_url: trim_one_slash(&base_url).to_owned(),
             api_key,
             model,
@@ -158,6 +188,13 @@ impl GatewayConfig {
         if api_key.is_empty() {
             anyhow::bail!("GATEWAY_API_KEY is not set");
         }
+        let api_format = std::env::var("GATEWAY_API_FORMAT")
+            .map(|v| v.trim().to_ascii_lowercase())
+            .ok()
+            .filter(|v| !v.is_empty())
+            .map(|v| v.parse::<ApiFormat>().map_err(|err| anyhow::anyhow!(err)))
+            .transpose()?
+            .unwrap_or_default();
         let base_url = env_or("GATEWAY_BASE_URL", "http://localhost:8317/v1");
         let model = env_or("GATEWAY_MODEL", "muse-spark-1.3");
         let default_reasoning_effort = std::env::var("GATEWAY_REASONING_EFFORT")
@@ -194,6 +231,23 @@ impl GatewayConfig {
                     "GATEWAY_MAX_TOKENS ({max_tokens}) must be strictly greater than \
                      GATEWAY_THINKING_BUDGET ({budget}): reasoning tokens count against \
                      max_tokens"
+                );
+            }
+        }
+        if api_format == ApiFormat::Anthropic {
+            if let Some(effort @ (ReasoningEffort::None | ReasoningEffort::Minimal)) =
+                default_reasoning_effort
+            {
+                anyhow::bail!(
+                    "GATEWAY_REASONING_EFFORT={effort:?} has no Anthropic Messages equivalent: \
+                     use low|medium|high|xhigh|max, or unset it"
+                );
+            }
+            if let Some(budget @ 1..=1023) = default_thinking_budget {
+                anyhow::bail!(
+                    "GATEWAY_THINKING_BUDGET ({budget}) is below the Anthropic minimum of \
+                     {}; use 0 to disable thinking",
+                    super::anthropic::MIN_THINKING_BUDGET
                 );
             }
         }
@@ -242,6 +296,7 @@ impl GatewayConfig {
             .transpose()?;
 
         Ok(Self {
+            api_format,
             base_url: trim_one_slash(&base_url).to_owned(),
             api_key,
             model,
@@ -334,8 +389,9 @@ mod tests {
         }
     }
 
-    const ALL_GATEWAY_KEYS: [&str; 8] = [
+    const ALL_GATEWAY_KEYS: [&str; 9] = [
         "GATEWAY_API_KEY",
+        "GATEWAY_API_FORMAT",
         "GATEWAY_BASE_URL",
         "GATEWAY_MODEL",
         "GATEWAY_REASONING_EFFORT",
@@ -344,6 +400,53 @@ mod tests {
         "GATEWAY_PROMPT_CACHE_KEY",
         "GATEWAY_EXTRA_BODY",
     ];
+
+    #[test]
+    fn api_format_defaults_to_openai_and_parses_case_insensitively() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        let cfg = GatewayConfig::from_env().expect("default config");
+        assert_eq!(cfg.api_format, ApiFormat::Openai);
+        std::env::set_var("GATEWAY_API_FORMAT", " Anthropic ");
+        let cfg = GatewayConfig::from_env().expect("anthropic config");
+        assert_eq!(cfg.api_format, ApiFormat::Anthropic);
+    }
+
+    #[test]
+    fn invalid_api_format_errors() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_API_FORMAT", "gemini");
+        let err = GatewayConfig::from_env().expect_err("unknown format must fail");
+        assert!(err.to_string().contains("openai|anthropic"), "{err}");
+    }
+
+    #[test]
+    fn anthropic_rejects_efforts_and_budgets_the_messages_api_refuses() {
+        for (key, value) in [
+            ("GATEWAY_REASONING_EFFORT", "none"),
+            ("GATEWAY_REASONING_EFFORT", "minimal"),
+            ("GATEWAY_THINKING_BUDGET", "512"),
+        ] {
+            let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+            std::env::set_var("GATEWAY_API_KEY", "k");
+            std::env::set_var("GATEWAY_API_FORMAT", "anthropic");
+            std::env::set_var(key, value);
+            GatewayConfig::from_env().expect_err(&format!("{key}={value} must fail for anthropic"));
+        }
+        for (key, value) in [
+            ("GATEWAY_REASONING_EFFORT", "low"),
+            ("GATEWAY_THINKING_BUDGET", "0"),
+            ("GATEWAY_THINKING_BUDGET", "1024"),
+        ] {
+            let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+            std::env::set_var("GATEWAY_API_KEY", "k");
+            std::env::set_var("GATEWAY_API_FORMAT", "anthropic");
+            std::env::set_var(key, value);
+            GatewayConfig::from_env()
+                .unwrap_or_else(|err| panic!("{key}={value} must pass for anthropic: {err}"));
+        }
+    }
 
     #[test]
     fn per_model_beats_default() {

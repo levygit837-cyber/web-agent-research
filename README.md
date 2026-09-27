@@ -10,7 +10,7 @@ Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 
 - **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-linguagem-ancora.md)
 - **No DB in the prototype**: Session in `sessions/<id>.jsonl` + on-disk HTTP cache — [ADR-0002](docs/adr/0002-sem-db-so-arquivos.md)
-- **Own OpenAI-compatible HTTP LLM** (`reqwest` + `serde`, no SDK) — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md)
+- **Own HTTP LLM client** (`reqwest` + `serde`, no SDK): OpenAI-compatible — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md) — or native Anthropic Messages via `GATEWAY_API_FORMAT` — [ADR-0007](docs/adr/0007-llm-wire-format-enum.md)
 - **reqwest-first fetch, Obscura fallback** for JS/blocked pages — [ADR-0006](docs/adr/0006-web-search-tool-architecture.md)
 
 ## Quickstart

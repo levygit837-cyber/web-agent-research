@@ -116,6 +116,10 @@ pub struct UsageDTO {
     pub total_tokens: u64,
     pub reasoning_tokens: u64,
     pub cached_prompt_tokens: u64,
+    /// Prompt tokens written to the provider cache (Anthropic
+    /// `cache_creation_input_tokens`); 0 where the provider does not report it.
+    #[serde(default)]
+    pub cache_creation_prompt_tokens: u64,
 }
 
 /// Research output; serializes to `--json` stdout, or renders via `render`
@@ -209,6 +213,7 @@ impl From<TokenUsage> for UsageDTO {
             total_tokens: usage.total_tokens,
             reasoning_tokens: usage.reasoning_tokens,
             cached_prompt_tokens: usage.cached_prompt_tokens,
+            cache_creation_prompt_tokens: usage.cache_creation_prompt_tokens,
         }
     }
 }
@@ -221,6 +226,7 @@ impl From<UsageDTO> for SessionUsage {
             total_tokens: usage.total_tokens,
             reasoning_tokens: usage.reasoning_tokens,
             cached_prompt_tokens: usage.cached_prompt_tokens,
+            cache_creation_prompt_tokens: usage.cache_creation_prompt_tokens,
         }
     }
 }
@@ -688,6 +694,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anthropic_format_run_replays_thinking_and_sums_cache_reads() {
+        let _guard = EnvGuard::lock(vec![
+            "GATEWAY_BASE_URL",
+            "GATEWAY_API_KEY",
+            "GATEWAY_MODEL",
+            "GATEWAY_API_FORMAT",
+        ]);
+        let (tools, page_url) = local_web().await;
+        let final_answer = format!(
+            "Obscura is a Rust headless browser.\n\n## Findings\n\n- Written in Rust per [Obscura]({page_url}).\n"
+        );
+        let fetch_turn = serde_json::json!({
+            "type": "message",
+            "content": [
+                {"type": "thinking", "thinking": "fetch it", "signature": "sig-1"},
+                {"type": "tool_use", "id": "toolu_1", "name": "fetch", "input": {"url": page_url}}
+            ],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 5, "output_tokens": 3,
+                      "cache_creation_input_tokens": 4200, "cache_read_input_tokens": 0}
+        })
+        .to_string();
+        let answer_turn = serde_json::json!({
+            "type": "message",
+            "content": [{"type": "text", "text": final_answer}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 50, "output_tokens": 40,
+                      "cache_creation_input_tokens": 60, "cache_read_input_tokens": 4200}
+        })
+        .to_string();
+        let (base_url, requests) = spawn_capturing_server(vec![fetch_turn, answer_turn]);
+        point_env_at(&base_url);
+        std::env::set_var("GATEWAY_API_FORMAT", "anthropic");
+        let req = hermetic_request("anthropic");
+        let session_out = req.session_out.clone().expect("session out set");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("hermetic anthropic run must succeed");
+
+        assert_eq!(response.turns_used, 2);
+        assert_eq!(response.evidence_urls, vec![page_url.clone()]);
+        assert_eq!(response.usage.cached_prompt_tokens, 4200);
+        assert_eq!(response.usage.cache_creation_prompt_tokens, 4260);
+        assert_eq!(response.usage.prompt_tokens, 4205 + 4310);
+
+        let requests = requests.lock().expect("requests lock");
+        assert!(
+            requests[0].starts_with("POST /v1/messages "),
+            "{}",
+            requests[0]
+        );
+        let second = wire_body_of(&requests[1]);
+        let messages = second["messages"].as_array().expect("messages");
+        let assistant = &messages[messages.len() - 2];
+        assert_eq!(
+            assistant["content"][0],
+            serde_json::json!({"type": "thinking", "thinking": "fetch it", "signature": "sig-1"}),
+            "thinking block must be replayed verbatim first: {second}"
+        );
+        assert_eq!(assistant["content"][1]["type"], "tool_use");
+        let results = &messages[messages.len() - 1];
+        assert_eq!(results["content"][0]["type"], "tool_result");
+        assert_eq!(results["content"][0]["tool_use_id"], "toolu_1");
+        assert_eq!(
+            results["content"][0]["cache_control"]["type"], "ephemeral",
+            "the newest block carries the moving breakpoint"
+        );
+        let _ = std::fs::remove_file(&session_out);
+    }
+
+    #[tokio::test]
     async fn cached_prompt_tokens_sum_across_turns_from_both_wire_shapes() {
         let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
         let (tools, page_url) = local_web().await;
@@ -868,6 +945,7 @@ mod tests {
                 total_tokens: 0,
                 reasoning_tokens: 0,
                 cached_prompt_tokens: 0,
+                cache_creation_prompt_tokens: 0,
             },
         };
         let value = serde_json::to_value(&response).expect("response serializes");

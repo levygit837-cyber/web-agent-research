@@ -15,7 +15,7 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
    ```
 
    - `web/`: search (DDG + Startpage fan-out) and fetch (URL → Evidence). No LLM, no Session. Stable on its own.
-   - `llm/`: OpenAI-compatible gateway (ADR-0003). Knows nothing about tools or web.
+   - `llm/`: LLM gateway, OpenAI-compatible (ADR-0003) or native Anthropic Messages (ADR-0007). Knows nothing about tools or web.
    - `research/`: the agent. Loop, context, prompts, synthesis, Session JSONL, tool dispatch into `web/`. Only module that knows Research/Turn.
    - `web/` and `llm/` never import `research/` or each other.
 3. **Fetch is reqwest-first, Obscura fallback.** `reqwest` GET → HTML→markdown in-process (`htmd`). Fall back to `obscura fetch --dump markdown` only when the static result is unusable: challenge/blocked status (403/429/503 with challenge markers), a JS shell (extracted markdown under a length threshold), or a non-HTML-renderable response. Obscura missing on PATH makes fallback a typed error, never a panic. Measured 2026-09-26 on 3 pages: Obscura 1.5–8.2 s vs plain HTTP 0.3–0.55 s.
