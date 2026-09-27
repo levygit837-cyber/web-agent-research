@@ -9,11 +9,72 @@ use serde::{Deserialize, Serialize};
 use super::client::GatewayError;
 use super::config::ReasoningEffort;
 
-/// One message in a chat request. `research::agent_loop` owns roles/content.
+/// One message in a chat request, matching the native OpenAI wire shapes:
+/// `system`/`user`/`assistant` carry text `content`; an `assistant` turn
+/// that calls tools carries `tool_calls` (`content` is wire `null` when the
+/// model sent no accompanying text); a `tool` reply carries `tool_call_id`
+/// plus `content`. Built only through the constructors below; direct field
+/// construction stays out of `research::agent_loop`.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatMessage {
     pub role: String,
-    pub content: String,
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<RequestedToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+impl ChatMessage {
+    pub fn system(content: impl Into<String>) -> Self {
+        Self::text("system", content)
+    }
+
+    pub fn user(content: impl Into<String>) -> Self {
+        Self::text("user", content)
+    }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self::text("assistant", content)
+    }
+
+    fn text(role: &str, content: impl Into<String>) -> Self {
+        Self {
+            role: role.to_owned(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    /// Assistant turn that requests tool calls, wire `tool_calls` exactly as
+    /// given (ids included, in call order). `text` is the model's own
+    /// commentary alongside the calls, if any; empty maps to wire
+    /// `content: null`, the native shape for a pure tool-call turn.
+    pub fn assistant_tool_calls(text: &str, calls: &[RequestedToolCall]) -> Self {
+        Self {
+            role: "assistant".to_owned(),
+            content: (!text.is_empty()).then(|| text.to_owned()),
+            tool_calls: Some(calls.to_vec()),
+            tool_call_id: None,
+        }
+    }
+
+    /// One tool result, paired to the requesting call's `id`.
+    pub fn tool(id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".to_owned(),
+            content: Some(content.into()),
+            tool_calls: None,
+            tool_call_id: Some(id.into()),
+        }
+    }
+
+    /// Text content, empty when the wire value is `null` (a pure tool-call
+    /// turn or, for other roles, never in practice).
+    pub fn content_text(&self) -> &str {
+        self.content.as_deref().unwrap_or("")
+    }
 }
 
 /// `thinking` request param (Anthropic OpenAI-compat layer, DeepSeek).
@@ -297,7 +358,7 @@ pub struct LlmReply {
 /// One function call requested by the model. The gateway never executes it;
 /// `arguments` is the raw JSON string; [`RequestedToolCall::parsed_arguments`]
 /// parses it on demand.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RequestedToolCall {
     /// Wire `id` (`""` when absent).
     pub id: String,
@@ -336,11 +397,47 @@ impl TokenUsage {
     }
 }
 
+impl TokenUsage {
+    /// Saturating per-field accumulation across turns of one run.
+    pub fn add(&mut self, other: &TokenUsage) {
+        self.prompt_tokens = self.prompt_tokens.saturating_add(other.prompt_tokens);
+        self.completion_tokens = self
+            .completion_tokens
+            .saturating_add(other.completion_tokens);
+        self.total_tokens = self.total_tokens.saturating_add(other.total_tokens);
+        self.reasoning_tokens = self.reasoning_tokens.saturating_add(other.reasoning_tokens);
+    }
+}
+
 impl RequestedToolCall {
     /// Parse the raw `arguments` string as JSON. Invalid JSON is a
     /// non-retryable [`GatewayError::Parse`].
     pub fn parsed_arguments(&self) -> Result<serde_json::Value, GatewayError> {
         serde_json::from_str(&self.arguments).map_err(|err| GatewayError::Parse(err.to_string()))
+    }
+}
+
+/// Serializes to the OpenAI request shape:
+/// `{id, type: "function", function: {name, arguments}}`. `arguments`
+/// travels as the raw JSON string, matching what the model sent and what
+/// the wire expects back verbatim.
+impl serde::Serialize for RequestedToolCall {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut outer = serializer.serialize_map(Some(3))?;
+        outer.serialize_entry("id", &self.id)?;
+        outer.serialize_entry("type", "function")?;
+        outer.serialize_entry(
+            "function",
+            &serde_json::json!({
+                "name": self.name,
+                "arguments": self.arguments,
+            }),
+        )?;
+        outer.end()
     }
 }
 
