@@ -24,7 +24,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
 
-`obscura` on `PATH` is optional. Without it, pages that need a browser fallback (JS shells, challenge pages, non-text content) fail with a typed error, and the agent moves on to other Hits.
+`obscura` on `PATH` is optional. The browser runs only for pages the static fetch cannot use: JS shells, challenge pages (a 403/429/503 or 200 carrying anti-bot markers), and non-text content. A plain 403/404/5xx is returned as an error without spawning the browser. Without `obscura`, pages that need the browser fail with a typed error, and the agent moves on to other Hits.
 
 ## Latency
 
