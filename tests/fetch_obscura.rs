@@ -1,4 +1,4 @@
-//! Hermetic suite for the Obscura fetch integration (issue #14).
+//! Hermetic suite for the Obscura fallback engine and the fetch tool seam.
 //!
 //! The engine under test points at `tests/fixtures/obscura-fake.sh`, a shell
 //! double dispatching on the positional URL ($2). No real `obscura` binary is
@@ -6,11 +6,8 @@
 
 use std::path::PathBuf;
 use std::time::Duration;
-use web_agent_research::web::fetch::obscura::{FetchError, Obscura};
-use web_agent_research::web::fetch::tool::{
-    fetch_tool, fetch_tool_schema, FetchInput, FETCH_TOOL_NAME,
-};
-use web_agent_research::web::fetch::Evidence;
+use web_agent_research::web::fetch::tool::{fetch_tool_schema, FetchInput, FETCH_TOOL_NAME};
+use web_agent_research::web::fetch::{Evidence, FetchError, FetchPath, Obscura};
 
 fn fake_engine() -> Obscura {
     Obscura::new(fixture_binary(), Duration::from_secs(10))
@@ -31,7 +28,9 @@ fn error_url(err: &FetchError) -> &str {
         FetchError::EmptyBody { url }
         | FetchError::Blocked { url, .. }
         | FetchError::Timeout { url, .. }
-        | FetchError::CommandFailed { url, .. } => url,
+        | FetchError::CommandFailed { url, .. }
+        | FetchError::Http { url, .. }
+        | FetchError::FallbackUnavailable { url, .. } => url,
     }
 }
 
@@ -59,6 +58,42 @@ fn evidence_round_trips_through_json() {
     let ev = Evidence::new("https://example.com/a".to_string(), "body".to_string());
     let back: Evidence = serde_json::from_str(&serde_json::to_string(&ev).unwrap()).unwrap();
     assert_eq!(ev, back);
+}
+
+#[test]
+fn evidence_without_fetch_path_omits_it_from_json() {
+    let ev = Evidence::new("https://example.com/a".to_string(), "body".to_string());
+    let json = serde_json::to_value(&ev).unwrap();
+    assert!(
+        json.as_object().unwrap().get("fetch_path").is_none(),
+        "fetch_path should be omitted when None: {json}"
+    );
+}
+
+#[test]
+fn pre_fetch_path_evidence_json_still_deserializes() {
+    // Shape of a Session JSONL row written before #31 added `fetch_path`.
+    let old_row = serde_json::json!({
+        "source_url": "https://example.com/old",
+        "collected_at": "2026-01-01T00:00:00Z",
+        "markdown": "legacy body"
+    });
+    let ev: Evidence = serde_json::from_value(old_row).unwrap();
+    assert_eq!(ev.source_url, "https://example.com/old");
+    assert_eq!(ev.fetch_path, None);
+}
+
+#[test]
+fn evidence_fetch_path_round_trips_as_lowercase_json() {
+    let mut ev = Evidence::new("https://example.com/a".to_string(), "body".to_string());
+    ev.fetch_path = Some(FetchPath::Static);
+    let json = serde_json::to_value(&ev).unwrap();
+    assert_eq!(json["fetch_path"], "static");
+    let back: Evidence = serde_json::from_value(json).unwrap();
+    assert_eq!(back.fetch_path, Some(FetchPath::Static));
+
+    ev.fetch_path = Some(FetchPath::Browser);
+    assert_eq!(serde_json::to_value(&ev).unwrap()["fetch_path"], "browser");
 }
 
 // --- Extractor: happy path + URL validation ---
@@ -207,7 +242,7 @@ fn fetch_tool_schema_matches_mandatory_agent_loop_contract() {
     let schema = fetch_tool_schema();
     let expected = serde_json::json!({
         "name": "fetch",
-        "description": "Fetch a URL via the Obscura engine and return its content as markdown Evidence for synthesis.",
+        "description": "Fetch a URL and return its content as markdown Evidence for synthesis.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -251,22 +286,17 @@ fn fetch_input_parse_rejects_non_object_and_non_string_url() {
 }
 
 #[tokio::test]
-async fn fetch_tool_wraps_engine_markdown_in_evidence() {
-    let engine = fake_engine();
-    let input = serde_json::json!({"url": "https://example.com/page"});
-    let evidence = fetch_tool(&input, &engine).await.unwrap();
-    assert_eq!(evidence.source_url, "https://example.com/page");
-    assert_eq!(
-        evidence.markdown,
-        "# Title\n\nbody for https://example.com/page"
+async fn missing_binary_is_fallback_unavailable() {
+    let engine = Obscura::new(
+        PathBuf::from("/nonexistent/obscura"),
+        Duration::from_secs(1),
     );
-    assert!(evidence.collected_at.ends_with('Z'));
-}
-
-#[tokio::test]
-async fn fetch_tool_forwards_engine_errors() {
-    let engine = fake_engine();
-    let input = serde_json::json!({"url": "not-a-url"});
-    let err = fetch_tool(&input, &engine).await.unwrap_err();
-    assert!(matches!(err, FetchError::InvalidUrl { .. }), "{err}");
+    let err = engine
+        .fetch_markdown("https://example.com/page")
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, FetchError::FallbackUnavailable { .. }),
+        "{err}"
+    );
 }

@@ -1,6 +1,7 @@
-//! Extract data from a URL (static fetch; browser fallback for JS).
+//! Fetch tool seam: schema + input parsing over [`Fetcher`].
 
-use crate::web::fetch::obscura::{FetchError, Obscura};
+use crate::web::fetch::error::FetchError;
+use crate::web::fetch::fetcher::Fetcher;
 use crate::web::fetch::Evidence;
 use serde_json::Value;
 
@@ -45,7 +46,7 @@ impl FetchInput {
 pub fn fetch_tool_schema() -> Value {
     serde_json::json!({
         "name": "fetch",
-        "description": "Fetch a URL via the Obscura engine and return its content as markdown Evidence for synthesis.",
+        "description": "Fetch a URL and return its content as markdown Evidence for synthesis.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -61,13 +62,16 @@ pub fn fetch_tool_schema() -> Value {
     })
 }
 
-/// Validate input, delegate to the engine, wrap markdown in Evidence.
+/// Validate input, fetch (static first, browser fallback), wrap in Evidence.
 /// `Evidence.source_url` / `.markdown` come from `FetchedMarkdown`;
-/// `collected_at` is stamped by `Evidence::new`.
-pub async fn fetch_tool(input: &Value, engine: &Obscura) -> Result<Evidence, FetchError> {
+/// `collected_at` is stamped by `Evidence::new`; `fetch_path` records which
+/// engine produced `markdown` (#31).
+pub async fn fetch_tool(input: &Value, fetcher: &Fetcher) -> Result<Evidence, FetchError> {
     let parsed = FetchInput::parse(input)?;
-    let fetched = engine.fetch_markdown(&parsed.url).await?;
-    Ok(Evidence::new(fetched.url, fetched.markdown))
+    let (fetched, path) = fetcher.fetch(&parsed.url).await?;
+    let mut evidence = Evidence::new(fetched.url, fetched.markdown);
+    evidence.fetch_path = Some(path);
+    Ok(evidence)
 }
 
 /// Compact JSON rendering for `InvalidUrl` payloads.

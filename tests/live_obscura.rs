@@ -2,7 +2,7 @@
 //! default. Binary absent = skip (`Ok(())`), never a failure. Run explicitly
 //! where the binary exists: `cargo test -- --ignored`.
 
-use web_agent_research::web::fetch::obscura::{FetchError, Obscura};
+use web_agent_research::web::fetch::{FetchError, Obscura};
 
 #[tokio::test]
 #[ignore]
@@ -16,7 +16,7 @@ async fn live_obscura_fetch_returns_markdown() {
                 "live fetch returned empty markdown"
             );
         }
-        Err(FetchError::CommandFailed { .. }) => {
+        Err(FetchError::FallbackUnavailable { .. }) => {
             // Binary absent: skip, not failure.
         }
         Err(other) => panic!("live fetch failed unexpectedly: {other}"),
