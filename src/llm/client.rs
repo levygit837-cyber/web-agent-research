@@ -96,7 +96,7 @@ impl Gateway {
 
     /// Same path as [`Gateway::chat`], but offers native function-calling
     /// tools to the model and returns the requested calls on [`LlmReply`].
-    /// Execution of the calls stays in the agent loop (issue #12).
+    /// Execution of the calls stays in `research::agent_loop`.
     pub async fn chat_with_tools(
         &self,
         messages: &[ChatMessage],

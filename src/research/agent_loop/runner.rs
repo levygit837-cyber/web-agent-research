@@ -334,7 +334,7 @@ async fn dispatch_turn(
 /// Run the multi-turn research loop until the first tool-free answer.
 ///
 /// Borrows the gateway and registry; exactly one gateway call per turn.
-/// See the module docs and SPEC §4 for the full contract.
+/// See the module docs above for the full contract.
 pub async fn run_loop(
     gateway: &Gateway,
     tools: &ToolRegistry,
