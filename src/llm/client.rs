@@ -345,9 +345,11 @@ mod tests {
                 if let Some(retry_after) = canned.retry_after {
                     head.push_str(&format!("Retry-After: {retry_after}\r\n"));
                 }
+                // Count before writing: the client may read the reply and
+                // assert on `hits` before a post-write increment lands.
+                let served = hits_in_thread.fetch_add(1, Ordering::SeqCst) + 1;
                 let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
-                hits_in_thread.fetch_add(1, Ordering::SeqCst);
-                if hits_in_thread.load(Ordering::SeqCst) >= total {
+                if served >= total {
                     return;
                 }
             }

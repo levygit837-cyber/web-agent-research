@@ -17,6 +17,7 @@ use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
 use crate::research::synthesis::{Synthesis, SynthesisSize};
+use crate::web::fetch::FetchPath;
 
 #[derive(Debug, Clone)]
 pub struct LoopInput {
@@ -72,6 +73,9 @@ pub struct ToolEvidence {
     pub excerpt: String,
     /// `Some` when the tool yields a source URL.
     pub url: Option<String>,
+    /// Engine that produced fetched Evidence (`static`/`browser`); `None`
+    /// for everything that is not a successful fetch.
+    pub fetch_path: Option<FetchPath>,
 }
 
 #[derive(Debug, Clone)]
@@ -274,6 +278,7 @@ async fn dispatch_turn(
                     tool: call.name.clone(),
                     excerpt: content,
                     url: None,
+                    fetch_path: None,
                 });
                 failure = Some(FailureKind::Execution);
                 failure_reason = reason;
@@ -293,6 +298,7 @@ async fn dispatch_turn(
                         tool: call.name.clone(),
                         excerpt,
                         url: result.url(),
+                        fetch_path: result.fetch_path(),
                     });
                 } else {
                     let kind = result
@@ -308,6 +314,7 @@ async fn dispatch_turn(
                         tool: call.name.clone(),
                         excerpt,
                         url: None,
+                        fetch_path: None,
                     });
                     failure = Some(kind);
                     failure_reason = reason;
