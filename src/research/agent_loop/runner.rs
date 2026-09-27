@@ -431,6 +431,7 @@ pub async fn run_loop(
             text: reply.output.clone(),
             calls: outcome.calls,
             results: outcome.results,
+            replay: reply.replay.clone(),
         });
         if outcome.had_success {
             consecutive_failures = 0;
@@ -1300,6 +1301,7 @@ mod tests {
                     text: reply.output,
                     calls: reply.tool_calls,
                     results,
+                    replay: reply.replay,
                 },
             );
         }

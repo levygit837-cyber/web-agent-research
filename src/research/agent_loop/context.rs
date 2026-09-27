@@ -12,7 +12,7 @@
 //! unpaired `tool_calls` ever survives. `messages[0]` (system) and
 //! `messages[1]` (goal) are never dropped.
 
-use crate::llm::{ChatMessage, RequestedToolCall};
+use crate::llm::{ChatMessage, ReplayBlocks, RequestedToolCall};
 use crate::research::agent_loop::runner::LoopBudget;
 use crate::research::agent_loop::runner::LoopInput;
 
@@ -33,11 +33,13 @@ pub(crate) enum HistoryEntry {
     },
     /// One tool turn, dropped as a whole by truncation: the assistant
     /// `tool_calls` message (ids resolved) and its paired `tool` messages,
-    /// in wire order.
+    /// in wire order. `replay` carries the provider blocks the assistant
+    /// message must echo verbatim (Anthropic thinking); empty on OpenAI.
     ToolTurn {
         text: String,
         calls: Vec<RequestedToolCall>,
         results: Vec<ToolMessage>,
+        replay: ReplayBlocks,
     },
 }
 
@@ -52,8 +54,10 @@ impl HistoryEntry {
                 text,
                 calls,
                 results,
+                replay,
             } => {
                 text.chars().count()
+                    + replay.chars()
                     + calls
                         .iter()
                         .map(|call| {
@@ -157,8 +161,9 @@ pub(crate) fn assemble(
                 text,
                 calls,
                 results,
+                replay,
             } => {
-                messages.push(ChatMessage::assistant_tool_calls(&text, &calls));
+                messages.push(ChatMessage::assistant_tool_calls(&text, &calls, &replay));
                 for result in results {
                     messages.push(ChatMessage::tool(result.id, result.content));
                 }
@@ -237,6 +242,7 @@ mod tests {
                 id: format!("c{n}"),
                 content: format!("result {n}"),
             }],
+            replay: ReplayBlocks::default(),
         }
     }
 
@@ -305,6 +311,7 @@ mod tests {
                 id: "c1".to_owned(),
                 content: "result".to_owned(),
             }],
+            replay: ReplayBlocks::default(),
         }];
         let messages = assemble("sys", &input(), &history, &LoopBudget::default());
         assert_eq!(messages[2].role, "assistant");
