@@ -90,6 +90,16 @@ pub struct RunReport {
     pub evidence: Vec<ToolEvidence>,
     /// Saturating sum of per-turn usage.
     pub usage: TokenUsage,
+    /// Detail of the most recent `search` call that came back
+    /// `SearchProviderError::AllFailed { all_challenged: true, .. }` (#53):
+    /// every leg was a bot-wall Challenge, never a usable results page.
+    /// `None` when no search call in the run was fully walled.
+    pub search_blocked: Option<String>,
+    /// Whether any `search` call in the run ever returned a non-empty Hit
+    /// list. `run_research` uses this together with `search_blocked` and
+    /// zero fetched Evidence to decide whether a "successful" FINAL is
+    /// actually a walled run the Harness must see as a failure.
+    pub had_search_hits: bool,
 }
 
 #[derive(Debug)]
@@ -214,6 +224,11 @@ struct TurnOutcome {
     had_success: bool,
     failure: Option<FailureKind>,
     failure_reason: String,
+    /// Detail of the last `search` call this turn that came back fully
+    /// Challenge-walled (#53); `None` if none did.
+    search_blocked: Option<String>,
+    /// Whether any `search` call this turn returned a non-empty Hit list.
+    had_search_hits: bool,
 }
 
 /// Execute one turn's calls (up to `max_tools_per_turn`) and pair every one
@@ -237,6 +252,8 @@ async fn dispatch_turn(
     let mut had_success = false;
     let mut failure: Option<FailureKind> = None;
     let mut failure_reason = String::new();
+    let mut search_blocked: Option<String> = None;
+    let mut had_search_hits = false;
 
     for (index, call) in resolved.iter().enumerate() {
         if index >= cap {
@@ -291,6 +308,14 @@ async fn dispatch_turn(
                     id: call.id.clone(),
                     content: excerpt.clone(),
                 });
+                if let ToolResult::Search { hits } = &result {
+                    if !hits.is_empty() {
+                        had_search_hits = true;
+                    }
+                }
+                if let ToolResult::SearchBlocked { detail } = &result {
+                    search_blocked = Some(detail.clone());
+                }
                 if result.is_success() {
                     had_success = true;
                     evidence.push(ToolEvidence {
@@ -331,6 +356,8 @@ async fn dispatch_turn(
         had_success,
         failure,
         failure_reason,
+        search_blocked,
+        had_search_hits,
     }
 }
 
@@ -371,6 +398,8 @@ pub async fn run_loop(
     let mut usage = TokenUsage::default();
     let mut consecutive_failures: u32 = 0;
     let mut failures_used: u32 = 0;
+    let mut search_blocked: Option<String> = None;
+    let mut had_search_hits = false;
 
     for turn in 1..=budget.max_turns {
         let messages = context::assemble(&system_prompt, input, &history, budget);
@@ -408,6 +437,8 @@ pub async fn run_loop(
                         failures_used,
                         evidence,
                         usage,
+                        search_blocked,
+                        had_search_hits,
                     });
                 }
                 Err(_) => {
@@ -434,6 +465,10 @@ pub async fn run_loop(
         let outcome =
             dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
         evidence.extend(outcome.evidence);
+        if outcome.search_blocked.is_some() {
+            search_blocked = outcome.search_blocked;
+        }
+        had_search_hits = had_search_hits || outcome.had_search_hits;
         history.push(HistoryEntry::ToolTurn {
             text: reply.output.clone(),
             calls: outcome.calls,
@@ -1777,6 +1812,72 @@ mod tests {
             &messages[2][..len1],
             messages[1].as_slice(),
             "turn 2's messages must be a strict prefix of turn 3's"
+        );
+    }
+
+    /// Regression (#53): a `search` call that comes back
+    /// `ToolResult::SearchBlocked` (every leg Challenge-walled) must survive
+    /// into `RunReport.search_blocked` even though the model still manages a
+    /// FINAL on the next turn (the failure counts as a repair, not a fatal
+    /// `ToolFailed`, since `max_repairs` covers it).
+    #[tokio::test]
+    async fn search_blocked_survives_a_repaired_turn_into_the_run_report() {
+        let double = spawn_double(vec![
+            (200, tools_body(vec![tool_call("c1", "search", "{}")], "")),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![ToolResult::SearchBlocked {
+                detail: "startpage: pow challenge; duckduckgo: anomaly".to_owned(),
+            }]),
+            &loop_input(&["search"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("a repairable SearchBlocked turn must still finalize");
+        assert_eq!(report.turns_used, 2);
+        assert_eq!(
+            report.search_blocked.as_deref(),
+            Some("startpage: pow challenge; duckduckgo: anomaly")
+        );
+        assert!(
+            !report.had_search_hits,
+            "no search call this run ever returned a Hit"
+        );
+    }
+
+    /// A `search` call earlier in the run that did return Hits must set
+    /// `had_search_hits`, even if a later call in the same run comes back
+    /// `SearchBlocked` (a later re-plan hitting the wall on a fresh query).
+    #[tokio::test]
+    async fn had_search_hits_true_once_any_search_call_returns_hits() {
+        let double = spawn_double(vec![
+            (200, tools_body(vec![tool_call("c1", "search", "{}")], "")),
+            (200, tools_body(vec![tool_call("c2", "search", "{}")], "")),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![
+                canned_search(),
+                ToolResult::SearchBlocked {
+                    detail: "startpage: pow challenge".to_owned(),
+                },
+            ]),
+            &loop_input(&["search"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("run must finalize");
+        assert_eq!(report.turns_used, 3);
+        assert!(
+            report.had_search_hits,
+            "the first search call returned a Hit"
+        );
+        assert_eq!(
+            report.search_blocked.as_deref(),
+            Some("startpage: pow challenge")
         );
     }
 }

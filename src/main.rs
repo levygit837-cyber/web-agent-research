@@ -60,6 +60,7 @@ fn exit_for(err: &ResearchError) -> i32 {
         ResearchError::ToolFailure(_) => 4,
         ResearchError::BudgetExhausted { .. } => 5,
         ResearchError::Io(_) => 6,
+        ResearchError::SearchBlocked(_) => 7,
     }
 }
 
@@ -179,6 +180,7 @@ mod tests {
         assert_eq!(exit_for(&ResearchError::ToolFailure("x".to_owned())), 4);
         assert_eq!(exit_for(&ResearchError::BudgetExhausted { turns: 8 }), 5);
         assert_eq!(exit_for(&ResearchError::Io("x".to_owned())), 6);
+        assert_eq!(exit_for(&ResearchError::SearchBlocked("x".to_owned())), 7);
     }
 
     #[test]

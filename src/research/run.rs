@@ -136,7 +136,7 @@ pub struct ResearchResponse {
 
 /// Failures of one research run; each maps to a CLI exit code via
 /// `exit_for` in `main.rs` (`NotConfigured→2`, `GatewayExhausted→3`,
-/// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`).
+/// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`).
 #[derive(Debug)]
 pub enum ResearchError {
     /// Empty goal, `max_turns == 0`, missing `GATEWAY_API_KEY` — no I/O attempted.
@@ -149,6 +149,15 @@ pub enum ResearchError {
     BudgetExhausted { turns: u32 },
     /// Session file write failure.
     Io(String),
+    /// The run finalized with zero fetched Evidence, no `search` call ever
+    /// returned a Hit, and at least one `search` call failed with every
+    /// leg `Challenge` (#53): a fully bot-walled run that would otherwise
+    /// exit 0 with an empty "I found nothing" Synthesis. Distinct from
+    /// `ToolFailure`, which fires inside the loop once repairs are
+    /// exhausted; this fires after a FINAL parsed, since the model can
+    /// legally answer "no results" without exhausting any repair budget.
+    /// Carries the per-engine challenge detail from the last walled call.
+    SearchBlocked(String),
 }
 
 impl std::fmt::Display for ResearchError {
@@ -161,6 +170,9 @@ impl std::fmt::Display for ResearchError {
                 write!(f, "turn budget exhausted after {turns} turns")
             }
             Self::Io(reason) => write!(f, "session write failed: {reason}"),
+            Self::SearchBlocked(detail) => {
+                write!(f, "search blocked by a bot-detection challenge: {detail}")
+            }
         }
     }
 }
@@ -313,6 +325,17 @@ pub(crate) async fn run_research_with(
         .iter()
         .filter_map(|item| item.url.clone())
         .collect();
+    // #53: a FINAL parsed, but every fetched-Evidence source is empty, no
+    // `search` call this run ever saw a Hit, and at least one `search` call
+    // was fully Challenge-walled. Surface it as a typed failure (exit 7)
+    // instead of letting an "I found nothing" Synthesis exit 0 -- the model
+    // is legally allowed to answer that way without exhausting any repair
+    // budget, so this check runs after the loop, not inside it.
+    if let Some(detail) = report.search_blocked {
+        if evidence_urls.is_empty() && !report.had_search_hits {
+            return Err(ResearchError::SearchBlocked(detail));
+        }
+    }
     let usage_dto = UsageDTO::from(report.usage);
 
     let header = SessionHeader::new(
@@ -637,6 +660,31 @@ mod tests {
             std::time::Duration::from_secs(1),
         ));
         (ToolRegistry::new(searcher, fetcher), page_url)
+    }
+
+    /// A search stub where every leg on every provider is bot-wall
+    /// Challenge-walled (#53): `searcher.search` always returns
+    /// `SearchProviderError::AllFailed { all_challenged: true, .. }`. No
+    /// page server: a walled search never reaches fetch.
+    async fn walled_web() -> ToolRegistry {
+        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubServer};
+        let (search_base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            r#"<script id="anubis_challenge" type="application/json">{}</script>"#.to_string(),
+            false,
+        ))
+        .await;
+        let searcher = Searcher::with_bases(
+            &format!("{search_base}/html/"),
+            &format!("{search_base}/"),
+            &format!("{search_base}/sp/search"),
+        );
+        let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
+            "/nonexistent/obscura".into(),
+            std::time::Duration::from_secs(1),
+        ));
+        ToolRegistry::new(searcher, fetcher)
     }
 
     #[tokio::test]
@@ -972,5 +1020,64 @@ mod tests {
         assert_eq!(req.session_id, None);
         let back = serde_json::to_value(&req).expect("request serializes");
         assert_eq!(back["size"], "large");
+    }
+
+    /// Acceptance (#53): a FINAL answer with zero fetched Evidence, when
+    /// every search call this run was fully Challenge-walled and no search
+    /// call ever returned a Hit, must surface as `ResearchError::SearchBlocked`
+    /// (exit 7 in `main.rs`), never a silent exit-0 "I found nothing"
+    /// Synthesis (the bug reported in #53).
+    #[tokio::test]
+    async fn fully_walled_search_surfaces_search_blocked_not_empty_synthesis() {
+        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let tools = walled_web().await;
+        let base_url = spawn_server(vec![
+            tools_body(
+                vec![tool_call("c1", "search", r#"{"queries": ["obscura"]}"#)],
+                "",
+            ),
+            text_body("I found nothing on this topic.\n\n## Findings\n\n- No sources found.\n"),
+        ]);
+        point_env_at(&base_url);
+        let req = hermetic_request("walled");
+        let session_out = req.session_out.clone().expect("session out set");
+        let err = run_research_with(req, tools)
+            .await
+            .expect_err("a fully walled search must not exit as a successful empty Synthesis");
+        match &err {
+            ResearchError::SearchBlocked(detail) => {
+                assert!(
+                    detail.contains("startpage") && detail.contains("duckduckgo"),
+                    "detail must carry both engines' challenge messages: {detail}"
+                );
+            }
+            other => panic!("expected SearchBlocked, got {other:?}"),
+        }
+        let _ = std::fs::remove_file(&session_out);
+    }
+
+    /// A search call returning at least one Hit, even if the model still
+    /// answers "no results" in its FINAL text, must NOT be reclassified as
+    /// `SearchBlocked`: the search itself worked, the model just chose not
+    /// to fetch anything.
+    #[tokio::test]
+    async fn hits_without_fetch_is_not_search_blocked() {
+        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let (tools, _page_url) = local_web().await;
+        let base_url = spawn_server(vec![
+            tools_body(
+                vec![tool_call("c1", "search", r#"{"queries": ["obscura"]}"#)],
+                "",
+            ),
+            text_body("No relevant sources found.\n\n## Findings\n\n- Nothing conclusive.\n"),
+        ]);
+        point_env_at(&base_url);
+        let req = hermetic_request("hits-no-fetch");
+        let session_out = req.session_out.clone().expect("session out set");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("a search that returned Hits must finalize as Ok, not SearchBlocked");
+        assert!(response.evidence_urls.is_empty());
+        let _ = std::fs::remove_file(&session_out);
     }
 }

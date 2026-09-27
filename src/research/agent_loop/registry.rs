@@ -59,6 +59,16 @@ pub enum ToolResult {
         url: String,
         first_url: String,
     },
+    /// Every Startpage/DuckDuckGo leg of this `search` call was a bot-wall
+    /// Challenge (#53), i.e. `SearchProviderError::AllFailed { all_challenged: true, .. }`:
+    /// the request never reached a usable results page. Distinct from the
+    /// generic `Failed` so the runner can remember it across the whole run
+    /// (`RunReport::search_blocked`) even though it counts the same as an
+    /// execution failure for the repair budget. `detail` carries the
+    /// per-engine challenge messages (Omp `formatSearchProviderFailures`).
+    SearchBlocked {
+        detail: String,
+    },
     #[cfg(test)]
     Hang,
     Failed {
@@ -88,6 +98,7 @@ impl ToolResult {
             Self::AlreadyFetched { url, first_url } => format!(
                 "ALREADY FETCHED: {url} was already fetched earlier in this Research (as {first_url}). Use that earlier content, or fetch a different Hit."
             ),
+            Self::SearchBlocked { detail } => format!("FAILED: search blocked: {detail}"),
             #[cfg(test)]
             Self::Hang => "hanging".to_owned(),
             Self::Failed { reason, .. } => format!("FAILED: {reason}"),
@@ -113,15 +124,19 @@ impl ToolResult {
     }
 
     /// Execution worked (even an empty hit list, or a skipped repeat fetch,
-    /// is information, not failure).
+    /// is information, not failure). `SearchBlocked` is not: the bot wall
+    /// stopped the call from reaching a usable page.
     pub fn is_success(&self) -> bool {
-        !matches!(self, Self::Failed { .. })
+        !matches!(self, Self::Failed { .. } | Self::SearchBlocked { .. })
     }
 
     /// `Some` naming which kind of failure this is; `None` for a success.
+    /// `SearchBlocked` executed and failed at the provider, same as any
+    /// other search execution error.
     pub fn failure_kind(&self) -> Option<FailureKind> {
         match self {
             Self::Failed { kind, .. } => Some(*kind),
+            Self::SearchBlocked { .. } => Some(FailureKind::Execution),
             _ => None,
         }
     }
@@ -257,6 +272,10 @@ impl ToolRegistry {
                     Ok(output) => ToolResult::Search {
                         hits: self.mark_already_fetched(output.results),
                     },
+                    Err(crate::web::search::types::SearchProviderError::AllFailed {
+                        failures,
+                        all_challenged: true,
+                    }) => ToolResult::SearchBlocked { detail: failures },
                     Err(err) => failed(
                         call,
                         format!("search failed: {}", search_error(&err)),
@@ -346,7 +365,7 @@ fn failed(call: &RequestedToolCall, reason: String, kind: FailureKind) -> ToolRe
 fn search_error(err: &crate::web::search::types::SearchProviderError) -> String {
     use crate::web::search::types::SearchProviderError as E;
     match err {
-        E::AllFailed { failures } => format!("all engines failed: {failures}"),
+        E::AllFailed { failures, .. } => format!("all engines failed: {failures}"),
         other => other.code().to_owned(),
     }
 }
@@ -837,5 +856,48 @@ mod tests {
             .filter_map(|e| e.url.clone())
             .collect();
         assert_eq!(evidence_urls, vec![page_url]);
+    }
+
+    /// Regression (#53): both provider legs walled with a bot-detection
+    /// challenge -> `searcher.search` returns
+    /// `SearchProviderError::AllFailed { all_challenged: true, .. }`, and
+    /// `execute` must turn that into `ToolResult::SearchBlocked`, not the
+    /// generic `Failed`, so the runner can remember it for the whole run.
+    #[tokio::test]
+    async fn all_challenged_search_becomes_search_blocked() {
+        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubServer};
+        let (search_base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            r#"<script id="anubis_challenge" type="application/json">{}</script>"#.to_string(),
+            false,
+        ))
+        .await;
+        let registry = ToolRegistry::new(
+            Searcher::with_bases(
+                &format!("{search_base}/html/"),
+                &format!("{search_base}/"),
+                &format!("{search_base}/sp/search"),
+            ),
+            Fetcher::with_obscura(crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            )),
+        );
+        let result = registry
+            .execute(&call("search", r#"{"queries": ["q"]}"#))
+            .await;
+        match &result {
+            ToolResult::SearchBlocked { detail } => {
+                assert!(
+                    detail.contains("startpage") && detail.contains("duckduckgo"),
+                    "detail must carry both engines' challenge messages: {detail}"
+                );
+            }
+            other => panic!("expected SearchBlocked, got {other:?}"),
+        }
+        assert!(!result.is_success(), "SearchBlocked must not be a success");
+        assert_eq!(result.failure_kind(), Some(FailureKind::Execution));
+        assert!(result.render().starts_with("FAILED: search blocked:"));
     }
 }
