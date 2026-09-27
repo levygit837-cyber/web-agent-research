@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::client::GatewayError;
+use super::config::ReasoningEffort;
 
 /// One message in a chat request, matching the native OpenAI wire shapes:
 /// `system`/`user`/`assistant` carry text `content`; an `assistant` turn
@@ -76,15 +77,43 @@ impl ChatMessage {
     }
 }
 
+/// `thinking` request param (Anthropic OpenAI-compat layer, DeepSeek).
+/// Internally tagged on `type` so `Enabled` serializes flat as
+/// `{"type": "enabled", "budget_tokens": n}` and `Disabled` as
+/// `{"type": "disabled"}` (no `budget_tokens` key).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub(crate) enum ThinkingParam {
+    Enabled { budget_tokens: u32 },
+    Disabled,
+}
+
+impl ThinkingParam {
+    /// `0` disables thinking; any other value enables it with that budget.
+    fn from_budget(budget: u32) -> Self {
+        if budget == 0 {
+            Self::Disabled
+        } else {
+            Self::Enabled {
+                budget_tokens: budget,
+            }
+        }
+    }
+}
+
 /// Non-streaming `/chat/completions` request body.
 #[derive(Debug, Serialize)]
 pub(crate) struct ChatRequest {
     pub(crate) model: String,
     pub(crate) messages: Vec<ChatMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) reasoning_effort: Option<String>,
+    pub(crate) reasoning_effort: Option<ReasoningEffort>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) thinking: Option<ThinkingParam>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) prompt_cache_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tools: Option<Vec<ToolDef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -166,11 +195,39 @@ impl ChatRequest {
         Self {
             model: params.model.clone(),
             messages,
-            reasoning_effort: params.reasoning_effort.clone(),
+            reasoning_effort: params.reasoning_effort,
             max_completion_tokens: params.max_tokens,
+            thinking: params.thinking_budget.map(ThinkingParam::from_budget),
+            prompt_cache_key: params.prompt_cache_key.clone(),
             tools,
             tool_choice,
         }
+    }
+
+    /// Final wire body. With no `extra_body`, just the typed shape. With
+    /// one, OpenAI SDK `extra_body` semantics: start from `extra`, then
+    /// overlay every key this struct actually serializes, so `model`,
+    /// `messages`, `tools`, `tool_choice`, and every set typed param win on
+    /// collision while gateway-specific keys absent from the typed shape
+    /// (`reasoning`, `prompt_cache_retention`, `verbosity`, ...) pass
+    /// through untouched. A non-object `extra` (shouldn't happen —
+    /// `GatewayConfig::from_env` rejects it) is ignored rather than
+    /// corrupting the body.
+    pub(crate) fn to_wire_value(&self, extra: Option<&serde_json::Value>) -> serde_json::Value {
+        let typed = serde_json::to_value(self).expect("ChatRequest always serializes");
+        let Some(extra) = extra.filter(|v| v.is_object()) else {
+            return typed;
+        };
+        let mut merged = extra.clone();
+        let base = merged
+            .as_object_mut()
+            .expect("filtered to a JSON object above");
+        if let Some(over) = typed.as_object() {
+            for (key, value) in over {
+                base.insert(key.clone(), value.clone());
+            }
+        }
+        merged
     }
 }
 
@@ -263,12 +320,24 @@ pub(crate) struct ResponseUsage {
     pub(crate) total_tokens: u64,
     #[serde(default)]
     pub(crate) completion_tokens_details: Option<CompletionDetails>,
+    /// OpenAI shape: `usage.prompt_tokens_details.cached_tokens`.
+    #[serde(default)]
+    pub(crate) prompt_tokens_details: Option<PromptTokensDetails>,
+    /// Anthropic/LiteLLM shape: top-level `usage.cache_read_input_tokens`.
+    #[serde(default)]
+    pub(crate) cache_read_input_tokens: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct CompletionDetails {
     #[serde(default, deserialize_with = "null_to_default")]
     pub(crate) reasoning_tokens: u64,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct PromptTokensDetails {
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub(crate) cached_tokens: u64,
 }
 
 /// One completed (non-streaming) turn from the gateway.
@@ -306,10 +375,15 @@ pub struct TokenUsage {
     pub total_tokens: u64,
     /// From nested `completion_tokens_details`; 0 if absent.
     pub reasoning_tokens: u64,
+    /// Cached input tokens: max of OpenAI's
+    /// `usage.prompt_tokens_details.cached_tokens` and the Anthropic/LiteLLM
+    /// top-level `usage.cache_read_input_tokens`; 0 if neither is present.
+    pub cached_prompt_tokens: u64,
 }
 
 impl TokenUsage {
-    /// Saturating per-field accumulation across turns of one run.
+    /// Saturating per-field accumulation. The agent loop calls this once per
+    /// turn to fold that turn's [`LlmReply::usage`] into the run total.
     pub fn add(&mut self, other: &TokenUsage) {
         self.prompt_tokens = self.prompt_tokens.saturating_add(other.prompt_tokens);
         self.completion_tokens = self
@@ -317,6 +391,9 @@ impl TokenUsage {
             .saturating_add(other.completion_tokens);
         self.total_tokens = self.total_tokens.saturating_add(other.total_tokens);
         self.reasoning_tokens = self.reasoning_tokens.saturating_add(other.reasoning_tokens);
+        self.cached_prompt_tokens = self
+            .cached_prompt_tokens
+            .saturating_add(other.cached_prompt_tokens);
     }
 }
 
@@ -390,13 +467,21 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
             parts.push(text);
         }
     }
-    let usage = resp.usage.map_or_else(TokenUsage::default, |u| TokenUsage {
-        prompt_tokens: u.prompt_tokens,
-        completion_tokens: u.completion_tokens,
-        total_tokens: u.total_tokens,
-        reasoning_tokens: u
-            .completion_tokens_details
-            .map_or(0, |d| d.reasoning_tokens),
+    let usage = resp.usage.map_or_else(TokenUsage::default, |u| {
+        let openai_cached = u
+            .prompt_tokens_details
+            .as_ref()
+            .map_or(0, |d| d.cached_tokens);
+        let anthropic_cached = u.cache_read_input_tokens.unwrap_or(0);
+        TokenUsage {
+            prompt_tokens: u.prompt_tokens,
+            completion_tokens: u.completion_tokens,
+            total_tokens: u.total_tokens,
+            reasoning_tokens: u
+                .completion_tokens_details
+                .map_or(0, |d| d.reasoning_tokens),
+            cached_prompt_tokens: openai_cached.max(anthropic_cached),
+        }
     });
     Ok(LlmReply {
         thinking: parts.join("\n"),
@@ -415,6 +500,16 @@ mod tests {
     fn parse(fixture: &str) -> Result<LlmReply, GatewayError> {
         let resp: ChatResponse = serde_json::from_str(fixture).expect("fixture must deserialize");
         parse_reply(resp)
+    }
+
+    fn resolved(model: &str) -> ResolvedParams {
+        ResolvedParams {
+            model: model.to_owned(),
+            reasoning_effort: None,
+            max_tokens: None,
+            thinking_budget: None,
+            prompt_cache_key: None,
+        }
     }
 
     #[test]
@@ -673,13 +768,126 @@ mod tests {
         assert_eq!(bare.usage.total_tokens, 0);
         assert_eq!(bare.usage.reasoning_tokens, 0);
     }
+
+    #[test]
+    fn openai_cached_tokens_shape_populates_cached_prompt_tokens() {
+        let reply = parse(
+            r#"{
+                "choices": [{
+                    "message": {"role": "assistant", "content": "answer"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 20,
+                    "total_tokens": 120,
+                    "prompt_tokens_details": {"cached_tokens": 80}
+                }
+            }"#,
+        )
+        .expect("OpenAI cached-tokens shape must parse");
+        assert_eq!(reply.usage.cached_prompt_tokens, 80);
+    }
+
+    #[test]
+    fn anthropic_cache_read_input_tokens_shape_populates_cached_prompt_tokens() {
+        let reply = parse(
+            r#"{
+                "choices": [{
+                    "message": {"role": "assistant", "content": "answer"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 20,
+                    "total_tokens": 120,
+                    "cache_read_input_tokens": 55
+                }
+            }"#,
+        )
+        .expect("Anthropic/LiteLLM cache_read_input_tokens shape must parse");
+        assert_eq!(reply.usage.cached_prompt_tokens, 55);
+    }
+
+    #[test]
+    fn both_cache_shapes_present_takes_the_max() {
+        let lower_openai = parse(
+            r#"{
+                "choices": [{"message": {"role": "assistant", "content": "x"}, "finish_reason": "stop"}],
+                "usage": {
+                    "prompt_tokens": 100, "completion_tokens": 1, "total_tokens": 101,
+                    "prompt_tokens_details": {"cached_tokens": 30},
+                    "cache_read_input_tokens": 90
+                }
+            }"#,
+        )
+        .expect("both shapes must parse");
+        assert_eq!(lower_openai.usage.cached_prompt_tokens, 90);
+
+        let higher_openai = parse(
+            r#"{
+                "choices": [{"message": {"role": "assistant", "content": "x"}, "finish_reason": "stop"}],
+                "usage": {
+                    "prompt_tokens": 100, "completion_tokens": 1, "total_tokens": 101,
+                    "prompt_tokens_details": {"cached_tokens": 90},
+                    "cache_read_input_tokens": 30
+                }
+            }"#,
+        )
+        .expect("both shapes must parse");
+        assert_eq!(higher_openai.usage.cached_prompt_tokens, 90);
+    }
+
+    #[test]
+    fn absent_cache_fields_default_to_zero() {
+        let reply = parse(
+            r#"{
+                "choices": [{"message": {"role": "assistant", "content": "x"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6}
+            }"#,
+        )
+        .expect("usage without cache fields must parse");
+        assert_eq!(reply.usage.cached_prompt_tokens, 0);
+    }
+
+    #[test]
+    fn token_usage_add_sums_saturating_across_turns() {
+        let mut total = TokenUsage::default();
+        for _ in 0..3 {
+            total.add(&TokenUsage {
+                prompt_tokens: 10,
+                completion_tokens: 5,
+                total_tokens: 15,
+                reasoning_tokens: 2,
+                cached_prompt_tokens: 4,
+            });
+        }
+        assert_eq!(total.prompt_tokens, 30);
+        assert_eq!(total.completion_tokens, 15);
+        assert_eq!(total.total_tokens, 45);
+        assert_eq!(total.reasoning_tokens, 6);
+        assert_eq!(total.cached_prompt_tokens, 12);
+    }
+
+    #[test]
+    fn token_usage_add_saturates_at_u64_max() {
+        let mut total = TokenUsage {
+            prompt_tokens: u64::MAX - 3,
+            cached_prompt_tokens: u64::MAX - 1,
+            ..TokenUsage::default()
+        };
+        total.add(&TokenUsage {
+            prompt_tokens: 10,
+            cached_prompt_tokens: 10,
+            ..TokenUsage::default()
+        });
+        assert_eq!(total.prompt_tokens, u64::MAX);
+        assert_eq!(total.cached_prompt_tokens, u64::MAX);
+    }
+
     #[test]
     fn request_omits_tools_when_none() {
-        let params = ResolvedParams {
-            model: "m".to_owned(),
-            reasoning_effort: None,
-            max_tokens: None,
-        };
+        let params = resolved("m");
         let body = serde_json::to_value(ChatRequest::from_resolved_with_tools(
             &params,
             vec![],
@@ -700,11 +908,7 @@ mod tests {
 
     #[test]
     fn request_serializes_tools_and_auto_choice() {
-        let params = ResolvedParams {
-            model: "m".to_owned(),
-            reasoning_effort: None,
-            max_tokens: None,
-        };
+        let params = resolved("m");
         let tools = vec![ToolDef {
             name: "get_time".to_owned(),
             description: "Returns the current time.".to_owned(),
@@ -738,11 +942,7 @@ mod tests {
 
     #[test]
     fn request_serializes_named_choice() {
-        let params = ResolvedParams {
-            model: "m".to_owned(),
-            reasoning_effort: None,
-            max_tokens: None,
-        };
+        let params = resolved("m");
         let body = serde_json::to_value(ChatRequest::from_resolved_with_tools(
             &params,
             vec![],
@@ -755,5 +955,117 @@ mod tests {
             serde_json::json!({"type": "function", "function": {"name": "get_time"}}),
             "named choice must use the OpenAI function shape, got {body}"
         );
+    }
+
+    #[test]
+    fn request_serializes_reasoning_effort_lowercase() {
+        let mut params = resolved("m");
+        params.reasoning_effort = Some(ReasoningEffort::Xhigh);
+        let body = serde_json::to_value(ChatRequest::from_resolved(&params, vec![]))
+            .expect("request must serialize");
+        assert_eq!(body["reasoning_effort"], serde_json::json!("xhigh"));
+    }
+
+    #[test]
+    fn request_thinking_enabled_shape_for_nonzero_budget() {
+        let mut params = resolved("m");
+        params.thinking_budget = Some(2048);
+        let body = serde_json::to_value(ChatRequest::from_resolved(&params, vec![]))
+            .expect("request must serialize");
+        assert_eq!(
+            body["thinking"],
+            serde_json::json!({"type": "enabled", "budget_tokens": 2048})
+        );
+    }
+
+    #[test]
+    fn request_thinking_disabled_shape_for_zero_budget() {
+        let mut params = resolved("m");
+        params.thinking_budget = Some(0);
+        let body = serde_json::to_value(ChatRequest::from_resolved(&params, vec![]))
+            .expect("request must serialize");
+        assert_eq!(body["thinking"], serde_json::json!({"type": "disabled"}));
+    }
+
+    #[test]
+    fn request_prompt_cache_key_present_when_set() {
+        let mut params = resolved("m");
+        params.prompt_cache_key = Some("session-123".to_owned());
+        let body = serde_json::to_value(ChatRequest::from_resolved(&params, vec![]))
+            .expect("request must serialize");
+        assert_eq!(body["prompt_cache_key"], serde_json::json!("session-123"));
+    }
+
+    #[test]
+    fn to_wire_value_without_extra_body_is_the_typed_shape() {
+        let params = resolved("m");
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let typed = serde_json::to_value(&request).expect("request must serialize");
+        assert_eq!(request.to_wire_value(None), typed);
+    }
+
+    #[test]
+    fn to_wire_value_merges_extra_body_gateway_specific_keys() {
+        let params = resolved("m");
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let extra = serde_json::json!({
+            "reasoning": {"effort": "high"},
+            "verbosity": "low",
+            "prompt_cache_retention": "24h"
+        });
+        let merged = request.to_wire_value(Some(&extra));
+        assert_eq!(merged["reasoning"], serde_json::json!({"effort": "high"}));
+        assert_eq!(merged["verbosity"], serde_json::json!("low"));
+        assert_eq!(merged["prompt_cache_retention"], serde_json::json!("24h"));
+        assert_eq!(merged["model"], serde_json::json!("m"));
+    }
+
+    #[test]
+    fn to_wire_value_typed_fields_win_on_collision() {
+        let params = resolved("real-model");
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let extra = serde_json::json!({
+            "model": "should-be-overwritten",
+            "verbosity": "low"
+        });
+        let merged = request.to_wire_value(Some(&extra));
+        assert_eq!(
+            merged["model"],
+            serde_json::json!("real-model"),
+            "always-serialized typed model must win over extra_body's model, got {merged}"
+        );
+        assert_eq!(merged["verbosity"], serde_json::json!("low"));
+    }
+
+    #[test]
+    fn to_wire_value_extra_body_fills_gap_when_typed_field_unset() {
+        // `max_tokens: None` means `max_completion_tokens` never serializes
+        // (`skip_serializing_if`), so it is absent from `typed`, not merely
+        // zero — there is no collision, and extra_body's value for that key
+        // passes through untouched, same as any other gateway-specific key.
+        let params = resolved("m");
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let extra = serde_json::json!({"max_completion_tokens": 999});
+        let merged = request.to_wire_value(Some(&extra));
+        assert_eq!(merged["max_completion_tokens"], serde_json::json!(999));
+    }
+
+    #[test]
+    fn to_wire_value_typed_max_tokens_wins_over_extra_body_when_both_set() {
+        let mut params = resolved("m");
+        params.max_tokens = Some(50);
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let extra = serde_json::json!({"max_completion_tokens": 999});
+        let merged = request.to_wire_value(Some(&extra));
+        assert_eq!(merged["max_completion_tokens"], serde_json::json!(50));
+    }
+
+    #[test]
+    fn to_wire_value_ignores_non_object_extra() {
+        let params = resolved("m");
+        let request = ChatRequest::from_resolved(&params, vec![]);
+        let typed = serde_json::to_value(&request).expect("request must serialize");
+        let extra = serde_json::json!([1, 2, 3]);
+        assert_eq!(request.to_wire_value(Some(&extra)), typed);
     }
 }

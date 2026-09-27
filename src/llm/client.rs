@@ -151,11 +151,12 @@ impl Gateway {
     }
 
     async fn try_once(&self, url: &str, body: &ChatRequest) -> Result<LlmReply, GatewayError> {
+        let wire_body = body.to_wire_value(self.config.extra_body.as_ref());
         let resp = self
             .client
             .post(url)
             .bearer_auth(self.config.api_key())
-            .json(body)
+            .json(&wire_body)
             .send()
             .await
             .map_err(|err| {
@@ -220,7 +221,7 @@ mod tests {
     use std::net::TcpListener;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        Arc, Mutex,
     };
 
     const SUCCESS_BODY: &str = r#"{
@@ -332,6 +333,80 @@ mod tests {
             }
             remaining = remaining.saturating_sub(n);
         }
+    }
+
+    /// Like [`spawn_server`], but records each request's raw bytes (headers
+    /// and body) instead of only counting hits, so wire-body tests can
+    /// assert on exactly what `Gateway` sent.
+    fn spawn_capturing_server(responses: Vec<CannedResponse>) -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
+        let addr = listener.local_addr().expect("listener has an address");
+        let requests: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let requests_in_thread = Arc::clone(&requests);
+        std::thread::spawn(move || {
+            for canned in responses {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                let request = read_request_capturing(&mut stream);
+                requests_in_thread
+                    .lock()
+                    .expect("requests lock")
+                    .push(request);
+                let head = format!(
+                    "HTTP/1.1 {} x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+                    canned.status,
+                    canned.body.len()
+                );
+                let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
+            }
+        });
+        (format!("http://{addr}"), requests)
+    }
+
+    fn read_request_capturing(stream: &mut std::net::TcpStream) -> String {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+        while let Ok(n) = stream.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+        }
+        let header_end = buf
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .map_or(buf.len(), |i| i + 4);
+        let content_length = String::from_utf8_lossy(&buf[..header_end])
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                (name.trim().eq_ignore_ascii_case("content-length"))
+                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
+            })
+            .unwrap_or(0);
+        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
+        while remaining > 0 {
+            let Ok(n) = stream.read(&mut chunk) else {
+                break;
+            };
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            remaining = remaining.saturating_sub(n);
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+
+    fn wire_body_of(request: &str) -> serde_json::Value {
+        let (_, body) = request
+            .split_once("\r\n\r\n")
+            .expect("captured request must carry a body");
+        serde_json::from_str(body).expect("wire body must be JSON")
     }
 
     fn messages() -> Vec<ChatMessage> {
@@ -533,5 +608,141 @@ mod tests {
             .await
             .expect_err("empty key must fail pre-flight");
         assert!(matches!(err, GatewayError::MissingApiKey));
+    }
+
+    // --- Wire-body tests (#41): each new request param present when set,
+    // absent when unset, through the real `Gateway` HTTP path (not just
+    // `ChatRequest::to_wire_value` in isolation) via the capturing server. ---
+
+    fn model_gateway(mut config: GatewayConfig) -> (String, Arc<Mutex<Vec<String>>>, Gateway) {
+        let (base_url, requests) = spawn_capturing_server(vec![CannedResponse::ok()]);
+        config.base_url = base_url.clone();
+        let config = config.with_max_attempts(1);
+        let gateway = Gateway::with_client(config, reqwest::Client::new());
+        (base_url, requests, gateway)
+    }
+
+    #[tokio::test]
+    async fn reasoning_effort_present_when_set_absent_when_unset() {
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+            .with_model_override(
+                "m",
+                crate::llm::config::ModelParams {
+                    reasoning_effort: Some(crate::llm::config::ReasoningEffort::High),
+                    max_tokens: None,
+                    thinking_budget: None,
+                },
+            );
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(body["reasoning_effort"], serde_json::json!("high"));
+
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert!(
+            body.get("reasoning_effort").is_none(),
+            "unset reasoning_effort must be absent from the wire body, got {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn thinking_enabled_shape_when_budget_set_absent_when_unset() {
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+            .with_model_override(
+                "m",
+                crate::llm::config::ModelParams {
+                    reasoning_effort: None,
+                    max_tokens: None,
+                    thinking_budget: Some(4096),
+                },
+            );
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(
+            body["thinking"],
+            serde_json::json!({"type": "enabled", "budget_tokens": 4096})
+        );
+
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert!(
+            body.get("thinking").is_none(),
+            "unset thinking budget must omit the field entirely, got {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn thinking_disabled_shape_for_zero_budget() {
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+            .with_model_override(
+                "m",
+                crate::llm::config::ModelParams {
+                    reasoning_effort: None,
+                    max_tokens: None,
+                    thinking_budget: Some(0),
+                },
+            );
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(body["thinking"], serde_json::json!({"type": "disabled"}));
+    }
+
+    #[tokio::test]
+    async fn prompt_cache_key_present_when_set_absent_when_unset() {
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+            .with_prompt_cache_key("session-abc");
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(body["prompt_cache_key"], serde_json::json!("session-abc"));
+
+        let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert!(
+            body.get("prompt_cache_key").is_none(),
+            "unset prompt_cache_key must be absent, got {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn extra_body_merges_gateway_specific_fields_end_to_end() {
+        let mut cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
+        cfg.extra_body = Some(serde_json::json!({
+            "verbosity": "low",
+            "prompt_cache_retention": "24h"
+        }));
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(body["verbosity"], serde_json::json!("low"));
+        assert_eq!(body["prompt_cache_retention"], serde_json::json!("24h"));
+        assert_eq!(body["model"], serde_json::json!("m"));
+    }
+
+    #[tokio::test]
+    async fn extra_body_collision_typed_field_wins_on_wire() {
+        let mut cfg = GatewayConfig::new(
+            "http://x".to_owned(),
+            "k".to_owned(),
+            "real-model".to_owned(),
+        );
+        cfg.extra_body = Some(serde_json::json!({"model": "attacker-model"}));
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        assert_eq!(
+            body["model"],
+            serde_json::json!("real-model"),
+            "typed model must win over extra_body on the real wire, got {body}"
+        );
     }
 }

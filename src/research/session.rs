@@ -49,6 +49,10 @@ pub struct SessionUsage {
     pub completion_tokens: u64,
     pub total_tokens: u64,
     pub reasoning_tokens: u64,
+    /// `#[serde(default)]`: old JSONL rows predate this field and must
+    /// still parse without bumping `SESSION_FORMAT_VERSION`.
+    #[serde(default)]
+    pub cached_prompt_tokens: u64,
 }
 
 /// Lines 1..N of `sessions/<id>.jsonl`: one per turn, `synthesis` null until
@@ -264,6 +268,7 @@ mod tests {
             completion_tokens: 2,
             total_tokens: 3,
             reasoning_tokens: 0,
+            cached_prompt_tokens: 0,
         };
         let second = TurnRow::new(
             header.session_id.clone(),
@@ -319,6 +324,33 @@ mod tests {
         assert!(
             message.contains("migrate"),
             "gate must hint migration, got {message}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn pre_41_turn_row_without_cached_prompt_tokens_still_deserializes() {
+        // Fixture shape predates `cached_prompt_tokens` (#41): no such key
+        // in `usage` at all. `#[serde(default)]` on the new field must let
+        // this row keep parsing without a `SESSION_FORMAT_VERSION` bump.
+        let path = temp_path("pre-41-usage");
+        let line = format!(
+            "{{\"kind\":\"turn\",\"format_version\":{},\"session_id\":\"s\",\"turn\":1,\
+             \"evidence\":[],\"synthesis\":null,\
+             \"usage\":{{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"reasoning_tokens\":1}},\
+             \"recorded_at\":\"2026-09-08T00:00:01Z\"}}\n",
+            crate::SESSION_FORMAT_VERSION
+        );
+        std::fs::write(&path, line).expect("fixture writes");
+        let rows = read_session_rows(&path).expect("pre-#41 row must still parse");
+        let [SessionRow::Turn(row)] = rows.as_slice() else {
+            panic!("expected exactly one turn row, got {rows:?}");
+        };
+        assert_eq!(row.usage.prompt_tokens, 3);
+        assert_eq!(row.usage.reasoning_tokens, 1);
+        assert_eq!(
+            row.usage.cached_prompt_tokens, 0,
+            "missing cached_prompt_tokens must default to 0, not fail to parse"
         );
         let _ = std::fs::remove_file(&path);
     }
