@@ -18,7 +18,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 |---|---|---|---|
 | `GATEWAY_API_KEY` | yes | none | empty/missing exits `2` (`NotConfigured`) |
 | `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (any OpenAI-compatible endpoint) | n/a (any non-empty string accepted) |
-| `GATEWAY_MODEL` | no | `glm-5p2` | n/a (any non-empty string accepted) |
+| `GATEWAY_MODEL` | no | `muse-spark-1.3` | n/a (any non-empty string accepted) |
 | `GATEWAY_REASONING_EFFORT` | no | unset (no `reasoning_effort` sent) | must be one of `none\|minimal\|low\|medium\|high\|xhigh\|max`; anything else exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_TOKENS` | no | unset (no `max_completion_tokens` cap sent) | not a valid `u32` exits `2` (`NotConfigured`) |
 | `GATEWAY_THINKING_BUDGET` | no | unset (no `thinking` sent) | not a valid `u32` exits `2`; `0` sends `thinking: {"type": "disabled"}`; `> 0` sends `{"type": "enabled", "budget_tokens": n}`; if `GATEWAY_MAX_TOKENS` is also set and is `<=` this budget, exits `2` (reasoning tokens count against `max_tokens`) |
@@ -26,6 +26,8 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
+
+The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
 `GATEWAY_EXTRA_BODY` merges into the wire request body (OpenAI SDK `extra_body` semantics): useful for gateway-specific fields this client has no typed support for yet, e.g. `{"reasoning": {"effort": "high"}, "prompt_cache_retention": "24h", "verbosity": "low"}`. On a key collision, the typed fields this client sends (`model`, `messages`, `reasoning_effort`, `max_completion_tokens`, `thinking`, `prompt_cache_key`, `tools`, `tool_choice`) always win; `GATEWAY_EXTRA_BODY` only fills in keys this client does not otherwise send.
 

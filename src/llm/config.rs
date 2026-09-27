@@ -159,7 +159,7 @@ impl GatewayConfig {
             anyhow::bail!("GATEWAY_API_KEY is not set");
         }
         let base_url = env_or("GATEWAY_BASE_URL", "http://localhost:8317/v1");
-        let model = env_or("GATEWAY_MODEL", "glm-5p2");
+        let model = env_or("GATEWAY_MODEL", "muse-spark-1.3");
         let default_reasoning_effort = std::env::var("GATEWAY_REASONING_EFFORT")
             .map(|v| v.trim().to_owned())
             .ok()
