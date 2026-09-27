@@ -19,12 +19,20 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_API_KEY` | yes | none | empty/missing exits `2` (`NotConfigured`) |
 | `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (any OpenAI-compatible endpoint) | n/a (any non-empty string accepted) |
 | `GATEWAY_MODEL` | no | `glm-5p2` | n/a (any non-empty string accepted) |
-| `GATEWAY_REASONING_EFFORT` | no | unset (no reasoning-effort sent) | n/a (any non-empty string accepted) |
+| `GATEWAY_REASONING_EFFORT` | no | unset (no `reasoning_effort` sent) | must be one of `none\|minimal\|low\|medium\|high\|xhigh\|max`; anything else exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_TOKENS` | no | unset (no `max_completion_tokens` cap sent) | not a valid `u32` exits `2` (`NotConfigured`) |
+| `GATEWAY_THINKING_BUDGET` | no | unset (no `thinking` sent) | not a valid `u32` exits `2`; `0` sends `thinking: {"type": "disabled"}`; `> 0` sends `{"type": "enabled", "budget_tokens": n}`; if `GATEWAY_MAX_TOKENS` is also set and is `<=` this budget, exits `2` (reasoning tokens count against `max_tokens`) |
+| `GATEWAY_PROMPT_CACHE_KEY` | no | enabled: every request carries `prompt_cache_key` set to the run's Session id | `off` disables it (field omitted); any other value is ignored and caching stays enabled |
+| `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
 
-`obscura` on `PATH` is optional. The browser runs only for pages the static fetch cannot use: JS shells, challenge pages (a 403/429/503 or 200 carrying anti-bot markers), and non-text content. A plain 403/404/5xx is returned as an error without spawning the browser. Without `obscura`, pages that need the browser fail with a typed error, and the agent moves on to other Hits.
+`GATEWAY_EXTRA_BODY` merges into the wire request body (OpenAI SDK `extra_body` semantics): useful for gateway-specific fields this client has no typed support for yet, e.g. `{"reasoning": {"effort": "high"}, "prompt_cache_retention": "24h", "verbosity": "low"}`. On a key collision, the typed fields this client sends (`model`, `messages`, `reasoning_effort`, `max_completion_tokens`, `thinking`, `prompt_cache_key`, `tools`, `tool_choice`) always win; `GATEWAY_EXTRA_BODY` only fills in keys this client does not otherwise send.
+
+### Provider notes
+
+- Anthropic's OpenAI-compatible layer does not support prompt caching (`prompt_cache_key` has no effect there; use the native Anthropic API for `cache_control` breakpoints).
+- Reasoning/thinking tokens count against `max_completion_tokens`/`max_tokens`, not a separate budget: `GATEWAY_THINKING_BUDGET` must stay strictly below `GATEWAY_MAX_TOKENS` when both are set (some providers, e.g. Anthropic via OpenRouter, enforce this themselves and error otherwise).
 
 ## Latency
 
@@ -49,7 +57,7 @@ End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by 
   },
   "turns_used": 4,
   "evidence_urls": ["https://…"],
-  "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "reasoning_tokens": 0 }
+  "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "reasoning_tokens": 0, "cached_prompt_tokens": 0 }
 }
 ```
 

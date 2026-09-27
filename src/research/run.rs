@@ -115,6 +115,7 @@ pub struct UsageDTO {
     pub completion_tokens: u64,
     pub total_tokens: u64,
     pub reasoning_tokens: u64,
+    pub cached_prompt_tokens: u64,
 }
 
 /// Research output; serializes to `--json` stdout, or renders via `render`
@@ -207,6 +208,7 @@ impl From<TokenUsage> for UsageDTO {
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
             reasoning_tokens: usage.reasoning_tokens,
+            cached_prompt_tokens: usage.cached_prompt_tokens,
         }
     }
 }
@@ -218,6 +220,7 @@ impl From<UsageDTO> for SessionUsage {
             completion_tokens: usage.completion_tokens,
             total_tokens: usage.total_tokens,
             reasoning_tokens: usage.reasoning_tokens,
+            cached_prompt_tokens: usage.cached_prompt_tokens,
         }
     }
 }
@@ -273,8 +276,13 @@ pub(crate) async fn run_research_with(
             "max_turns must be >= 1".to_owned(),
         ));
     }
-    let config =
-        GatewayConfig::from_env().map_err(|err| ResearchError::NotConfigured(err.to_string()))?;
+    // Generated before the loop (not after) so it can be sent as
+    // `prompt_cache_key` on every turn of this run, keeping cache-routing
+    // stable across the whole Session rather than only the persisted rows.
+    let session_id = req.session_id.clone().unwrap_or_else(generate_session_id);
+    let config = GatewayConfig::from_env()
+        .map_err(|err| ResearchError::NotConfigured(err.to_string()))?
+        .with_prompt_cache_key(session_id.clone());
     let gateway = Gateway::new(config);
     let input = LoopInput {
         goal: req.goal.clone(),
@@ -289,7 +297,6 @@ pub(crate) async fn run_research_with(
         .await
         .map_err(map_loop_error)?;
 
-    let session_id = req.session_id.clone().unwrap_or_else(generate_session_id);
     let session_path = req
         .session_out
         .clone()
@@ -375,7 +382,7 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
-    use std::sync::{LazyLock, Mutex, MutexGuard};
+    use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -446,6 +453,80 @@ mod tests {
             }
         });
         format!("http://{addr}/v1")
+    }
+
+    /// Like [`spawn_server`], but also records each request's raw bytes so
+    /// wire-body assertions (e.g. `prompt_cache_key`) can inspect exactly
+    /// what `run_research_with` sent.
+    fn spawn_capturing_server(responses: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
+        let addr = listener.local_addr().expect("listener has an address");
+        let requests: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let requests_in_thread = Arc::clone(&requests);
+        std::thread::spawn(move || {
+            for body in responses {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                let request = read_request_capturing(&mut stream);
+                requests_in_thread
+                    .lock()
+                    .expect("requests lock")
+                    .push(request);
+                let head = format!(
+                    "HTTP/1.1 200 x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(format!("{head}\r\n{body}").as_bytes());
+            }
+        });
+        (format!("http://{addr}/v1"), requests)
+    }
+
+    fn read_request_capturing(stream: &mut std::net::TcpStream) -> String {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+        while let Ok(n) = stream.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+        }
+        let header_end = buf
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .map_or(buf.len(), |i| i + 4);
+        let content_length = String::from_utf8_lossy(&buf[..header_end])
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.trim()
+                    .eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
+            })
+            .unwrap_or(0);
+        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
+        while remaining > 0 {
+            let Ok(n) = stream.read(&mut chunk) else {
+                break;
+            };
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            remaining = remaining.saturating_sub(n);
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+
+    fn wire_body_of(request: &str) -> serde_json::Value {
+        let (_, body) = request
+            .split_once("\r\n\r\n")
+            .expect("captured request must carry a body");
+        serde_json::from_str(body).expect("wire body must be JSON")
     }
 
     fn read_request(stream: &mut std::net::TcpStream) {
@@ -605,6 +686,68 @@ mod tests {
         );
         let _ = std::fs::remove_file(&session_out);
     }
+    #[tokio::test]
+    async fn prompt_cache_key_is_the_session_id_generated_before_the_loop_and_stable_across_turns()
+    {
+        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let (tools, page_url) = local_web().await;
+        let final_answer = format!(
+            "Obscura is a Rust headless browser.\n\n## Findings\n\n- Written in Rust per [Obscura]({page_url}).\n"
+        );
+        let (base_url, requests) = spawn_capturing_server(vec![
+            tools_body(
+                vec![tool_call("c1", "search", r#"{"queries": ["obscura"]}"#)],
+                "",
+            ),
+            tools_body(
+                vec![tool_call(
+                    "c2",
+                    "fetch",
+                    &serde_json::json!({ "url": page_url }).to_string(),
+                )],
+                "fetching now",
+            ),
+            text_body(&final_answer),
+        ]);
+        point_env_at(&base_url);
+        // No explicit `session_id`: forces `generate_session_id()`, which
+        // must run BEFORE the loop so every turn's wire body carries it.
+        let req = ResearchRequest {
+            goal: "What is the Obscura headless browser?".to_owned(),
+            size: SynthesisSize::Small,
+            max_turns: 8,
+            session_id: None,
+            session_out: Some(temp_session_out("cache-key-stable")),
+        };
+        let session_out = req.session_out.clone().expect("session out set");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("hermetic run must succeed");
+
+        assert_eq!(response.turns_used, 3);
+        assert!(
+            !response.session_id.is_empty(),
+            "auto-generated session_id must be non-empty"
+        );
+
+        let bodies: Vec<serde_json::Value> = requests
+            .lock()
+            .expect("requests lock")
+            .iter()
+            .map(|r| wire_body_of(r))
+            .collect();
+        assert_eq!(bodies.len(), 3, "must have captured all 3 turns");
+        for (turn, body) in bodies.iter().enumerate() {
+            assert_eq!(
+                body["prompt_cache_key"],
+                serde_json::json!(response.session_id),
+                "turn {} prompt_cache_key must equal the run's session_id, got {body}",
+                turn + 1
+            );
+        }
+
+        let _ = std::fs::remove_file(&session_out);
+    }
 
     #[tokio::test]
     async fn empty_goal_is_not_configured_without_io() {
@@ -671,6 +814,7 @@ mod tests {
                 completion_tokens: 0,
                 total_tokens: 0,
                 reasoning_tokens: 0,
+                cached_prompt_tokens: 0,
             },
         };
         let value = serde_json::to_value(&response).expect("response serializes");

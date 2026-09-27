@@ -205,6 +205,7 @@ mod tests {
                 completion_tokens: 1,
                 total_tokens: 2,
                 reasoning_tokens: 0,
+                cached_prompt_tokens: 0,
             },
         };
         let printed = render(&response);
