@@ -2,18 +2,19 @@
 //!
 //! One function is the external seam: [`run_loop`] borrows the gateway and
 //! the tool registry, offers `allowed_tools` with `ToolChoice::Auto` (plain
-//! `chat()` for zero-tool runs), feeds tool results back as text-transcript
-//! observations, and repeats until the first tool-free non-empty answer,
-//! which becomes the typed [`Synthesis`]. Gateway errors reaching the loop
-//! are final for that turn (the gateway owns retries); tool and dispatch
-//! failures are model-visible observations bounded by `max_repairs`.
+//! `chat()` for zero-tool runs), feeds tool results back as native
+//! `role: "tool"` messages paired to the model's own `tool_calls`, and
+//! repeats until the first tool-free non-empty answer, which becomes the
+//! typed [`Synthesis`]. Gateway errors reaching the loop are final for that
+//! turn (the gateway owns retries); tool and dispatch failures are
+//! model-visible tool-role results bounded by `max_repairs`.
 
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
 use crate::research::agent_loop::answer::parse_answer;
-use crate::research::agent_loop::context::{self, HistoryEntry};
-use crate::research::agent_loop::registry::{ToolRegistry, ToolResult};
+use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
+use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
 use crate::research::synthesis::{Synthesis, SynthesisSize};
 
@@ -39,7 +40,7 @@ pub struct LoopBudget {
     pub tool_timeout: Duration,
     /// Per-evidence-text cap before the truncation marker.
     pub max_evidence_chars: usize,
-    /// Total assembled-char cap before oldest-pair dropping.
+    /// Total assembled-char cap before oldest-turn dropping.
     pub max_context_chars: usize,
     /// Wire-call cap per turn.
     pub max_tools_per_turn: usize,
@@ -62,7 +63,8 @@ impl Default for LoopBudget {
 pub struct ToolEvidence {
     /// 1-based turn that produced it.
     pub turn: u32,
-    /// Wire call id (`""` when the model omitted it).
+    /// Wire call id: the model's own, or a synthesized `call_<turn>_<index>`
+    /// when the model omitted one. Never empty.
     pub id: String,
     /// Executed tool name.
     pub tool: String,
@@ -161,48 +163,60 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
 
 fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
     format!(
-        "TOOL ERROR: empty answer — use the offered tools to gather evidence, or answer directly when evidence suffices.\nAvailable tools:\n{}",
+        "Empty answer — use the offered tools to gather evidence, or answer directly when evidence suffices.\nAvailable tools:\n{}",
         roster_footer(tools, allowed)
     )
-}
-
-fn display_id(id: &str) -> &str {
-    if id.is_empty() {
-        "<no-id>"
-    } else {
-        id
-    }
-}
-
-fn is_dispatch_failure(result: &ToolResult) -> bool {
-    match result {
-        ToolResult::Failed { reason, .. } => {
-            reason.contains("unknown tool")
-                || reason.contains("not valid JSON")
-                || reason.contains("invalid args")
-        }
-        _ => false,
-    }
 }
 
 fn cap_excerpt(rendered: &str, budget: &LoopBudget) -> String {
     context::cap_evidence(rendered, budget.max_evidence_chars)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FailureKind {
-    Dispatch,
-    Execution,
+/// Stable synthetic id for a call the model sent without one. Turn-scoped
+/// and 1-based so ids stay human-legible across a run's tool_calls/tool
+/// pairs (`call_<turn>_<index>`).
+fn synthesize_id(turn: u32, index: usize) -> String {
+    format!("call_{turn}_{}", index + 1)
+}
+
+/// Resolve every call's wire id up front so the assistant `tool_calls`
+/// message and each call's `tool` message agree, even when the model sent
+/// no id at all.
+fn resolve_call_ids(turn: u32, calls: &[RequestedToolCall]) -> Vec<RequestedToolCall> {
+    calls
+        .iter()
+        .enumerate()
+        .map(|(index, call)| RequestedToolCall {
+            id: if call.id.is_empty() {
+                synthesize_id(turn, index)
+            } else {
+                call.id.clone()
+            },
+            name: call.name.clone(),
+            arguments: call.arguments.clone(),
+        })
+        .collect()
 }
 
 struct TurnOutcome {
-    observation: String,
+    /// Every requested call, ids resolved, in wire order — the assistant
+    /// `tool_calls` message for this turn.
+    calls: Vec<RequestedToolCall>,
+    /// One `tool` message per call above, same order: every id gets exactly
+    /// one paired result, whether executed, failed, or dropped over cap.
+    results: Vec<ToolMessage>,
     evidence: Vec<ToolEvidence>,
     had_success: bool,
     failure: Option<FailureKind>,
     failure_reason: String,
 }
 
+/// Execute one turn's calls (up to `max_tools_per_turn`) and pair every one
+/// — executed, failed, timed out, disallowed, or dropped over cap — with a
+/// `tool` message. Execution failures never stop sibling calls; the last
+/// failure in the turn wins for `failure`/`failure_reason` (a turn mixing
+/// failure kinds is exceptional and untested — either kind aborts the run
+/// the same way once repairs are exhausted).
 async fn dispatch_turn(
     turn: u32,
     calls: &[RequestedToolCall],
@@ -211,16 +225,25 @@ async fn dispatch_turn(
     budget: &LoopBudget,
 ) -> TurnOutcome {
     let cap = budget.max_tools_per_turn.max(1);
-    let considered: Vec<&RequestedToolCall> = calls.iter().take(cap).collect();
-    let dropped = calls.len().saturating_sub(considered.len());
+    let resolved = resolve_call_ids(turn, calls);
 
-    let mut rows: Vec<String> = Vec::new();
+    let mut results: Vec<ToolMessage> = Vec::with_capacity(resolved.len());
     let mut evidence: Vec<ToolEvidence> = Vec::new();
     let mut had_success = false;
     let mut failure: Option<FailureKind> = None;
     let mut failure_reason = String::new();
 
-    for call in considered {
+    for (index, call) in resolved.iter().enumerate() {
+        if index >= cap {
+            results.push(ToolMessage {
+                id: call.id.clone(),
+                content: cap_excerpt(
+                    &format!("not executed: per-turn tool-call cap ({cap}) reached"),
+                    budget,
+                ),
+            });
+            continue;
+        }
         let is_allowed = allowed.iter().any(|name| name == &call.name);
         if !is_allowed {
             let reason = format!(
@@ -228,28 +251,28 @@ async fn dispatch_turn(
                 call.name,
                 allowed.join(", ")
             );
-            rows.push(cap_excerpt(&format!("TOOL ERROR: {reason}"), budget));
+            results.push(ToolMessage {
+                id: call.id.clone(),
+                content: cap_excerpt(&format!("FAILED: {reason}"), budget),
+            });
             failure = Some(FailureKind::Dispatch);
             failure_reason = reason;
-            break;
+            continue;
         }
         let executed = tokio::time::timeout(budget.tool_timeout, tools.execute(call)).await;
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
-                rows.push(cap_excerpt(
-                    &format!(
-                        "TOOL RESULTS:\n[{} {} FAILED: {reason}]",
-                        display_id(&call.id),
-                        call.name
-                    ),
-                    budget,
-                ));
+                let content = cap_excerpt(&format!("FAILED: {reason}"), budget);
+                results.push(ToolMessage {
+                    id: call.id.clone(),
+                    content: content.clone(),
+                });
                 evidence.push(ToolEvidence {
                     turn,
                     id: call.id.clone(),
                     tool: call.name.clone(),
-                    excerpt: cap_excerpt(&format!("TIMEOUT: {reason}"), budget),
+                    excerpt: content,
                     url: None,
                 });
                 failure = Some(FailureKind::Execution);
@@ -257,19 +280,13 @@ async fn dispatch_turn(
             }
             Ok(result) => {
                 let rendered = result.render();
-                let dispatch_failure = is_dispatch_failure(&result);
                 let excerpt = cap_excerpt(&rendered, budget);
+                results.push(ToolMessage {
+                    id: call.id.clone(),
+                    content: excerpt.clone(),
+                });
                 if result.is_success() {
                     had_success = true;
-                    rows.push(cap_excerpt(
-                        &format!(
-                            "TOOL RESULTS:\n[{} {}({})]: {rendered}",
-                            display_id(&call.id),
-                            call.name,
-                            call.arguments
-                        ),
-                        budget,
-                    ));
                     evidence.push(ToolEvidence {
                         turn,
                         id: call.id.clone(),
@@ -277,20 +294,14 @@ async fn dispatch_turn(
                         excerpt,
                         url: result.url(),
                     });
-                } else if dispatch_failure {
-                    rows.push(cap_excerpt(&format!("TOOL ERROR: {rendered}"), budget));
-                    failure = Some(FailureKind::Dispatch);
-                    failure_reason = rendered;
-                    break;
                 } else {
-                    rows.push(cap_excerpt(
-                        &format!(
-                            "TOOL RESULTS:\n[{} {} FAILED: {rendered}]",
-                            display_id(&call.id),
-                            call.name
-                        ),
-                        budget,
-                    ));
+                    let kind = result
+                        .failure_kind()
+                        .expect("non-success ToolResult always carries a FailureKind");
+                    let reason = match &result {
+                        ToolResult::Failed { reason, .. } => reason.clone(),
+                        _ => rendered.clone(),
+                    };
                     evidence.push(ToolEvidence {
                         turn,
                         id: call.id.clone(),
@@ -298,32 +309,16 @@ async fn dispatch_turn(
                         excerpt,
                         url: None,
                     });
-                    failure = Some(FailureKind::Execution);
-                    failure_reason = rendered;
+                    failure = Some(kind);
+                    failure_reason = reason;
                 }
             }
         }
     }
 
-    let mut observation = rows.join("\n");
-    if dropped > 0 {
-        let note = format!("[+{dropped} call(s) dropped: per-turn cap {cap}]");
-        if observation.is_empty() {
-            observation = format!("TOOL RESULTS:\n{note}");
-        } else {
-            observation.push('\n');
-            observation.push_str(&note);
-        }
-    }
-    if failure == Some(FailureKind::Dispatch) {
-        let footer = roster_footer(tools, allowed);
-        observation.push_str(&format!("\nAvailable tools:\n{footer}"));
-    } else if failure.is_none() && !observation.is_empty() && !observation.contains("TOOL RESULTS:")
-    {
-        observation = format!("TOOL RESULTS:\n{observation}");
-    }
     TurnOutcome {
-        observation,
+        calls: resolved,
+        results,
         evidence,
         had_success,
         failure,
@@ -385,16 +380,7 @@ pub async fn run_loop(
             }
             Err(err) => return Err(LoopError::Gateway(err)),
         };
-        usage.prompt_tokens = usage
-            .prompt_tokens
-            .saturating_add(reply.usage.prompt_tokens);
-        usage.completion_tokens = usage
-            .completion_tokens
-            .saturating_add(reply.usage.completion_tokens);
-        usage.total_tokens = usage.total_tokens.saturating_add(reply.usage.total_tokens);
-        usage.reasoning_tokens = usage
-            .reasoning_tokens
-            .saturating_add(reply.usage.reasoning_tokens);
+        usage.add(&reply.usage);
         if reply.finish_reason.as_deref() == Some("length") {
             tracing::warn!("agent loop turn {turn} hit the model length limit; continuing");
         }
@@ -402,9 +388,6 @@ pub async fn run_loop(
         if reply.tool_calls.is_empty() {
             match parse_answer(&reply.output, input.size) {
                 Ok(synthesis) => {
-                    if !reply.output.is_empty() {
-                        history.push(HistoryEntry::Assistant(reply.output));
-                    }
                     return Ok(RunReport {
                         synthesis,
                         turns_used: turn,
@@ -422,10 +405,10 @@ pub async fn run_loop(
                         });
                     }
                     let observation = empty_answer_observation(tools, &input.allowed_tools);
-                    if !reply.output.is_empty() {
-                        history.push(HistoryEntry::Assistant(reply.output.clone()));
-                    }
-                    history.push(HistoryEntry::Observation(observation));
+                    history.push(HistoryEntry::TextTurn {
+                        assistant: reply.output.clone(),
+                        observation,
+                    });
                     if turn == budget.max_turns {
                         return Err(LoopError::BudgetExhausted { turns: turn });
                     }
@@ -437,10 +420,11 @@ pub async fn run_loop(
         let outcome =
             dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
         evidence.extend(outcome.evidence);
-        if !reply.output.is_empty() {
-            history.push(HistoryEntry::Assistant(reply.output.clone()));
-        }
-        history.push(HistoryEntry::Observation(outcome.observation));
+        history.push(HistoryEntry::ToolTurn {
+            text: reply.output.clone(),
+            calls: outcome.calls,
+            results: outcome.results,
+        });
         if outcome.had_success {
             consecutive_failures = 0;
         }
@@ -1093,6 +1077,7 @@ mod tests {
             &stub_tools(vec![ToolResult::Failed {
                 tool: "search".to_owned(),
                 reason: "boom".to_owned(),
+                kind: FailureKind::Execution,
             }]),
             &loop_input(&["search"]),
             &LoopBudget::default(),
@@ -1117,14 +1102,17 @@ mod tests {
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
             ]))
         };
@@ -1292,15 +1280,20 @@ mod tests {
             if reply.tool_calls.is_empty() {
                 break;
             }
+            let results = reply
+                .tool_calls
+                .iter()
+                .map(|call| crate::research::agent_loop::context::ToolMessage {
+                    id: call.id.clone(),
+                    content: "ok".to_owned(),
+                })
+                .collect();
             history.push(
-                crate::research::agent_loop::context::HistoryEntry::assistant_for_test(
-                    reply.output,
-                ),
-            );
-            history.push(
-                crate::research::agent_loop::context::HistoryEntry::observation_for_test(
-                    "TOOL RESULTS:\n[row]: ok".to_owned(),
-                ),
+                crate::research::agent_loop::context::HistoryEntry::ToolTurn {
+                    text: reply.output,
+                    calls: reply.tool_calls,
+                    results,
+                },
             );
         }
         assert_eq!(lengths.len(), 3);
@@ -1329,6 +1322,7 @@ mod tests {
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
                 canned_search(),
             ]),
@@ -1364,10 +1358,12 @@ mod tests {
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
                 ToolResult::Failed {
                     tool: "search".to_owned(),
                     reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
                 },
                 canned_search(),
             ]),
@@ -1424,5 +1420,297 @@ mod tests {
             from_gateway,
             LoopError::Gateway(GatewayError::Auth)
         ));
+    }
+    /// Same invariant as `context::assert_valid_tool_pairing`, checked
+    /// against the raw wire JSON recorded by the test double: every
+    /// assistant `tool_calls` id gets exactly one `role: "tool"` message
+    /// with a matching `tool_call_id`, and vice versa.
+    fn assert_valid_tool_pairing_json(messages: &[serde_json::Value]) {
+        let mut pending: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for message in messages {
+            if message["role"] == "assistant" {
+                if let Some(calls) = message.get("tool_calls").and_then(|v| v.as_array()) {
+                    for call in calls {
+                        let id = call["id"]
+                            .as_str()
+                            .expect("tool_call id must be a string")
+                            .to_owned();
+                        assert!(pending.insert(id.clone()), "duplicate tool_call id {id}");
+                    }
+                }
+            } else if message["role"] == "tool" {
+                let id = message["tool_call_id"]
+                    .as_str()
+                    .expect("tool message must carry tool_call_id")
+                    .to_owned();
+                assert!(pending.remove(&id), "orphan tool message for id {id}");
+            }
+        }
+        assert!(
+            pending.is_empty(),
+            "unpaired tool_calls left without a tool message: {pending:?}"
+        );
+    }
+
+    fn recorded_wire_bodies(double: &Double) -> Vec<serde_json::Value> {
+        double
+            .bodies
+            .lock()
+            .expect("bodies lock")
+            .iter()
+            .map(|raw| {
+                let (_, body) = raw
+                    .split_once("\r\n\r\n")
+                    .expect("recorded request must carry a JSON body");
+                serde_json::from_str(body).expect("wire body must be JSON")
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn tool_turn_wire_shape_pairs_every_call_with_a_tool_message() {
+        let calls = vec![
+            tool_call("c1", "search", r#"{"query": "a"}"#),
+            tool_call("c2", "search", r#"{"query": "b"}"#),
+            tool_call("c3", "search", r#"{"query": "c"}"#),
+        ];
+        let double = spawn_double(vec![
+            (200, tools_body(calls, "")),
+            (200, text_body(&final_answer())),
+        ]);
+        let budget = LoopBudget {
+            max_tools_per_turn: 2,
+            ..LoopBudget::default()
+        };
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![
+                canned_search(),
+                ToolResult::Failed {
+                    tool: "search".to_owned(),
+                    reason: "boom".to_owned(),
+                    kind: FailureKind::Execution,
+                },
+            ]),
+            &loop_input(&["search"]),
+            &budget,
+        )
+        .await
+        .expect("turn with a failure and a dropped call must still finalize");
+        assert_eq!(report.turns_used, 2);
+
+        let bodies = recorded_wire_bodies(&double);
+        let messages = bodies[1]["messages"]
+            .as_array()
+            .expect("second request must carry messages");
+        // system, goal, assistant tool_calls, tool x3.
+        assert_eq!(messages.len(), 6);
+        let assistant = &messages[2];
+        assert_eq!(assistant["role"], "assistant");
+        let tool_calls = assistant["tool_calls"]
+            .as_array()
+            .expect("assistant message must carry tool_calls");
+        assert_eq!(tool_calls.len(), 3, "all requested calls, cap or not");
+        assert_eq!(tool_calls[0]["id"], "c1");
+        assert_eq!(tool_calls[1]["id"], "c2");
+        assert_eq!(tool_calls[2]["id"], "c3");
+        for call in tool_calls {
+            assert_eq!(call["type"], "function");
+        }
+
+        assert_eq!(messages[3]["role"], "tool");
+        assert_eq!(messages[3]["tool_call_id"], "c1");
+        assert!(messages[3]["content"]
+            .as_str()
+            .unwrap()
+            .contains("example.com/t"));
+
+        assert_eq!(messages[4]["role"], "tool");
+        assert_eq!(messages[4]["tool_call_id"], "c2");
+        assert!(
+            messages[4]["content"]
+                .as_str()
+                .unwrap()
+                .starts_with("FAILED:"),
+            "failed call must still get a tool message: {messages:?}"
+        );
+
+        assert_eq!(messages[5]["role"], "tool");
+        assert_eq!(messages[5]["tool_call_id"], "c3");
+        assert!(
+            messages[5]["content"]
+                .as_str()
+                .unwrap()
+                .contains("not executed"),
+            "dropped-over-cap call must still get a tool message: {messages:?}"
+        );
+
+        assert_valid_tool_pairing_json(messages);
+    }
+
+    #[tokio::test]
+    async fn truncation_never_leaves_orphan_tool_message_or_unpaired_tool_calls() {
+        let mut responses = Vec::new();
+        for i in 1..=4 {
+            responses.push((
+                200,
+                tools_body(
+                    vec![tool_call(&format!("c{i}"), "search", r#"{"query": "x"}"#)],
+                    "",
+                ),
+            ));
+        }
+        responses.push((200, text_body(&final_answer())));
+        let double = spawn_double(responses);
+        let budget = LoopBudget {
+            // Small enough that only the newest turn ever survives, so every
+            // later request is assembled from a freshly truncated history.
+            max_context_chars: 400,
+            ..LoopBudget::default()
+        };
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![
+                canned_search(),
+                canned_search(),
+                canned_search(),
+                canned_search(),
+            ]),
+            &loop_input(&["search"]),
+            &budget,
+        )
+        .await
+        .expect("run under a tiny context budget must still finalize");
+        assert_eq!(report.turns_used, 5);
+
+        let bodies = recorded_wire_bodies(&double);
+        assert_eq!(bodies.len(), 5, "one request per turn");
+        for (turn, body) in bodies.iter().enumerate() {
+            let messages = body["messages"]
+                .as_array()
+                .expect("every request must carry messages");
+            assert_eq!(messages[0]["role"], "system", "turn {turn}");
+            assert!(
+                messages[1]["content"]
+                    .as_str()
+                    .unwrap()
+                    .contains("Research goal"),
+                "turn {turn} goal message missing"
+            );
+            assert_valid_tool_pairing_json(messages);
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_call_id_gets_synthesized_and_paired() {
+        let no_id_call = serde_json::json!({
+            "type": "function",
+            "function": {"name": "search", "arguments": r#"{"query": "a"}"#}
+        });
+        let double = spawn_double(vec![
+            (200, tools_body(vec![no_id_call], "")),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_search()]),
+            &loop_input(&["search"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("missing id must not block the run");
+        assert_eq!(report.turns_used, 2);
+        assert_eq!(
+            report.evidence[0].id, "call_1_1",
+            "evidence must carry the synthesized id"
+        );
+
+        let bodies = recorded_wire_bodies(&double);
+        let messages = bodies[1]["messages"].as_array().unwrap();
+        let assistant = &messages[2];
+        let tool_calls = assistant["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(
+            tool_calls[0]["id"], "call_1_1",
+            "assistant tool_calls must carry the same synthesized id"
+        );
+        assert_eq!(messages[3]["role"], "tool");
+        assert_eq!(
+            messages[3]["tool_call_id"], "call_1_1",
+            "tool message must pair with the synthesized id"
+        );
+        assert_valid_tool_pairing_json(messages);
+    }
+
+    #[tokio::test]
+    async fn stable_prefix_across_turns_for_prompt_caching() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call("c1", "search", r#"{"query": "obscura"}"#)],
+                    "",
+                ),
+            ),
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c2",
+                        "fetch",
+                        r#"{"url": "https://example.com/t"}"#,
+                    )],
+                    "fetching now",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_search(), canned_fetch()]),
+            &loop_input(&["search", "fetch"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("three-turn run must finalize");
+        assert_eq!(report.turns_used, 3);
+
+        let bodies = recorded_wire_bodies(&double);
+        assert_eq!(bodies.len(), 3);
+        let tools: Vec<&serde_json::Value> = bodies.iter().map(|body| &body["tools"]).collect();
+        assert_eq!(
+            tools[0], tools[1],
+            "tool defs must be byte-identical turn to turn"
+        );
+        assert_eq!(
+            tools[1], tools[2],
+            "tool defs must be byte-identical turn to turn"
+        );
+
+        let messages: Vec<&Vec<serde_json::Value>> = bodies
+            .iter()
+            .map(|body| body["messages"].as_array().expect("messages array"))
+            .collect();
+        assert_eq!(
+            messages[0][0], messages[1][0],
+            "system prompt (messages[0]) must be byte-identical turn to turn"
+        );
+        assert_eq!(
+            messages[1][0], messages[2][0],
+            "system prompt (messages[0]) must be byte-identical turn to turn"
+        );
+
+        let len0 = messages[0].len();
+        assert_eq!(
+            &messages[1][..len0],
+            messages[0].as_slice(),
+            "turn 1's messages must be a strict prefix of turn 2's"
+        );
+        let len1 = messages[1].len();
+        assert_eq!(
+            &messages[2][..len1],
+            messages[1].as_slice(),
+            "turn 2's messages must be a strict prefix of turn 3's"
+        );
     }
 }

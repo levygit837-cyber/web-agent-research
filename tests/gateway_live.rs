@@ -36,10 +36,7 @@ async fn live_round_trip() -> anyhow::Result<()> {
         base.model.clone_from(&model);
         let gateway = Gateway::new(base.clone());
         match gateway
-            .chat(&[ChatMessage {
-                role: "user".to_owned(),
-                content: "Reply with exactly: gateway ok".to_owned(),
-            }])
+            .chat(&[ChatMessage::user("Reply with exactly: gateway ok")])
             .await
         {
             Ok(reply) => {
@@ -85,10 +82,7 @@ async fn live_tools_round_trip() -> anyhow::Result<()> {
         description: "Returns the current time.".to_owned(),
         parameters: serde_json::json!({"type": "object", "properties": {}}),
     }];
-    let messages = [ChatMessage {
-        role: "user".to_owned(),
-        content: "What time is it? Use the get_time tool.".to_owned(),
-    }];
+    let messages = [ChatMessage::user("What time is it? Use the get_time tool.")];
     let mut last_rate_limit: Option<GatewayError> = None;
     for model in candidate_models() {
         base.model.clone_from(&model);
