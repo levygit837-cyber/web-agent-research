@@ -2,8 +2,9 @@
 //!
 //! Deep module behind the public interface (ADR-0006): `run_research()` owns
 //! gateway construction, `run_loop` wiring, JSONL append, and the response
-//! shape. The clap CLI and the future Axum handler stay thin adapters over
-//! this interface.
+//! shape. `src/main.rs` is the only adapter: it prints `Ok` to stdout
+//! (`--json` or the human `render`) and maps `Err` to a CLI exit code via
+//! `exit_for`.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -56,7 +57,8 @@ mod size_serde {
     }
 }
 
-/// Research input; deserializes from the future POST body as-is.
+/// Research input, built by `main.rs` from CLI args (also constructed
+/// directly in tests).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ResearchRequest {
@@ -115,7 +117,8 @@ pub struct UsageDTO {
     pub reasoning_tokens: u64,
 }
 
-/// Research output; serializes to the future 200 body and `--json` stdout.
+/// Research output; serializes to `--json` stdout, or renders via `render`
+/// for human stdout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ResearchResponse {
@@ -126,9 +129,9 @@ pub struct ResearchResponse {
     pub usage: UsageDTO,
 }
 
-/// Failures of one research run; each maps to a CLI exit code and a future
-/// HTTP status (`NotConfigured→400`, `GatewayExhausted→502`,
-/// `ToolFailure→502`, `BudgetExhausted→504`, `Io→500`).
+/// Failures of one research run; each maps to a CLI exit code via
+/// `exit_for` in `main.rs` (`NotConfigured→2`, `GatewayExhausted→3`,
+/// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`).
 #[derive(Debug)]
 pub enum ResearchError {
     /// Empty goal, `max_turns == 0`, missing `GATEWAY_API_KEY` — no I/O attempted.

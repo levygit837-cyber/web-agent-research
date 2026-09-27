@@ -34,10 +34,16 @@ pub use startpage::{
 /// `Sec-CH-UA*` + `Sec-Fetch-*` + `Accept-Language`). Shared by every leg.
 pub(crate) fn apply_browser_headers(builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
     builder
-        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-        .header("Accept-Language", "en-US,en;q=0.9")
-        .header("Sec-CH-UA", r#""Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99""#)
+        .header("User-Agent", crate::web::BROWSER_USER_AGENT)
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        )
+        .header("Accept-Language", crate::web::ACCEPT_LANGUAGE)
+        .header(
+            "Sec-CH-UA",
+            r#""Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99""#,
+        )
         .header("Sec-CH-UA-Mobile", "?0")
         .header("Sec-CH-UA-Platform", r#""macOS""#)
         .header("Sec-Fetch-Dest", "document")
