@@ -2,7 +2,7 @@
 //! default. Binary absent = skip (`Ok(())`), never a failure. Run explicitly
 //! where the binary exists: `cargo test -- --ignored`.
 
-use web_agent_research::shared::obscura::browser::{FetchError, Obscura};
+use web_agent_research::web::fetch::obscura::{FetchError, Obscura};
 
 #[tokio::test]
 #[ignore]

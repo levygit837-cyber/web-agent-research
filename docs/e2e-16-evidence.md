@@ -1,3 +1,8 @@
+> **Note:** This run predates real tool wiring. The search and fetch legs
+> below returned canned stub Hits/Evidence from the registry
+> (`example.com/obscura`); the stubs are gone (#32). A real-tools run of
+> this scenario is pending #33.
+
 # E2E validation evidence — issue #16 (CLI research run on local gateway)
 
 Verdict: **PASS-WITH-GAP**. Live CLI run passes on `glm-5p2`; the search and

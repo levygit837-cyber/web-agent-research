@@ -8,11 +8,11 @@
 
 use std::time::Duration;
 
-use web_agent_research::shared::agent_loop::{
+use web_agent_research::llm::{Gateway, GatewayConfig, GatewayError};
+use web_agent_research::research::agent_loop::{
     run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry,
 };
-use web_agent_research::shared::gateway::{Gateway, GatewayConfig, GatewayError};
-use web_agent_research::shared::types::synthesis::SynthesisSize;
+use web_agent_research::research::synthesis::SynthesisSize;
 
 fn candidate_models() -> Vec<String> {
     let mut models = Vec::new();
