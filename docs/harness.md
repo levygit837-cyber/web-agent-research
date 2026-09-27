@@ -54,7 +54,7 @@ Measured tool numbers, not end-to-end run time:
 - Static fetch (reqwest + htmd, no browser): 0.25–0.96 s — docs.rs 0.25 s, react.dev 0.41 s, wikipedia 0.63 s, github.com 0.96 s.
 - Browser fallback (Obscura, JS shells/challenge pages): 1.5–8.2 s.
 
-End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by search/fetch. A full live end-to-end timing run is pending #33.
+End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by search/fetch. Measured live (#33, `docs/e2e-evidence.md`): 7.7 s for a 2-turn run on `claude-haiku-4.5` that fetched 2 pages.
 
 ## Output (`--json`, exit 0)
 
