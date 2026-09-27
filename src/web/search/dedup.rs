@@ -246,7 +246,7 @@ mod tests {
         // order: shared-URL adoption is strict `<` on rank, so equal ranks
         // keep the input-first leg's title. `merge_sources` falls back to
         // first-seen order for unknown queries; the order-aware core with the
-        // input list proves the SPEC §8 contract directly.
+        // input list proves the input-order-wins contract directly.
         let rows = vec![
             hit(
                 SearchProvider::Startpage,

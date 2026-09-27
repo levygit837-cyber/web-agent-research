@@ -1,31 +1,42 @@
 //! URL → markdown: `reqwest` + `htmd` first, Obscura only as fallback (ADR-0006 §3).
 //!
-//! Fallback triggers: HTTP 403/429/503, a challenge page on 200, markdown
-//! shorter than `min_markdown_chars` (JS shell), or a content type that is
-//! neither HTML nor text. Other HTTP errors (404, 500, …) return
+//! Fallback triggers: HTTP 403/429/503 whose body (or the Cloudflare
+//! `cf-mitigated: challenge` header) marks it as a challenge page, a
+//! challenge page on 200, markdown shorter than `min_markdown_chars` (JS
+//! shell), or a content type that is neither HTML nor text. A 403/429/503
+//! *without* a challenge marker, and other HTTP errors (404, 500, …), return
 //! `FetchError::Http` without spawning the browser: Obscura would see the
-//! same status.
+//! same status (or the same absence of one).
 
 use std::time::Duration;
 
-use super::obscura::{normalize_url, FetchError, FetchedMarkdown, Obscura};
+use serde::{Deserialize, Serialize};
 
-/// Which engine produced the markdown. Debug-only; not persisted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use super::error::{normalize_url, FetchError};
+use super::obscura::{FetchedMarkdown, Obscura};
+use crate::web::{ACCEPT_LANGUAGE, BROWSER_USER_AGENT};
+
+/// Which engine produced the markdown. Recorded on
+/// [`super::evidence::Evidence::fetch_path`] for debugging; not part of the
+/// public tool response (#31).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FetchPath {
     Static,
     Browser,
 }
 
-/// Browser-like UA; some hosts serve empty shells to unknown agents.
-const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+/// Static HTTP request timeout, and the value `FetchError::Timeout` reports
+/// on the static path.
+const STATIC_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Tags whose text is never content (`head` covers `title`/`meta`/`style`).
 const SKIP_TAGS: &[&str] = &[
     "head", "script", "style", "noscript", "template", "svg", "iframe", "nav", "footer", "form",
 ];
 
-/// Lowercase markers of anti-bot interstitials served with HTTP 200.
+/// Lowercase markers of anti-bot interstitials, checked against a challenge
+/// page served with HTTP 200 and against the body of a 403/429/503.
 const CHALLENGE_MARKERS: &[&str] = &[
     "cf-chl-",
     "challenge-platform",
@@ -47,7 +58,8 @@ pub struct Fetcher {
 
 /// Why the static path handed over to Obscura; kept for the error message.
 enum Handover {
-    Status(u16),
+    /// 403/429/503 whose body or `cf-mitigated` header marked it a challenge.
+    ChallengeStatus(u16),
     Challenge,
     ThinMarkdown(usize),
     ContentType(String),
@@ -56,7 +68,7 @@ enum Handover {
 impl std::fmt::Display for Handover {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Status(code) => write!(f, "HTTP {code}"),
+            Self::ChallengeStatus(code) => write!(f, "HTTP {code}"),
             Self::Challenge => write!(f, "challenge page"),
             Self::ThinMarkdown(len) => write!(f, "only {len} chars of markdown (JS shell?)"),
             Self::ContentType(ct) => write!(f, "unsupported content type {ct}"),
@@ -79,8 +91,8 @@ impl Fetcher {
     /// Same defaults with an injected Obscura handle (tests use the fixture double).
     pub fn with_obscura(obscura: Obscura) -> Self {
         let client = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(15))
+            .user_agent(BROWSER_USER_AGENT)
+            .timeout(STATIC_TIMEOUT)
             .build()
             .expect("static reqwest client config is valid");
         Self {
@@ -111,21 +123,21 @@ impl Fetcher {
     }
 
     async fn fetch_static(&self, url: &str) -> Result<StaticOutcome, FetchError> {
-        let response = self
+        let mut response = self
             .client
             .get(url)
             .header(
                 "Accept",
                 "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
             )
-            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Accept-Language", ACCEPT_LANGUAGE)
             .send()
             .await
             .map_err(|err| {
                 if err.is_timeout() {
                     FetchError::Timeout {
                         url: url.to_owned(),
-                        after: Duration::from_secs(15),
+                        after: STATIC_TIMEOUT,
                     }
                 } else {
                     FetchError::Http {
@@ -137,7 +149,27 @@ impl Fetcher {
 
         let status = response.status().as_u16();
         if matches!(status, 403 | 429 | 503) {
-            return Ok(StaticOutcome::Fallback(Handover::Status(status)));
+            // Cloudflare sometimes signals a challenge on a body with no
+            // textual marker (e.g. a JSON/API response); the header is
+            // authoritative when present, so it is checked before reading
+            // the (possibly large) body at all.
+            let cf_challenge = response
+                .headers()
+                .get("cf-mitigated")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.eq_ignore_ascii_case("challenge"));
+            if cf_challenge {
+                return Ok(StaticOutcome::Fallback(Handover::ChallengeStatus(status)));
+            }
+            let body = self.read_capped_body(url, &mut response).await?;
+            let text = String::from_utf8_lossy(&body);
+            if is_challenge(&text) {
+                return Ok(StaticOutcome::Fallback(Handover::ChallengeStatus(status)));
+            }
+            return Err(FetchError::Http {
+                url: url.to_owned(),
+                detail: format!("HTTP {status}"),
+            });
         }
         if !response.status().is_success() {
             return Err(FetchError::Http {
@@ -152,19 +184,8 @@ impl Fetcher {
             .and_then(|value| value.to_str().ok())
             .unwrap_or("text/html")
             .to_ascii_lowercase();
-        if response
-            .content_length()
-            .is_some_and(|len| len as usize > self.max_body_bytes)
-        {
-            return Err(self.too_large(url));
-        }
-        let body = response.bytes().await.map_err(|err| FetchError::Http {
-            url: url.to_owned(),
-            detail: err.to_string(),
-        })?;
-        if body.len() > self.max_body_bytes {
-            return Err(self.too_large(url));
-        }
+
+        let body = self.read_capped_body(url, &mut response).await?;
         let text = String::from_utf8_lossy(&body);
 
         let markdown = if content_type.contains("html") {
@@ -186,6 +207,34 @@ impl Fetcher {
             url: final_url,
             markdown,
         }))
+    }
+
+    /// Read the full body via repeated `.chunk()` calls, aborting as soon as
+    /// the running total crosses `max_body_bytes`. Unlike `.bytes()`, this
+    /// never fully buffers a chunked response (no `Content-Length`) before
+    /// the cap applies.
+    async fn read_capped_body(
+        &self,
+        url: &str,
+        response: &mut reqwest::Response,
+    ) -> Result<Vec<u8>, FetchError> {
+        if response
+            .content_length()
+            .is_some_and(|len| len as usize > self.max_body_bytes)
+        {
+            return Err(self.too_large(url));
+        }
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|err| FetchError::Http {
+            url: url.to_owned(),
+            detail: err.to_string(),
+        })? {
+            body.extend_from_slice(&chunk);
+            if body.len() > self.max_body_bytes {
+                return Err(self.too_large(url));
+            }
+        }
+        Ok(body)
     }
 
     fn too_large(&self, url: &str) -> FetchError {

@@ -4,7 +4,7 @@
 //! The external seam is four items: `Gateway::new`, `Gateway::chat`,
 //! `Gateway::chat_with_tools`, and `GatewayConfig::from_env`. Retry,
 //! backoff, both thinking shapes, and status mapping hide behind `chat`
-//! and `chat_with_tools`. Tool execution stays in `agent_loop/` (issue #12).
+//! and `chat_with_tools`. Tool execution stays in `research::agent_loop`.
 
 mod client;
 mod config;

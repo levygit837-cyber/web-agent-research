@@ -1,7 +1,7 @@
 //! Fetch tool seam: schema + input parsing over [`Fetcher`].
 
+use crate::web::fetch::error::FetchError;
 use crate::web::fetch::fetcher::Fetcher;
-use crate::web::fetch::obscura::FetchError;
 use crate::web::fetch::Evidence;
 use serde_json::Value;
 
@@ -11,7 +11,7 @@ pub const FETCH_TOOL_NAME: &str = "fetch";
 pub const FETCH_TOOL_PURPOSE: &str =
     "Fetch a URL from search results and return its content as markdown Evidence.";
 
-/// Caller-supplied tool input: exactly what the §6 schema advertises.
+/// Caller-supplied tool input: exactly what `fetch_tool_schema` advertises.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FetchInput {
     pub url: String,
@@ -19,7 +19,7 @@ pub struct FetchInput {
 
 impl FetchInput {
     /// Shape check only: `value` must be an object with a string `url`.
-    /// URL *validity* is the engine's job (§1); parse errors surface as
+    /// URL *validity* is the engine's job; parse errors surface as
     /// `FetchError::InvalidUrl { input }`.
     pub fn parse(value: &Value) -> Result<Self, FetchError> {
         let obj = match value.as_object() {
@@ -44,11 +44,11 @@ impl FetchInput {
     }
 }
 
-/// The mandatory tool-definition object consumed by the agent loop (#12).
+/// The mandatory tool-definition object consumed by the agent loop.
 /// Single source of truth: loop wiring and tests share this value.
 pub fn fetch_tool_schema() -> Value {
     serde_json::json!({
-        "name": "fetch",
+        "name": FETCH_TOOL_NAME,
         "description": "Fetch a URL and return its content as markdown Evidence for synthesis.",
         "parameters": {
             "type": "object",
@@ -67,11 +67,14 @@ pub fn fetch_tool_schema() -> Value {
 
 /// Validate input, fetch (static first, browser fallback), wrap in Evidence.
 /// `Evidence.source_url` / `.markdown` come from `FetchedMarkdown`;
-/// `collected_at` is stamped by `Evidence::new`.
+/// `collected_at` is stamped by `Evidence::new`; `fetch_path` records which
+/// engine produced `markdown` (#31).
 pub async fn fetch_tool(input: &Value, fetcher: &Fetcher) -> Result<Evidence, FetchError> {
     let parsed = FetchInput::parse(input)?;
-    let (fetched, _path) = fetcher.fetch(&parsed.url).await?;
-    Ok(Evidence::new(fetched.url, fetched.markdown))
+    let (fetched, path) = fetcher.fetch(&parsed.url).await?;
+    let mut evidence = Evidence::new(fetched.url, fetched.markdown);
+    evidence.fetch_path = Some(path);
+    Ok(evidence)
 }
 
 /// Compact JSON rendering for `InvalidUrl` payloads.

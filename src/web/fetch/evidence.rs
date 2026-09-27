@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::fetcher::FetchPath;
+
 /// Web-extracted content with source URL and collection time, used in synthesis.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evidence {
@@ -12,15 +14,23 @@ pub struct Evidence {
     pub collected_at: String,
     /// Trimmed markdown body (from `FetchedMarkdown::markdown`, stored verbatim).
     pub markdown: String,
+    /// Which engine produced `markdown` (`static` or `browser`), for
+    /// debugging; not part of the public tool response (#31). Absent on
+    /// Evidence built before this field existed; `SESSION_FORMAT_VERSION`
+    /// stays 1 because old rows still deserialize.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fetch_path: Option<FetchPath>,
 }
 
 impl Evidence {
-    /// Stamp `collected_at` with the current UTC time.
+    /// Stamp `collected_at` with the current UTC time. `fetch_path` starts
+    /// `None`; callers that know the path (the fetch tool) set it directly.
     pub fn new(source_url: String, markdown: String) -> Self {
         Self {
             source_url,
             collected_at: utc_now_rfc3339(),
             markdown,
+            fetch_path: None,
         }
     }
 }
