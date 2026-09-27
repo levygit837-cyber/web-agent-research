@@ -21,16 +21,25 @@ pub const STARTPAGE_HOME_URL: &str = "https://www.startpage.com/";
 /// Startpage search POST target (Omp `STARTPAGE_SEARCH_URL`).
 pub const STARTPAGE_SEARCH_URL: &str = "https://www.startpage.com/sp/search";
 
-/// Startpage CAPTCHA detector (Omp `isChallengeResponse`): redirect to
-/// `/en/errors/` or `/sp/captcha` (the live `/sp/captcha-block` redirect form
-/// observed 2026-09-08 is subsumed by the `/sp/captcha` prefix), or the
-/// `component---src-pages-captcha` marker in the body. A bare `"captcha"`
-/// substring MUST NOT trigger (captcha-topic query snippets would
+/// Startpage bot-wall detector (Omp `isChallengeResponse`, extended #53):
+/// a redirect to `/en/errors/` or `/sp/captcha` (the live `/sp/captcha-block`
+/// redirect form observed 2026-09-08 is subsumed by the `/sp/captcha`
+/// prefix), a final URL under `/sp/cdn/error-pages/blocked` (the curl-UA
+/// redirect target observed 2026-09-08), the `component---src-pages-captcha`
+/// CAPTCHA-page marker, or the Anubis proof-of-work challenge page (live
+/// body captured 2026-09-27): the `id="anubis_challenge"` script element or
+/// the `/.within.website/x/cmd/anubis/` script-src prefix. Both Anubis
+/// markers are stable HTML structure, never the bare word `anubis` (a result
+/// snippet may legitimately mention the project). A bare `"captcha"`
+/// substring MUST NOT trigger either (captcha-topic query snippets would
 /// false-positive).
 pub fn is_startpage_challenge(body: &str, final_url: &str) -> bool {
     final_url.contains("/en/errors/")
         || final_url.contains("/sp/captcha")
+        || final_url.contains("/sp/cdn/error-pages/blocked")
         || body.contains("component---src-pages-captcha")
+        || body.contains(r#"id="anubis_challenge""#)
+        || body.contains("/.within.website/x/cmd/anubis/")
 }
 
 /// Map a finished Startpage HTTP exchange to rows or a typed leg error:
@@ -45,7 +54,7 @@ pub(crate) fn map_startpage_response(
     if is_startpage_challenge(body, final_url) {
         return Err(SearchProviderError::Challenge {
             provider: SearchProvider::Startpage,
-            detail: "Startpage blocked the request with a CAPTCHA challenge. Retry via an accredited provider or later.".to_string(),
+            detail: "Startpage blocked the request with a bot-detection challenge (Anubis proof-of-work or CAPTCHA). Retry via an accredited provider or later.".to_string(),
         });
     }
     if !(200..300).contains(&status) {
@@ -432,6 +441,75 @@ mod tests {
         )
         .expect("bare captcha word parses, not a challenge");
         assert!(rows.is_empty());
+    }
+
+    /// Trimmed excerpt of the live Startpage Anubis PoW challenge body
+    /// captured 2026-09-27 (`/tmp/war-recon/startpage-anubis.html`, residential
+    /// IP 187.19.223.83, AS28126 Brisanet BR): the two stable markers kept
+    /// verbatim, surrounding cosmetic HTML/CSS/JS dropped (#53).
+    const ANUBIS_CHALLENGE_EXCERPT: &str = concat!(
+        r#"<script id="anubis_version" type="application/json">"v1.26.4"</script>"#,
+        r#"<script id="anubis_challenge" type="application/json">{"rules":{"algorithm":"fast","difficulty":6},"challenge":{"issuedAt":"2026-09-27T20:41:38.253817028Z","id":"01a0e49a-14cd-7c6b-8599-7159692835bb","method":"fast","difficulty":6,"spent":false}}</script>"#,
+        r#"<div class="sp-message">Verifying your request...</div>"#,
+        r#"<script id="anubis-main" defer type="module" src="/.within.website/x/cmd/anubis/static/js/main.mjs?cacheBuster=v1.26.4"></script>"#,
+    );
+
+    #[test]
+    fn sp_anubis_pow_marker_maps_429_with_pow_detail() {
+        // Regression (#53): the live Anubis proof-of-work page has none of
+        // the older markers (no `/sp/captcha` redirect, no
+        // `component---src-pages-captcha`), so it used to parse as 0 rows
+        // instead of mapping to Challenge.
+        let err = map_startpage_response(
+            200,
+            ANUBIS_CHALLENGE_EXCERPT,
+            "https://www.startpage.com/sp/search",
+            "q",
+        )
+        .unwrap_err();
+        assert_eq!(err.http_status(), 429);
+        assert_eq!(err.code(), "challenge");
+        let detail = match &err {
+            SearchProviderError::Challenge { detail, .. } => detail.clone(),
+            other => panic!("expected Challenge, got {other:?}"),
+        };
+        assert!(
+            detail.contains("Anubis") && detail.contains("proof-of-work"),
+            "challenge detail must name Anubis PoW, not only CAPTCHA: {detail}"
+        );
+    }
+
+    #[test]
+    fn sp_blocked_cdn_final_url_maps_429() {
+        // Regression (#53): curl-UA/empty-UA requests redirect to the CDN
+        // blocked page instead of serving Anubis or a captcha-block form.
+        let err = map_startpage_response(
+            200,
+            "<html>blocked</html>",
+            "https://cdn.startpage.com/sp/cdn/error-pages/blocked.html",
+            "q",
+        )
+        .unwrap_err();
+        assert_eq!(err.http_status(), 429);
+        assert_eq!(err.code(), "challenge");
+    }
+
+    #[test]
+    fn bare_anubis_word_in_result_snippet_does_not_trigger() {
+        // Regression (#53): a normal Startpage result page whose snippet
+        // mentions the Anubis project by name must NOT be mistaken for the
+        // Anubis challenge page itself — only the stable structural markers
+        // (`id="anubis_challenge"`, the `/.within.website/x/cmd/anubis/`
+        // script src) count.
+        let html = r#"<div class="result">
+  <a class="result-link" href="https://example.com/anubis-guide"><h2 class="wgl-title">Anubis bot-wall guide</h2></a>
+  <p class="description">Anubis is a proof-of-work challenge used by some sites to block bots.</p>
+</div>"#;
+        assert!(!is_startpage_challenge(html, "https://x/"));
+        let rows = map_startpage_response(200, html, "https://www.startpage.com/sp/search", "q")
+            .expect("bare Anubis mention parses, not a challenge");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].title, "Anubis bot-wall guide");
     }
 
     #[test]

@@ -87,6 +87,7 @@ End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by 
 | 4 | Tool failures exceeded the repair budget | retry, or rephrase the goal |
 | 5 | Turn budget exhausted | retry with a higher `--max-turns` |
 | 6 | Session file I/O | check `--session-out` path |
+| 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was a bot-detection Challenge (DuckDuckGo anomaly page or Startpage Anubis proof-of-work/CAPTCHA) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 
 Errors are printed to stderr as `error: <message>`; stdout stays empty.
 

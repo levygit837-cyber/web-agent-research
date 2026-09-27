@@ -234,7 +234,14 @@ pub enum SearchProviderError {
     },
     /// Every leg failed AND nothing merged -> 503
     /// (Omp "All public engines failed: ...").
-    AllFailed { failures: String },
+    AllFailed {
+        failures: String,
+        /// Whether every one of those failed legs was itself a
+        /// `Challenge` (bot wall), never a `Timeout`/`Upstream` mix (#53):
+        /// the signal `research::agent_loop` uses to surface a typed
+        /// `SearchBlocked` failure instead of a silent empty Synthesis.
+        all_challenged: bool,
+    },
 }
 
 impl SearchProviderError {

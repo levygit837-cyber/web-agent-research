@@ -223,6 +223,9 @@ pub async fn search_multi_with_bases(
     let mut merged = merge_sources_in_order(raw_hits, &queries);
     let merged_count = merged.len();
     if merged.is_empty() && errors.len() == leg_count && leg_count > 0 {
+        let all_challenged = errors
+            .iter()
+            .all(|err| matches!(err, SearchProviderError::Challenge { .. }));
         let failures: Vec<(String, String)> = errors
             .iter()
             .map(|err| {
@@ -235,6 +238,7 @@ pub async fn search_multi_with_bases(
             .collect();
         return Err(SearchProviderError::AllFailed {
             failures: all_failed_message(&failures),
+            all_challenged,
         });
     }
     merged.truncate(top_k);
@@ -259,7 +263,7 @@ fn error_detail(err: &SearchProviderError) -> String {
         SearchProviderError::Challenge { detail, .. } => detail.clone(),
         SearchProviderError::Timeout { query, .. } => format!("timed out: {query}"),
         SearchProviderError::Upstream { detail, .. } => detail.clone(),
-        SearchProviderError::AllFailed { failures } => failures.clone(),
+        SearchProviderError::AllFailed { failures, .. } => failures.clone(),
     }
 }
 
@@ -304,7 +308,8 @@ mod tests {
         );
         assert_eq!(
             SearchProviderError::AllFailed {
-                failures: "a: b".to_string()
+                failures: "a: b".to_string(),
+                all_challenged: false,
             }
             .http_status(),
             503
@@ -464,5 +469,50 @@ mod tests {
         .expect_err("all legs fail -> AllFailed");
         assert_eq!(err.http_status(), 503);
         assert_eq!(err.code(), "all_failed");
+        match &err {
+            SearchProviderError::AllFailed { all_challenged, .. } => {
+                assert!(
+                    !all_challenged,
+                    "a 404 Upstream leg mixed with a 500 Upstream leg is not all-Challenge"
+                );
+            }
+            other => panic!("expected AllFailed, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn fanout_all_challenged_marks_all_failed() {
+        // Every leg reports a bot-wall Challenge (DDG anomaly body, Startpage
+        // Anubis PoW body via the search POST) AND nothing merges -> Err
+        // (AllFailed) with `all_challenged: true` (#53): the signal
+        // `research::agent_loop` uses to surface `SearchBlocked` to the
+        // Harness instead of a silent empty Synthesis.
+        let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            r#"<script id="anubis_challenge" type="application/json">{}</script>"#.to_string(),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let input =
+            SearchInput::validate(vec!["q one".to_string()], Some(15), None).expect("valid");
+        let err = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+        )
+        .await
+        .expect_err("both legs Challenge -> AllFailed");
+        assert_eq!(err.http_status(), 503);
+        assert_eq!(err.code(), "all_failed");
+        match &err {
+            SearchProviderError::AllFailed { all_challenged, .. } => {
+                assert!(all_challenged, "both legs were Challenge, must be true");
+            }
+            other => panic!("expected AllFailed, got {other:?}"),
+        }
     }
 }

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `is_startpage_challenge` also detects the Anubis proof-of-work challenge page (`id="anubis_challenge"`, `/.within.website/x/cmd/anubis/`) and a final URL under `/sp/cdn/error-pages/blocked`, alongside the existing `/sp/captcha`/`component---src-pages-captcha` markers; the bare word `anubis` in a result snippet never triggers it (#53).
+- `SearchProviderError::AllFailed` carries `all_challenged: bool`; `research::agent_loop` maps an all-Challenge `search` failure to `ToolResult::SearchBlocked` instead of the generic `Failed` (#53).
+- `docs/harness.md`: exit code `7` documents the new `SearchBlocked` failure.
+
+### Fixed
+
+- The live Startpage Anubis proof-of-work challenge page used to parse as 0 rows instead of mapping to `Challenge` (429): none of the older markers (`/sp/captcha` redirect, `component---src-pages-captcha`) appear on that page (#53).
+- A run whose search calls were all bot-wall-Challenged used to finalize `Ok` with an empty "I found nothing" Synthesis and exit `0`; it now surfaces `ResearchError::SearchBlocked` and exits `7` when the run has zero fetched Evidence, no `search` call ever returned a Hit, and at least one `search` call was fully Challenge-walled (#53).
+
 ## [0.2.0] - 2026-09-27
 
 First working release: one CLI **Web Search** agent (`web-agent-research research "<goal>" --json`) that Harnesses call and that returns only the Synthesis. Verified live end to end (`docs/e2e-evidence.md`).
