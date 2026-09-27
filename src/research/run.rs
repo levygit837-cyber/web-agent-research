@@ -323,9 +323,11 @@ pub(crate) async fn run_research_with(
             .iter()
             .filter(|item| item.turn == turn)
             .filter_map(|item| {
-                item.url
-                    .clone()
-                    .map(|url| Evidence::new(url, item.excerpt.clone()))
+                item.url.clone().map(|url| {
+                    let mut evidence = Evidence::new(url, item.excerpt.clone());
+                    evidence.fetch_path = item.fetch_path;
+                    evidence
+                })
             })
             .collect();
         let is_final = turn == report.turns_used;
@@ -678,6 +680,11 @@ mod tests {
         assert!(
             lines[2].contains("headless browser written in Rust"),
             "turn 2 must persist fetched markdown: {}",
+            lines[2]
+        );
+        assert!(
+            lines[2].contains("\"fetch_path\":\"static\""),
+            "fetched Evidence must record which engine produced it: {}",
             lines[2]
         );
         assert!(

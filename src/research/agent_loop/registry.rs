@@ -23,7 +23,7 @@ use crate::llm::{RequestedToolCall, ToolDef};
 use crate::web::fetch::tool::{
     fetch_tool, fetch_tool_schema, FetchInput, FETCH_TOOL_NAME, FETCH_TOOL_PURPOSE,
 };
-use crate::web::fetch::{Evidence, FetchError, Fetcher};
+use crate::web::fetch::{Evidence, FetchError, FetchPath, Fetcher};
 use crate::web::search::dedup_key;
 use crate::web::search::tool::{
     parse_search_args, search_tool_schema, Searcher, SEARCH_TOOL_NAME, SEARCH_TOOL_PURPOSE,
@@ -99,6 +99,15 @@ impl ToolResult {
     pub fn url(&self) -> Option<String> {
         match self {
             Self::Fetch { evidence } => Some(evidence.source_url.clone()),
+            _ => None,
+        }
+    }
+
+    /// Which engine produced the fetched Evidence (#31); `None` for every
+    /// non-`Fetch` result.
+    pub fn fetch_path(&self) -> Option<FetchPath> {
+        match self {
+            Self::Fetch { evidence } => evidence.fetch_path,
             _ => None,
         }
     }
