@@ -69,6 +69,8 @@ pub(crate) mod test_support {
     pub(crate) struct StubReply {
         status: u16,
         body: String,
+        /// `Location` header value; set only by `redirect`.
+        location: Option<String>,
     }
 
     impl StubReply {
@@ -76,6 +78,16 @@ pub(crate) mod test_support {
             StubReply {
                 status,
                 body: body.to_string(),
+                location: None,
+            }
+        }
+
+        /// A 3xx reply with a `Location` header, for redirect-following tests.
+        pub(crate) fn redirect(status: u16, location: &str) -> Self {
+            StubReply {
+                status,
+                body: String::new(),
+                location: Some(location.to_string()),
             }
         }
     }
@@ -127,8 +139,13 @@ pub(crate) mod test_support {
                             .entry(path_key(&path))
                             .or_insert(0) += 1;
                         let reply = handler(&path, &body);
+                        let location_header = reply
+                            .location
+                            .as_deref()
+                            .map(|loc| format!("Location: {loc}\r\n"))
+                            .unwrap_or_default();
                         let response = format!(
-                            "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n{}",
+                            "HTTP/1.1 {} {}\r\n{location_header}Content-Length: {}\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n{}",
                             reply.status,
                             reason_phrase(reply.status),
                             reply.body.len(),
