@@ -397,18 +397,6 @@ impl TokenUsage {
     }
 }
 
-impl TokenUsage {
-    /// Saturating per-field accumulation across turns of one run.
-    pub fn add(&mut self, other: &TokenUsage) {
-        self.prompt_tokens = self.prompt_tokens.saturating_add(other.prompt_tokens);
-        self.completion_tokens = self
-            .completion_tokens
-            .saturating_add(other.completion_tokens);
-        self.total_tokens = self.total_tokens.saturating_add(other.total_tokens);
-        self.reasoning_tokens = self.reasoning_tokens.saturating_add(other.reasoning_tokens);
-    }
-}
-
 impl RequestedToolCall {
     /// Parse the raw `arguments` string as JSON. Invalid JSON is a
     /// non-retryable [`GatewayError::Parse`].

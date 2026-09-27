@@ -686,6 +686,59 @@ mod tests {
         );
         let _ = std::fs::remove_file(&session_out);
     }
+
+    #[tokio::test]
+    async fn cached_prompt_tokens_sum_across_turns_from_both_wire_shapes() {
+        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let (tools, page_url) = local_web().await;
+        // Turn 1 reports the OpenAI shape, turn 2 the Anthropic/LiteLLM shape.
+        let with_usage = |mut body: serde_json::Value, usage: serde_json::Value| {
+            body["usage"] = usage;
+            body.to_string()
+        };
+        let search_turn: serde_json::Value = serde_json::from_str(&tools_body(
+            vec![tool_call("c1", "search", r#"{"queries": ["obscura"]}"#)],
+            "",
+        ))
+        .expect("json");
+        let final_turn: serde_json::Value = serde_json::from_str(&text_body(&format!(
+            "Obscura is a Rust headless browser.\n\n## Findings\n\n- See [Obscura]({page_url}).\n"
+        )))
+        .expect("json");
+        let base_url = spawn_server(vec![
+            with_usage(
+                search_turn,
+                serde_json::json!({
+                    "prompt_tokens": 100, "completion_tokens": 5, "total_tokens": 105,
+                    "prompt_tokens_details": {"cached_tokens": 64}
+                }),
+            ),
+            with_usage(
+                final_turn,
+                serde_json::json!({
+                    "prompt_tokens": 200, "completion_tokens": 7, "total_tokens": 207,
+                    "cache_read_input_tokens": 96
+                }),
+            ),
+        ]);
+        point_env_at(&base_url);
+        let req = hermetic_request("cache-sum");
+        let session_out = req.session_out.clone().expect("session out set");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("hermetic run must succeed");
+
+        assert_eq!(response.turns_used, 2);
+        assert_eq!(response.usage.cached_prompt_tokens, 160);
+        assert_eq!(response.usage.prompt_tokens, 300);
+        let content = std::fs::read_to_string(&session_out).expect("session file must exist");
+        let last = content.lines().last().expect("final turn row");
+        assert!(
+            last.contains("\"cached_prompt_tokens\":160"),
+            "final Session row must carry the run total: {last}"
+        );
+        let _ = std::fs::remove_file(&session_out);
+    }
     #[tokio::test]
     async fn prompt_cache_key_is_the_session_id_generated_before_the_loop_and_stable_across_turns()
     {
