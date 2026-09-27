@@ -74,6 +74,7 @@ End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by 
 ```
 
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
+- `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
 - Without `--json`, stdout is human-readable markdown: summary, `##` themes, and a numbered `Sources:` list.
 
 ## Exit codes

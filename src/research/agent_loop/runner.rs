@@ -12,12 +12,13 @@
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
-use crate::research::agent_loop::answer::parse_answer;
+use crate::research::agent_loop::answer::{parse_answer, retain_fetched_citations};
 use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
 use crate::research::synthesis::{Synthesis, SynthesisSize};
 use crate::web::fetch::FetchPath;
+use crate::web::search::dedup_key;
 
 #[derive(Debug, Clone)]
 pub struct LoopInput {
@@ -394,7 +395,13 @@ pub async fn run_loop(
 
         if reply.tool_calls.is_empty() {
             match parse_answer(&reply.output, input.size) {
-                Ok(synthesis) => {
+                Ok(mut synthesis) => {
+                    let fetched: std::collections::HashSet<String> = evidence
+                        .iter()
+                        .filter_map(|item| item.url.as_deref())
+                        .map(dedup_key)
+                        .collect();
+                    retain_fetched_citations(&mut synthesis, &fetched);
                     return Ok(RunReport {
                         synthesis,
                         turns_used: turn,
@@ -681,6 +688,56 @@ mod tests {
         assert_eq!(report.evidence[1].turn, 2);
         assert_eq!(report.failures_used, 0);
         assert_eq!(report.usage.total_tokens, 6);
+    }
+
+    #[tokio::test]
+    async fn citations_keep_only_fetched_pages() {
+        // The model links a sub-page it only saw inside fetched markdown and
+        // a search Hit it never fetched; only the fetched page survives, in
+        // the whole-answer set and in the theme.
+        let answer = "Summary per [page](https://www.example.com/t/) and \
+            [sub](https://example.com/t/sub.html).\n\n## Findings\n\n\
+            - Read [page](https://example.com/t).\n\
+            - Unread [hit](https://example.com/other).\n";
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c1",
+                        "fetch",
+                        r#"{"url": "https://example.com/t"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(answer)),
+        ]);
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_fetch()]),
+            &loop_input(&["search", "fetch"]),
+            &LoopBudget::default(),
+        )
+        .await
+        .expect("run must finalize");
+        let urls: Vec<&str> = report
+            .synthesis
+            .citations
+            .iter()
+            .map(|citation| citation.url.as_str())
+            .collect();
+        assert_eq!(
+            urls,
+            vec!["https://www.example.com/t/", "https://example.com/t"],
+            "dedup_key variants of the fetched page stay; unfetched links go"
+        );
+        let theme_urls: Vec<&str> = report.synthesis.themes[0]
+            .citations
+            .iter()
+            .map(|citation| citation.url.as_str())
+            .collect();
+        assert_eq!(theme_urls, vec!["https://example.com/t"]);
     }
 
     #[tokio::test]
