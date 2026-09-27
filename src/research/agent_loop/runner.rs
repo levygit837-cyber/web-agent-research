@@ -613,21 +613,19 @@ mod tests {
 
     fn canned_search() -> ToolResult {
         ToolResult::Search {
-            hits: vec![crate::research::agent_loop::registry::SearchHit {
-                title: "T".to_owned(),
-                url: "https://example.com/t".to_owned(),
-                snippet: "S".to_owned(),
-            }],
+            hits: vec![crate::research::agent_loop::registry::test_hit(
+                "T",
+                "https://example.com/t",
+            )],
         }
     }
 
     fn canned_fetch() -> ToolResult {
         ToolResult::Fetch {
-            page: crate::research::agent_loop::registry::FetchedPage {
-                url: "https://example.com/t".to_owned(),
-                title: "T".to_owned(),
-                markdown: "Body".to_owned(),
-            },
+            evidence: crate::web::fetch::Evidence::new(
+                "https://example.com/t".to_owned(),
+                "Body".to_owned(),
+            ),
         }
     }
 
@@ -756,7 +754,7 @@ mod tests {
         assert!(search["function"]["parameters"]["required"]
             .as_array()
             .unwrap()
-            .contains(&serde_json::json!("query")));
+            .contains(&serde_json::json!("queries")));
         let fetch = tools
             .iter()
             .find(|t| t["function"]["name"] == "fetch")
@@ -1049,7 +1047,7 @@ mod tests {
             ),
             (200, text_body(&final_answer())),
         ]);
-        let tools = ToolRegistry::live();
+        let tools = ToolRegistry::offline();
         let report = run_loop(
             &gateway_at(&double.base_url),
             &tools,
@@ -1066,7 +1064,7 @@ mod tests {
     async fn invalid_args_repair_then_abort() {
         let bad = tools_body(vec![tool_call("c1", "search", r#"{"query": ""}"#)], "");
         let double = spawn_double(vec![(200, bad.clone()), (200, bad)]);
-        let tools = ToolRegistry::live();
+        let tools = ToolRegistry::offline();
         let err = run_loop(
             &gateway_at(&double.base_url),
             &tools,

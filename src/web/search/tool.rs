@@ -1,14 +1,17 @@
-//! Search agent tool: thin function-calling wrapper over the engine.
-//!
-//! Owns the agent-loop tool seam (`SEARCH_TOOL_NAME`, `search_tool_schema`)
-//! and delegates fan-out to `web::search::fanout`. No provider logic here.
+//! Search tool seam: name, schema, argument parsing, and the [`Searcher`]
+//! handle the research agent dispatches to. Fan-out lives in `fanout`.
 
 use serde_json::{json, Value};
 
-use crate::web::search::types::{SearchInput, SearchOutput, SearchProviderError};
+use super::ddg::DDG_HTML_URL;
+use super::startpage::{STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL};
+use crate::web::search::types::{Recency, SearchInput, SearchOutput, SearchProviderError};
 
 /// Agent-loop tool name.
 pub const SEARCH_TOOL_NAME: &str = "search";
+/// One-line purpose for the system-prompt roster.
+pub const SEARCH_TOOL_PURPOSE: &str =
+    "Search the web; returns Hits (title, URL, snippet) to fetch, never cite directly.";
 
 pub fn search_tool_schema() -> Value {
     json!({
@@ -18,6 +21,7 @@ pub fn search_tool_schema() -> Value {
         "name": SEARCH_TOOL_NAME,
         "description": "Fetch-only web search over DuckDuckGo and Startpage. Takes 1-8 queries, fans out to both providers in parallel, dedups by URL key and returns consensus-ranked merged results. Returned snippets are ungrounded candidates, not Evidence: fetch a result URL before citing it.",
         "parameters": {
+            "type": "object",
             "properties": {
                 "queries": {
                     "type": "array",
@@ -45,18 +49,131 @@ pub fn search_tool_schema() -> Value {
     })
 }
 
-/// Deep-module entry: one-line delegation to the engine fan-out.
-pub async fn search_multi(
-    client: &reqwest::Client,
-    input: SearchInput,
-) -> Result<SearchOutput, SearchProviderError> {
-    super::fanout::search_multi(client, input).await
+/// Parse model-supplied tool arguments into a validated [`SearchInput`].
+/// Errors are model-facing repair hints.
+pub fn parse_search_args(args: &Value) -> Result<SearchInput, String> {
+    let object = args
+        .as_object()
+        .ok_or_else(|| format!("Provide arguments as an object; got {args}."))?;
+    if let Some(extra) = object
+        .keys()
+        .find(|key| !matches!(key.as_str(), "queries" | "top_k" | "recency"))
+    {
+        return Err(format!(
+            "Unknown argument `{extra}`; allowed: queries, top_k, recency."
+        ));
+    }
+    let queries = match object.get("queries") {
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("Provide queries as strings; got {item}."))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(other) => {
+            return Err(format!(
+                "Provide queries as an array of strings; got {other}."
+            ))
+        }
+        None => return Err("Provide queries as an array of 1-8 strings; got missing.".to_owned()),
+    };
+    let top_k = match object.get("top_k") {
+        None => None,
+        Some(value) => Some(
+            value
+                .as_u64()
+                .ok_or_else(|| format!("Provide top_k as an integer 1-30; got {value}."))?
+                as usize,
+        ),
+    };
+    let recency = match object.get("recency") {
+        None | Some(Value::Null) => None,
+        Some(value) => Some(
+            serde_json::from_value::<Recency>(value.clone())
+                .map_err(|_| format!("Provide recency as day|week|month|year; got {value}."))?,
+        ),
+    };
+    SearchInput::validate(queries, top_k, recency).map_err(|err| match err {
+        SearchProviderError::EmptyQuery => "Provide at least one non-empty query.".to_owned(),
+        SearchProviderError::TooManyQueries { got, max } => {
+            format!("Provide at most {max} queries of at most 500 chars; got {got}.")
+        }
+        other => format!("invalid search input: {}", other.code()),
+    })
+}
+
+/// Search handle: shared HTTP client plus provider endpoints. Cheap to clone.
+#[derive(Debug, Clone)]
+pub struct Searcher {
+    client: reqwest::Client,
+    ddg: String,
+    sp_home: String,
+    sp_search: String,
+}
+
+impl Searcher {
+    /// Production endpoints (DuckDuckGo HTML, Startpage).
+    pub fn new() -> Self {
+        Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL)
+    }
+
+    /// Test seam: point every leg at local servers.
+    #[doc(hidden)]
+    pub fn with_bases(ddg: &str, sp_home: &str, sp_search: &str) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            ddg: ddg.to_owned(),
+            sp_home: sp_home.to_owned(),
+            sp_search: sp_search.to_owned(),
+        }
+    }
+
+    /// Parallel multi-query fan-out; see `fanout::search_multi_with_bases`.
+    pub async fn search(&self, input: SearchInput) -> Result<SearchOutput, SearchProviderError> {
+        super::fanout::search_multi_with_bases(
+            &self.client,
+            input,
+            &self.ddg,
+            &self.sp_home,
+            &self.sp_search,
+        )
+        .await
+    }
+}
+
+impl Default for Searcher {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::web::search::types::Recency;
+
+    #[test]
+    fn parse_search_args_accepts_schema_shape_and_rejects_the_rest() {
+        let input =
+            parse_search_args(&json!({"queries": ["a", " b "], "top_k": 5, "recency": "week"}))
+                .expect("valid");
+        assert_eq!(input.queries, vec!["a", "b"]);
+        assert_eq!(input.top_k, 5);
+        assert_eq!(input.recency, Some(Recency::Week));
+        for bad in [
+            json!({"query": "old shape"}),
+            json!({"queries": []}),
+            json!({"queries": "not an array"}),
+            json!({"queries": [1]}),
+            json!({"queries": ["a"], "recency": "fortnight"}),
+            json!({"queries": ["a"], "top_k": -1}),
+            json!("string"),
+        ] {
+            assert!(parse_search_args(&bad).is_err(), "{bad} must be rejected");
+        }
+    }
 
     #[test]
     fn tool_schema_shape_and_roundtrip() {
