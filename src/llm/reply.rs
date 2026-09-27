@@ -14,7 +14,8 @@ use super::config::ReasoningEffort;
 /// that calls tools carries `tool_calls` (`content` is wire `null` when the
 /// model sent no accompanying text); a `tool` reply carries `tool_call_id`
 /// plus `content`. Built only through the constructors below; direct field
-/// construction stays out of `research::agent_loop`.
+/// construction stays out of `research::agent_loop`. The Anthropic wire
+/// format (`llm::anthropic`) maps the same messages onto content blocks.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatMessage {
     pub role: String,
@@ -23,6 +24,31 @@ pub struct ChatMessage {
     pub tool_calls: Option<Vec<RequestedToolCall>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+    /// Provider blocks that must travel back verbatim on this assistant
+    /// turn (Anthropic `thinking`/`redacted_thinking`). Never on the
+    /// OpenAI wire.
+    #[serde(skip)]
+    pub(crate) replay: ReplayBlocks,
+}
+
+/// Opaque provider blocks from one assistant turn that the next request
+/// must echo unmodified and in order: Anthropic requires the `thinking`
+/// and `redacted_thinking` blocks (with their `signature`/`data`) of a
+/// tool-use turn to come back byte-identical. Empty for OpenAI replies.
+/// `research` stores and forwards it without looking inside.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayBlocks {
+    pub(crate) blocks: Vec<serde_json::Value>,
+    /// Total chars of the blocks' string fields, computed once at parse
+    /// time so context budgeting never re-serializes them.
+    pub(crate) chars: usize,
+}
+
+impl ReplayBlocks {
+    /// Approximate size for char-based context budgeting.
+    pub fn chars(&self) -> usize {
+        self.chars
+    }
 }
 
 impl ChatMessage {
@@ -44,6 +70,7 @@ impl ChatMessage {
             content: Some(content.into()),
             tool_calls: None,
             tool_call_id: None,
+            replay: ReplayBlocks::default(),
         }
     }
 
@@ -51,12 +78,18 @@ impl ChatMessage {
     /// given (ids included, in call order). `text` is the model's own
     /// commentary alongside the calls, if any; empty maps to wire
     /// `content: null`, the native shape for a pure tool-call turn.
-    pub fn assistant_tool_calls(text: &str, calls: &[RequestedToolCall]) -> Self {
+    /// `replay` is the turn's [`LlmReply::replay`], echoed back verbatim.
+    pub fn assistant_tool_calls(
+        text: &str,
+        calls: &[RequestedToolCall],
+        replay: &ReplayBlocks,
+    ) -> Self {
         Self {
             role: "assistant".to_owned(),
             content: (!text.is_empty()).then(|| text.to_owned()),
             tool_calls: Some(calls.to_vec()),
             tool_call_id: None,
+            replay: replay.clone(),
         }
     }
 
@@ -67,6 +100,7 @@ impl ChatMessage {
             content: Some(content.into()),
             tool_calls: None,
             tool_call_id: Some(id.into()),
+            replay: ReplayBlocks::default(),
         }
     }
 
@@ -77,8 +111,9 @@ impl ChatMessage {
     }
 }
 
-/// `thinking` request param (Anthropic OpenAI-compat layer, DeepSeek).
-/// Internally tagged on `type` so `Enabled` serializes flat as
+/// `thinking` request param: native on the Anthropic Messages API, also
+/// accepted by the Anthropic OpenAI-compat layer and DeepSeek. Internally
+/// tagged on `type` so `Enabled` serializes flat as
 /// `{"type": "enabled", "budget_tokens": n}` and `Disabled` as
 /// `{"type": "disabled"}` (no `budget_tokens` key).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -90,7 +125,7 @@ pub(crate) enum ThinkingParam {
 
 impl ThinkingParam {
     /// `0` disables thinking; any other value enables it with that budget.
-    fn from_budget(budget: u32) -> Self {
+    pub(crate) fn from_budget(budget: u32) -> Self {
         if budget == 0 {
             Self::Disabled
         } else {
@@ -179,6 +214,7 @@ impl serde::Serialize for ToolChoice {
 }
 
 impl ChatRequest {
+    #[cfg(test)]
     pub(crate) fn from_resolved(
         params: &super::config::ResolvedParams,
         messages: Vec<ChatMessage>,
@@ -204,35 +240,43 @@ impl ChatRequest {
         }
     }
 
-    /// Final wire body. With no `extra_body`, just the typed shape. With
-    /// one, OpenAI SDK `extra_body` semantics: start from `extra`, then
-    /// overlay every key this struct actually serializes, so `model`,
-    /// `messages`, `tools`, `tool_choice`, and every set typed param win on
-    /// collision while gateway-specific keys absent from the typed shape
-    /// (`reasoning`, `prompt_cache_retention`, `verbosity`, ...) pass
-    /// through untouched. A non-object `extra` (shouldn't happen —
-    /// `GatewayConfig::from_env` rejects it) is ignored rather than
-    /// corrupting the body.
+    /// Final wire body: the typed shape merged over `extra` (see
+    /// [`merge_extra_body`]).
     pub(crate) fn to_wire_value(&self, extra: Option<&serde_json::Value>) -> serde_json::Value {
         let typed = serde_json::to_value(self).expect("ChatRequest always serializes");
-        let Some(extra) = extra.filter(|v| v.is_object()) else {
-            return typed;
-        };
-        let mut merged = extra.clone();
-        let base = merged
-            .as_object_mut()
-            .expect("filtered to a JSON object above");
-        if let Some(over) = typed.as_object() {
-            for (key, value) in over {
-                base.insert(key.clone(), value.clone());
-            }
-        }
-        merged
+        merge_extra_body(typed, extra)
     }
 }
 
+/// OpenAI SDK `extra_body` semantics, shared by both wire formats: start
+/// from `extra`, then overlay every key of the `typed` body, so `model`,
+/// `messages`, `tools`, `tool_choice`, and every set typed param win on
+/// collision while gateway-specific keys absent from the typed shape
+/// (`reasoning`, `prompt_cache_retention`, `verbosity`, ...) pass through
+/// untouched. A non-object `extra` (shouldn't happen —
+/// `GatewayConfig::from_env` rejects it) is ignored rather than corrupting
+/// the body.
+pub(crate) fn merge_extra_body(
+    typed: serde_json::Value,
+    extra: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    let Some(extra) = extra.filter(|v| v.is_object()) else {
+        return typed;
+    };
+    let mut merged = extra.clone();
+    let base = merged
+        .as_object_mut()
+        .expect("filtered to a JSON object above");
+    if let serde_json::Value::Object(over) = typed {
+        for (key, value) in over {
+            base.insert(key, value);
+        }
+    }
+    merged
+}
+
 /// Explicit wire `null` means "absent" for every non-optional response field.
-fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+pub(crate) fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Default + Deserialize<'de>,
@@ -340,19 +384,25 @@ pub(crate) struct PromptTokensDetails {
     pub(crate) cached_tokens: u64,
 }
 
-/// One completed (non-streaming) turn from the gateway.
+/// One completed (non-streaming) turn from the gateway, in a
+/// format-neutral shape: both wire formats parse into it.
 #[derive(Debug, Clone, Default)]
 pub struct LlmReply {
     /// Concatenated thinking, per precedence in `parse_reply`. May be empty.
     pub thinking: String,
     /// Assistant message text. Never None: null content becomes "".
     pub output: String,
-    /// Wire `finish_reason` verbatim ("stop", "length", "tool_calls", ...). None if absent.
+    /// Finish reason in the OpenAI vocabulary ("stop", "length",
+    /// "tool_calls", ...); Anthropic `stop_reason` values are mapped onto
+    /// it. None if absent.
     pub finish_reason: Option<String>,
     /// Requested tool calls, in wire order. Empty when the model answered
     /// with text; existing text-only consumers ignore this field.
     pub tool_calls: Vec<RequestedToolCall>,
     pub usage: TokenUsage,
+    /// Blocks the next request must echo on this assistant turn; pass to
+    /// [`ChatMessage::assistant_tool_calls`]. Empty for OpenAI replies.
+    pub replay: ReplayBlocks,
 }
 
 /// One function call requested by the model. The gateway never executes it;
@@ -370,15 +420,22 @@ pub struct RequestedToolCall {
 
 #[derive(Debug, Clone, Default)]
 pub struct TokenUsage {
+    /// Total input tokens, cached ones included (Anthropic:
+    /// `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`).
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
-    /// From nested `completion_tokens_details`; 0 if absent.
+    /// From nested `completion_tokens_details` (OpenAI) or
+    /// `output_tokens_details.thinking_tokens` (Anthropic); 0 if absent.
     pub reasoning_tokens: u64,
-    /// Cached input tokens: max of OpenAI's
+    /// Cached input tokens read: max of OpenAI's
     /// `usage.prompt_tokens_details.cached_tokens` and the Anthropic/LiteLLM
     /// top-level `usage.cache_read_input_tokens`; 0 if neither is present.
     pub cached_prompt_tokens: u64,
+    /// Input tokens written to the prompt cache this turn (Anthropic
+    /// `usage.cache_creation_input_tokens`); 0 when the provider does not
+    /// report cache writes.
+    pub cache_creation_prompt_tokens: u64,
 }
 
 impl TokenUsage {
@@ -394,6 +451,9 @@ impl TokenUsage {
         self.cached_prompt_tokens = self
             .cached_prompt_tokens
             .saturating_add(other.cached_prompt_tokens);
+        self.cache_creation_prompt_tokens = self
+            .cache_creation_prompt_tokens
+            .saturating_add(other.cache_creation_prompt_tokens);
     }
 }
 
@@ -481,6 +541,7 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
                 .completion_tokens_details
                 .map_or(0, |d| d.reasoning_tokens),
             cached_prompt_tokens: openai_cached.max(anthropic_cached),
+            cache_creation_prompt_tokens: 0,
         }
     });
     Ok(LlmReply {
@@ -489,6 +550,7 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
         finish_reason: choice.finish_reason,
         tool_calls,
         usage,
+        replay: ReplayBlocks::default(),
     })
 }
 
@@ -860,6 +922,7 @@ mod tests {
                 total_tokens: 15,
                 reasoning_tokens: 2,
                 cached_prompt_tokens: 4,
+                cache_creation_prompt_tokens: 1,
             });
         }
         assert_eq!(total.prompt_tokens, 30);
@@ -867,6 +930,7 @@ mod tests {
         assert_eq!(total.total_tokens, 45);
         assert_eq!(total.reasoning_tokens, 6);
         assert_eq!(total.cached_prompt_tokens, 12);
+        assert_eq!(total.cache_creation_prompt_tokens, 3);
     }
 
     #[test]

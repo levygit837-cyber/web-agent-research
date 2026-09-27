@@ -1,14 +1,17 @@
-//! OpenAI-compatible gateway client: request, status mapping, retry.
+//! LLM gateway client: request, status mapping, retry, for both wire
+//! formats (OpenAI Chat Completions, Anthropic Messages).
 //!
 //! The external seam is four items: `Gateway::new`, `Gateway::chat`,
 //! `Gateway::chat_with_tools`, and `GatewayConfig::from_env`. Retry,
-//! backoff, and status mapping hide behind `chat` and `chat_with_tools`;
-//! `with_client` and `backoff_delay` exist only as the unit-test surface
-//! (no second adapter means no `trait`, per ADR-0006).
+//! backoff, status mapping, and the format branch hide behind `chat` and
+//! `chat_with_tools`; `with_client` and `backoff_delay` exist only as the
+//! unit-test surface. The format is an enum branch, not a `trait`
+//! (ADR-0007).
 
 use std::time::Duration;
 
-use super::config::GatewayConfig;
+use super::anthropic;
+use super::config::{ApiFormat, GatewayConfig};
 use super::reply::{
     parse_reply, ChatMessage, ChatRequest, ChatResponse, LlmReply, ToolChoice, ToolDef,
 };
@@ -20,8 +23,12 @@ use super::reply::{
 pub enum GatewayError {
     /// Pre-flight: no key configured, no I/O attempted.
     MissingApiKey,
-    /// 401/403: bad key, do NOT retry.
+    /// 401: bad key, do NOT retry.
     Auth,
+    /// 403: the key was accepted but access was refused (Anthropic
+    /// `permission_error`, an upstream free-tier gate, ...). Carries the
+    /// body's `error.message` when present. Not retryable.
+    Forbidden(String),
     /// 429, including the upstream credit-wall. Retryable with backoff.
     RateLimited { retry_after_secs: Option<u64> },
     /// 5xx. Retryable.
@@ -54,6 +61,7 @@ impl std::fmt::Display for GatewayError {
         match self {
             Self::MissingApiKey => write!(f, "GATEWAY_API_KEY is not set"),
             Self::Auth => write!(f, "gateway auth failed (bad API key)"),
+            Self::Forbidden(detail) => write!(f, "gateway refused access (HTTP 403): {detail}"),
             Self::RateLimited { retry_after_secs } => match retry_after_secs {
                 Some(secs) => write!(f, "gateway rate-limited, retry after {secs}s"),
                 None => write!(f, "gateway rate-limited"),
@@ -117,20 +125,34 @@ impl Gateway {
             return Err(GatewayError::MissingApiKey);
         }
         let params = self.config.effective_params(&self.config.model);
-        let url = format!("{}/chat/completions", self.config.base_url);
+        let extra = self.config.extra_body.as_ref();
+        // Built once: every retry sends the identical body.
+        let (url, body) = match self.config.api_format {
+            ApiFormat::Openai => (
+                format!("{}/chat/completions", self.config.base_url),
+                ChatRequest::from_resolved_with_tools(
+                    &params,
+                    messages.to_vec(),
+                    tools,
+                    tool_choice,
+                )
+                .to_wire_value(extra),
+            ),
+            ApiFormat::Anthropic => (
+                format!("{}/messages", self.config.base_url),
+                anthropic::request_body(
+                    &params,
+                    messages,
+                    tools.as_deref(),
+                    tool_choice.as_ref(),
+                    extra,
+                ),
+            ),
+        };
         let attempts = self.config.max_attempts.max(1);
 
         let mut last_err: Option<GatewayError> = None;
         for attempt in 1..=attempts {
-            let body = match (&tools, &tool_choice) {
-                (None, None) => ChatRequest::from_resolved(&params, messages.to_vec()),
-                _ => ChatRequest::from_resolved_with_tools(
-                    &params,
-                    messages.to_vec(),
-                    tools.clone(),
-                    tool_choice.clone(),
-                ),
-            };
             match self.try_once(&url, &body).await {
                 Ok(reply) => return Ok(reply),
                 Err(err) => {
@@ -150,26 +172,33 @@ impl Gateway {
         Err(last_err.unwrap_or(GatewayError::Transport("no attempts ran".to_owned())))
     }
 
-    async fn try_once(&self, url: &str, body: &ChatRequest) -> Result<LlmReply, GatewayError> {
-        let wire_body = body.to_wire_value(self.config.extra_body.as_ref());
-        let resp = self
-            .client
-            .post(url)
-            .bearer_auth(self.config.api_key())
-            .json(&wire_body)
-            .send()
-            .await
-            .map_err(|err| {
-                if err.is_timeout() {
-                    GatewayError::Timeout
-                } else {
-                    GatewayError::Transport(err.to_string())
-                }
-            })?;
+    async fn try_once(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> Result<LlmReply, GatewayError> {
+        let request = self.client.post(url).json(body);
+        let request = match self.config.api_format {
+            ApiFormat::Openai => request.bearer_auth(self.config.api_key()),
+            ApiFormat::Anthropic => request
+                .header("x-api-key", self.config.api_key())
+                .header("anthropic-version", anthropic::ANTHROPIC_VERSION),
+        };
+        let resp = request.send().await.map_err(|err| {
+            if err.is_timeout() {
+                GatewayError::Timeout
+            } else {
+                GatewayError::Transport(err.to_string())
+            }
+        })?;
 
         let status = resp.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        if status == reqwest::StatusCode::UNAUTHORIZED {
             return Err(GatewayError::Auth);
+        }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(GatewayError::Forbidden(error_message(&body)));
         }
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(GatewayError::RateLimited {
@@ -187,12 +216,43 @@ impl Gateway {
             });
         }
 
-        let chat: ChatResponse = resp
-            .json()
-            .await
-            .map_err(|err| GatewayError::Parse(err.to_string()))?;
-        parse_reply(chat)
+        match self.config.api_format {
+            ApiFormat::Openai => {
+                let chat: ChatResponse = resp
+                    .json()
+                    .await
+                    .map_err(|err| GatewayError::Parse(err.to_string()))?;
+                parse_reply(chat)
+            }
+            ApiFormat::Anthropic => {
+                let message: anthropic::MessagesResponse = resp
+                    .json()
+                    .await
+                    .map_err(|err| GatewayError::Parse(err.to_string()))?;
+                anthropic::parse_response(message)
+            }
+        }
     }
+}
+
+/// `error.message` from an error body (both formats nest it there), else
+/// the first 200 chars of the raw body, else a placeholder.
+fn error_message(body: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.pointer("/error/message")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| {
+            let trimmed: String = body.trim().chars().take(200).collect();
+            if trimmed.is_empty() {
+                "no error detail".to_owned()
+            } else {
+                trimmed
+            }
+        })
 }
 
 fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
@@ -744,5 +804,102 @@ mod tests {
             serde_json::json!("real-model"),
             "typed model must win over extra_body on the real wire, got {body}"
         );
+    }
+
+    // --- Anthropic Messages format (#47): real HTTP path, headers, parsing. ---
+
+    const ANTHROPIC_OK: &str = r#"{
+        "type": "message",
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "calling"},
+            {"type": "tool_use", "id": "toolu_1", "name": "get_time", "input": {}}
+        ],
+        "stop_reason": "tool_use",
+        "usage": {
+            "input_tokens": 3,
+            "output_tokens": 2,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 4096
+        }
+    }"#;
+
+    #[tokio::test]
+    async fn anthropic_format_posts_messages_with_api_key_headers_and_parses_reply() {
+        let (base_url, requests) = spawn_capturing_server(vec![CannedResponse {
+            status: 200,
+            retry_after: None,
+            body: ANTHROPIC_OK,
+            delay_before_response: Duration::ZERO,
+        }]);
+        let mut cfg = GatewayConfig::new(base_url, "secret-key".to_owned(), "m".to_owned())
+            .with_max_attempts(1)
+            .with_prompt_cache_key("session-1");
+        cfg.api_format = ApiFormat::Anthropic;
+        let gateway = Gateway::with_client(cfg, reqwest::Client::new());
+        let reply = gateway
+            .chat_with_tools(
+                &[ChatMessage::system("sys"), ChatMessage::user("what time?")],
+                &get_time_tools(),
+                Some(ToolChoice::Auto),
+            )
+            .await
+            .expect("anthropic call must succeed");
+
+        let raw = requests.lock().expect("requests lock")[0].clone();
+        let head = raw
+            .split("\r\n\r\n")
+            .next()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        assert!(head.starts_with("post /messages "), "wrong path: {head}");
+        assert!(
+            head.contains("x-api-key: secret-key"),
+            "missing x-api-key: {head}"
+        );
+        assert!(
+            head.contains("anthropic-version: 2023-06-01"),
+            "missing version: {head}"
+        );
+        assert!(
+            !head.contains("authorization:"),
+            "must not send Bearer auth: {head}"
+        );
+        let body = wire_body_of(&raw);
+        assert_eq!(body["system"][0]["text"], "sys");
+        assert_eq!(body["tools"][0]["name"], "get_time");
+        assert!(body.get("prompt_cache_key").is_none());
+
+        assert_eq!(reply.output, "calling");
+        assert_eq!(reply.finish_reason.as_deref(), Some("tool_calls"));
+        assert_eq!(reply.tool_calls.len(), 1);
+        assert_eq!(reply.tool_calls[0].id, "toolu_1");
+        assert_eq!(reply.usage.cached_prompt_tokens, 4096);
+        assert_eq!(reply.usage.prompt_tokens, 4099);
+    }
+
+    #[tokio::test]
+    async fn forbidden_surfaces_the_upstream_message_and_does_not_retry() {
+        let (base_url, hits) = spawn_server(vec![
+            CannedResponse {
+                status: 403,
+                retry_after: None,
+                body: r#"{"type":"error","error":{"type":"FreeTierError","message":"free tier gated"}}"#,
+                delay_before_response: Duration::ZERO,
+            },
+            CannedResponse::ok(),
+        ]);
+        let gateway = Gateway::with_client(
+            GatewayConfig::new(base_url, "k".to_owned(), "m".to_owned()).with_max_attempts(3),
+            reqwest::Client::new(),
+        );
+        let err = gateway.chat(&messages()).await.expect_err("403 must fail");
+        assert!(
+            matches!(&err, GatewayError::Forbidden(detail) if detail == "free tier gated"),
+            "got {err:?}"
+        );
+        assert!(!err.to_string().contains("bad API key"), "{err}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
     }
 }

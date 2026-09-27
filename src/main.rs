@@ -206,6 +206,7 @@ mod tests {
                 total_tokens: 2,
                 reasoning_tokens: 0,
                 cached_prompt_tokens: 0,
+                cache_creation_prompt_tokens: 0,
             },
         };
         let printed = render(&response);

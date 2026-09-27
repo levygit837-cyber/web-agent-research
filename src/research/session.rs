@@ -53,6 +53,10 @@ pub struct SessionUsage {
     /// still parse without bumping `SESSION_FORMAT_VERSION`.
     #[serde(default)]
     pub cached_prompt_tokens: u64,
+    /// Prompt tokens written to the provider cache; `#[serde(default)]` for
+    /// rows written before #47.
+    #[serde(default)]
+    pub cache_creation_prompt_tokens: u64,
 }
 
 /// Lines 1..N of `sessions/<id>.jsonl`: one per turn, `synthesis` null until
@@ -269,6 +273,7 @@ mod tests {
             total_tokens: 3,
             reasoning_tokens: 0,
             cached_prompt_tokens: 0,
+            cache_creation_prompt_tokens: 0,
         };
         let second = TurnRow::new(
             header.session_id.clone(),
