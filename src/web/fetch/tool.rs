@@ -48,7 +48,7 @@ impl FetchInput {
 /// Single source of truth: loop wiring and tests share this value.
 pub fn fetch_tool_schema() -> Value {
     serde_json::json!({
-        "name": "fetch",
+        "name": FETCH_TOOL_NAME,
         "description": "Fetch a URL and return its content as markdown Evidence for synthesis.",
         "parameters": {
             "type": "object",

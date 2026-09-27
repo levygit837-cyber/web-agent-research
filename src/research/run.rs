@@ -544,8 +544,6 @@ mod tests {
             "/nonexistent/obscura".into(),
             std::time::Duration::from_secs(1),
         ));
-        // Keep the page server alive for the whole test.
-        std::mem::forget(pages);
         (ToolRegistry::new(searcher, fetcher), page_url)
     }
 
