@@ -335,10 +335,7 @@ mod tests {
     }
 
     fn messages() -> Vec<ChatMessage> {
-        vec![ChatMessage {
-            role: "user".to_owned(),
-            content: "Reply with exactly: gateway ok".to_owned(),
-        }]
+        vec![ChatMessage::user("Reply with exactly: gateway ok")]
     }
 
     fn single_attempt_gateway(base_url: String) -> Gateway {

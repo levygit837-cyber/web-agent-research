@@ -16,7 +16,18 @@ use crate::web::search::tool::{
 };
 use crate::web::search::types::MergedResult;
 
-/// One executed tool call, rendered into the observation transcript.
+/// Whether a [`ToolResult::Failed`] came from validating the call itself
+/// (bad name/JSON/args, never reaching the executor) or from the executor
+/// actually running and failing (search/fetch error, timeout, exhausted
+/// stub). The runner uses this to pick `LoopError::InvalidToolCall` vs.
+/// `LoopError::ToolFailed` without re-parsing rendered text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureKind {
+    Dispatch,
+    Execution,
+}
+
+/// One executed tool call, rendered into the tool-role transcript.
 #[derive(Debug, Clone)]
 pub enum ToolResult {
     /// Hits are candidates: rendered for the model, never Evidence.
@@ -31,6 +42,7 @@ pub enum ToolResult {
     Failed {
         tool: String,
         reason: String,
+        kind: FailureKind,
     },
 }
 
@@ -68,6 +80,14 @@ impl ToolResult {
     /// Execution worked (even an empty hit list is information, not failure).
     pub fn is_success(&self) -> bool {
         !matches!(self, Self::Failed { .. })
+    }
+
+    /// `Some` naming which kind of failure this is; `None` for a success.
+    pub fn failure_kind(&self) -> Option<FailureKind> {
+        match self {
+            Self::Failed { kind, .. } => Some(*kind),
+            _ => None,
+        }
     }
 }
 
@@ -147,20 +167,22 @@ impl ToolRegistry {
     }
 
     /// Parse args + validate + run one call. Never panics: unknown names,
-    /// bad JSON, and validator rejections all become [`ToolResult::Failed`].
-    /// Dispatch failures (unknown name, bad JSON, invalid args) are
-    /// validation-kind; executor failures are execution-kind — the runner
-    /// distinguishes them from the rendered text.
+    /// bad JSON, and validator rejections all become [`ToolResult::Failed`]
+    /// with [`FailureKind::Dispatch`]; executor failures use
+    /// [`FailureKind::Execution`]. The runner reads `failure_kind()` instead
+    /// of matching on the rendered reason text.
     pub async fn execute(&self, call: &RequestedToolCall) -> ToolResult {
         let (searcher, fetcher) = match &self.backend {
             Backend::Live { searcher, fetcher } => (searcher, fetcher),
             #[cfg(test)]
             Backend::Queue(queue) => {
-                let next = queue
-                    .lock()
-                    .await
-                    .pop_front()
-                    .unwrap_or_else(|| failed(call, "stub queue exhausted".to_owned()));
+                let next = queue.lock().await.pop_front().unwrap_or_else(|| {
+                    failed(
+                        call,
+                        "stub queue exhausted".to_owned(),
+                        FailureKind::Execution,
+                    )
+                });
                 if matches!(next, ToolResult::Hang) {
                     std::future::pending::<()>().await;
                 }
@@ -169,39 +191,60 @@ impl ToolRegistry {
         };
         let args = match call.parsed_arguments() {
             Ok(args) => args,
-            Err(err) => return failed(call, format!("arguments are not valid JSON: {err}")),
+            Err(err) => {
+                return failed(
+                    call,
+                    format!("arguments are not valid JSON: {err}"),
+                    FailureKind::Dispatch,
+                )
+            }
         };
         match call.name.as_str() {
             SEARCH_TOOL_NAME => {
                 let input = match parse_search_args(&args) {
                     Ok(input) => input,
                     Err(reason) => {
-                        return failed(call, format!("invalid args for 'search': {reason}"))
+                        return failed(
+                            call,
+                            format!("invalid args for 'search': {reason}"),
+                            FailureKind::Dispatch,
+                        )
                     }
                 };
                 match searcher.search(input).await {
                     Ok(output) => ToolResult::Search {
                         hits: output.results,
                     },
-                    Err(err) => failed(call, format!("search failed: {}", search_error(&err))),
+                    Err(err) => failed(
+                        call,
+                        format!("search failed: {}", search_error(&err)),
+                        FailureKind::Execution,
+                    ),
                 }
             }
             FETCH_TOOL_NAME => match fetch_tool(&args, fetcher).await {
                 Ok(evidence) => ToolResult::Fetch { evidence },
-                Err(err @ FetchError::InvalidUrl { .. }) => {
-                    failed(call, format!("invalid args for 'fetch': {err}"))
-                }
-                Err(err) => failed(call, format!("fetch failed: {err}")),
+                Err(err @ FetchError::InvalidUrl { .. }) => failed(
+                    call,
+                    format!("invalid args for 'fetch': {err}"),
+                    FailureKind::Dispatch,
+                ),
+                Err(err) => failed(call, format!("fetch failed: {err}"), FailureKind::Execution),
             },
-            _ => failed(call, format!("unknown tool '{}'", call.name)),
+            _ => failed(
+                call,
+                format!("unknown tool '{}'", call.name),
+                FailureKind::Dispatch,
+            ),
         }
     }
 }
 
-fn failed(call: &RequestedToolCall, reason: String) -> ToolResult {
+fn failed(call: &RequestedToolCall, reason: String, kind: FailureKind) -> ToolResult {
     ToolResult::Failed {
         tool: call.name.clone(),
         reason,
+        kind,
     }
 }
 
@@ -248,6 +291,13 @@ mod tests {
         }
     }
 
+    fn kind(result: &ToolResult) -> FailureKind {
+        match result {
+            ToolResult::Failed { kind, .. } => *kind,
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
     #[test]
     fn tool_defs_come_from_web_schemas_in_registry_order() {
         let registry = ToolRegistry::offline();
@@ -274,35 +324,35 @@ mod tests {
     #[tokio::test]
     async fn dispatch_failures_are_classified_before_io() {
         let registry = ToolRegistry::offline();
-        assert!(reason(registry.execute(&call("Search", "{}")).await).contains("unknown tool"));
-        assert!(reason(registry.execute(&call("search", "{bad")).await).contains("not valid JSON"));
-        assert!(
-            reason(registry.execute(&call("search", r#"{"query": "x"}"#)).await)
-                .starts_with("invalid args for 'search'")
-        );
-        assert!(reason(
-            registry
-                .execute(&call("fetch", r#"{"url": "ftp://x/y"}"#))
-                .await
-        )
-        .starts_with("invalid args for 'fetch'"));
+        let unknown = registry.execute(&call("Search", "{}")).await;
+        assert_eq!(kind(&unknown), FailureKind::Dispatch);
+        assert!(reason(unknown).contains("unknown tool"));
+        let bad_json = registry.execute(&call("search", "{bad")).await;
+        assert_eq!(kind(&bad_json), FailureKind::Dispatch);
+        assert!(reason(bad_json).contains("not valid JSON"));
+        let bad_args = registry.execute(&call("search", r#"{"query": "x"}"#)).await;
+        assert_eq!(kind(&bad_args), FailureKind::Dispatch);
+        assert!(reason(bad_args).starts_with("invalid args for 'search'"));
+        let bad_url = registry
+            .execute(&call("fetch", r#"{"url": "ftp://x/y"}"#))
+            .await;
+        assert_eq!(kind(&bad_url), FailureKind::Dispatch);
+        assert!(reason(bad_url).starts_with("invalid args for 'fetch'"));
     }
 
     #[tokio::test]
     async fn unreachable_endpoints_are_execution_failures() {
         let registry = ToolRegistry::offline();
-        let search = reason(
-            registry
-                .execute(&call("search", r#"{"queries": ["x"]}"#))
-                .await,
-        );
-        assert!(search.starts_with("search failed"), "{search}");
-        let fetch = reason(
-            registry
-                .execute(&call("fetch", r#"{"url": "http://127.0.0.1:9/page"}"#))
-                .await,
-        );
-        assert!(fetch.starts_with("fetch failed"), "{fetch}");
+        let search = registry
+            .execute(&call("search", r#"{"queries": ["x"]}"#))
+            .await;
+        assert_eq!(kind(&search), FailureKind::Execution);
+        assert!(reason(search).starts_with("search failed"));
+        let fetch = registry
+            .execute(&call("fetch", r#"{"url": "http://127.0.0.1:9/page"}"#))
+            .await;
+        assert_eq!(kind(&fetch), FailureKind::Execution);
+        assert!(reason(fetch).starts_with("fetch failed"));
     }
 
     #[test]
