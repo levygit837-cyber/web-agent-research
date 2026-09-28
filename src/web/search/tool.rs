@@ -111,15 +111,25 @@ pub struct Searcher {
     ddg: String,
     sp_home: String,
     sp_search: String,
+    /// Engine suspension (#62) + pacing (#63) + allowlist (#64) state.
+    /// [`super::governor::Governor::hermetic`] under `with_bases`/every
+    /// test constructor: no persisted state, zero pacing delay, both
+    /// providers always enabled (the hermetic rule).
+    governor: super::governor::Governor,
 }
 
 impl Searcher {
-    /// Production endpoints (DuckDuckGo HTML, Startpage).
+    /// Production endpoints (DuckDuckGo HTML, Startpage), production
+    /// `Governor` (persists to `<cache_root>/engines.json` when
+    /// `web::cache_dir::cache_root()` resolves one).
     pub fn new() -> Self {
-        Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL)
+        let mut searcher = Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL);
+        searcher.governor = super::governor::Governor::new(crate::web::cache_dir::cache_root());
+        searcher
     }
 
-    /// Test seam: point every leg at local servers.
+    /// Test seam: point every leg at local servers, hermetic `Governor`
+    /// (no persisted state, no pacing delay, both providers enabled).
     #[doc(hidden)]
     pub fn with_bases(ddg: &str, sp_home: &str, sp_search: &str) -> Self {
         Self {
@@ -127,6 +137,7 @@ impl Searcher {
             ddg: ddg.to_owned(),
             sp_home: sp_home.to_owned(),
             sp_search: sp_search.to_owned(),
+            governor: super::governor::Governor::hermetic(),
         }
     }
 
@@ -138,6 +149,7 @@ impl Searcher {
             &self.ddg,
             &self.sp_home,
             &self.sp_search,
+            &self.governor,
         )
         .await
     }

@@ -9,6 +9,7 @@ pub mod ddg;
 pub mod decode;
 pub mod dedup;
 pub mod fanout;
+pub(crate) mod governor;
 pub mod startpage;
 pub mod tool;
 pub mod types;
@@ -22,6 +23,8 @@ pub use dedup::{dedup_key, merge_sources};
 #[doc(hidden)]
 pub use fanout::search_multi_with_bases;
 pub use fanout::{all_failed_message, search_multi};
+#[doc(hidden)]
+pub use governor::Governor;
 #[doc(hidden)]
 pub use startpage::startpage_search_with_base;
 pub use startpage::{

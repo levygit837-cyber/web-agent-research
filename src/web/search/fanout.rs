@@ -1,13 +1,15 @@
 //! Parallel fan-out over both provider legs with soft/hard deadlines.
 //!
-//! One leg per agent-loop Query x provider, merged by consensus ranking;
-//! per-leg errors collect into the output. Partial success is `Ok`; only
-//! total-leg failure is `Err(AllFailed)`.
+//! One leg per agent-loop Query x enabled provider (#64: Startpage is off
+//! by default), merged by consensus ranking; per-leg errors collect into
+//! the output. Partial success is `Ok`; only total-leg failure is
+//! `Err(AllFailed)`.
 
 use std::time::Duration;
 
 use crate::web::search::ddg::{ddg_search, DDG_HTML_URL};
 use crate::web::search::dedup::merge_sources_in_order;
+use crate::web::search::governor::Governor;
 use crate::web::search::startpage::{startpage_search, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL};
 use crate::web::search::types::{
     SearchInput, SearchOutput, SearchProvider, SearchProviderError, SearchResult, SearchStats,
@@ -25,8 +27,8 @@ pub(crate) fn map_timeout(provider: SearchProvider, query: &str) -> SearchProvid
 }
 
 /// Map a `reqwest` transport error for one leg: timeouts -> `Timeout` (504),
-/// everything else -> `Upstream` (503). Pure over the error predicates so
-/// unit tests pin the mapping without network.
+/// everything else -> `Upstream` (503), `status: None`/`retry_after_secs:
+/// None` (no response was ever received to read either from).
 pub(crate) fn map_transport_error(
     provider: SearchProvider,
     query: &str,
@@ -36,8 +38,28 @@ pub(crate) fn map_transport_error(
     if is_timeout {
         map_timeout(provider, query)
     } else {
-        SearchProviderError::Upstream { provider, detail }
+        SearchProviderError::Upstream {
+            provider,
+            detail,
+            status: None,
+            retry_after_secs: None,
+        }
     }
+}
+
+/// Parse a response's `Retry-After` header, seconds form only (`Retry-After:
+/// 120`); the HTTP-date form is rare from these providers and not worth the
+/// parsing surface (#62: "Retry-After, when present, wins" -- a form we do
+/// not parse is treated as absent, falling back to the default duration).
+pub(crate) fn parse_retry_after(response: &reqwest::Response) -> Option<u64> {
+    response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
 }
 
 /// Format leg failures as `"id: msg; id: msg"` (Omp
@@ -50,18 +72,33 @@ pub fn all_failed_message(failures: &[(String, String)]) -> String {
         .join("; ")
 }
 
+/// Leg index for `(query_index, provider)` given the enabled-provider list
+/// (#64: Startpage may be absent), so the settle-reconstruction map stays a
+/// dense `0..queries.len() * enabled.len()` range regardless of which, or
+/// how many, providers ran.
+fn leg_slot(query_index: usize, provider: SearchProvider, enabled: &[SearchProvider]) -> usize {
+    let provider_index = enabled
+        .iter()
+        .position(|p| *p == provider)
+        .expect("leg_slot only called for an enabled provider");
+    query_index * enabled.len() + provider_index
+}
+
 /// Deep-module entry: full fan-out (validate is the caller's job -- this
-/// takes a validated `SearchInput`; run 2xN legs under soft/hard deadlines
-/// -> merge -> truncate). Accepts the shared client, creates nothing.
-/// Leg order is deterministic: per Query in input order, Startpage then DDG.
-/// Never fails a whole batch on one leg: leg errors collect into
-/// `output.errors`; only total-leg failure (`AllFailed`: merged empty AND
-/// every leg failed) returns `Err`. Otherwise `Ok` -- including partial
-/// success and empty results (zero results with no challenge marker is not an
-/// error). Leg panics surface as `Upstream { detail: "leg panicked" }`.
+/// takes a validated `SearchInput`; run legs under soft/hard deadlines ->
+/// merge -> truncate). Accepts the shared client, creates nothing.
+/// Leg order is deterministic: per Query in input order, over
+/// `governor.enabled_providers()` in priority order (Startpage first when
+/// enabled, then DuckDuckGo; #64). Never fails a whole batch on one leg:
+/// leg errors collect into `output.errors`; only total-leg failure
+/// (`AllFailed`: merged empty AND every leg failed) returns `Err`.
+/// Otherwise `Ok` -- including partial success and empty results (zero
+/// results with no challenge marker is not an error). Leg panics surface as
+/// `Upstream { detail: "leg panicked" }`.
 pub async fn search_multi(
     client: &reqwest::Client,
     input: SearchInput,
+    governor: &Governor,
 ) -> Result<SearchOutput, SearchProviderError> {
     search_multi_with_bases(
         client,
@@ -69,6 +106,7 @@ pub async fn search_multi(
         DDG_HTML_URL,
         STARTPAGE_HOME_URL,
         STARTPAGE_SEARCH_URL,
+        governor,
     )
     .await
 }
@@ -90,40 +128,97 @@ pub async fn search_multi_with_bases(
     ddg_base: &str,
     sp_home: &str,
     sp_search: &str,
+    governor: &Governor,
 ) -> Result<SearchOutput, SearchProviderError> {
     let queries = input.queries.clone();
     let recency = input.recency;
     let top_k = input.top_k;
-    // Legs in deterministic order: per Query in input order, Startpage then DDG.
-    // Each leg keeps its spawn index (query index + provider): JoinSet returns
-    // legs in completion order, so results reconstruct by index, never by
-    // (query, provider) — duplicate query strings no longer collapse, and a
-    // panicked leg maps back to its slot via JoinError::id.
+    // #64: which engines run this call, in priority order (Startpage first
+    // when enabled, then DuckDuckGo); the hermetic `Governor` always
+    // enables both, so every pre-existing fan-out test keeps its two-leg
+    // shape unchanged.
+    let enabled = governor.enabled_providers();
+    // Legs in deterministic order: per Query in input order, over `enabled`
+    // in priority order. Each leg keeps its spawn index (query index +
+    // provider): JoinSet returns legs in completion order, so results
+    // reconstruct by index, never by (query, provider) — duplicate query
+    // strings no longer collapse, and a panicked leg maps back to its slot
+    // via JoinError::id.
     let mut set = tokio::task::JoinSet::new();
-    let leg_count = queries.len() * 2;
+    let leg_count = queries.len() * enabled.len();
     let mut leg_ids: Vec<tokio::task::Id> = Vec::with_capacity(leg_count);
     let mut leg_slots: Vec<(usize, SearchProvider)> = Vec::with_capacity(leg_count);
     for (query_index, query) in queries.iter().enumerate() {
-        for provider in [SearchProvider::Startpage, SearchProvider::DuckDuckGo] {
+        for provider in enabled.iter().copied() {
             let (client_owned, query_owned) = (client.clone(), query.clone());
             let (ddg, home, search) = (
                 ddg_base.to_string(),
                 sp_home.to_string(),
                 sp_search.to_string(),
             );
+            let governor_owned = governor.clone();
             let slot = (query_index, provider);
             leg_slots.push(slot);
             leg_ids.push(
                 set.spawn(async move {
-                    let outcome: Result<Vec<SearchResult>, SearchProviderError> = match provider {
-                        SearchProvider::Startpage => {
-                            startpage_search(&client_owned, &query_owned, recency, &home, &search)
-                                .await
-                        }
-                        SearchProvider::DuckDuckGo => {
-                            ddg_search(&client_owned, &query_owned, recency, &ddg).await
-                        }
-                    };
+                    // #62: a suspended engine is skipped entirely -- no
+                    // pacing wait, no HTTP request -- before even entering
+                    // the paced queue.
+                    let outcome: Result<Vec<SearchResult>, SearchProviderError> =
+                        if let Some((remaining_secs, reason)) =
+                            governor_owned.suspended_remaining(provider)
+                        {
+                            Err(SearchProviderError::Suspended {
+                                provider,
+                                remaining_secs,
+                                reason,
+                            })
+                        } else if governor_owned.over_budget(provider) {
+                            // #63: per-run request cap reached for this
+                            // engine. Not a bot-wall signal (unlike
+                            // `Suspended`): a busy run hitting its own cap
+                            // says nothing about the engine's health, so
+                            // this never counts toward `all_challenged`.
+                            Err(SearchProviderError::Upstream {
+                                provider,
+                                detail: format!(
+                                    "{} request budget exhausted for this run",
+                                    provider.id()
+                                ),
+                                status: None,
+                                retry_after_secs: None,
+                            })
+                        } else {
+                            // #63: serialized per engine, jittered gap from
+                            // the last request to this engine (persisted
+                            // across runs when a cache root is set).
+                            let query_for_leg = query_owned.clone();
+                            let result = governor_owned
+                                .paced_call(provider, || async move {
+                                    match provider {
+                                        SearchProvider::Startpage => {
+                                            startpage_search(
+                                                &client_owned,
+                                                &query_for_leg,
+                                                recency,
+                                                &home,
+                                                &search,
+                                            )
+                                            .await
+                                        }
+                                        SearchProvider::DuckDuckGo => {
+                                            ddg_search(&client_owned, &query_for_leg, recency, &ddg)
+                                                .await
+                                        }
+                                    }
+                                })
+                                .await;
+                            match &result {
+                                Ok(_) => governor_owned.record_success(provider),
+                                Err(err) => governor_owned.record_failure(provider, err),
+                            }
+                            result
+                        };
                     (slot, query_owned, outcome)
                 })
                 .id(),
@@ -179,7 +274,7 @@ pub async fn search_multi_with_bases(
                     .iter()
                     .position(|id| *id == join.id())
                     .map(|spawn_index| leg_slots[spawn_index])
-                    .unwrap_or((0, SearchProvider::DuckDuckGo));
+                    .unwrap_or((0, enabled[0]));
                 let query = queries.get(query_index).cloned().unwrap_or_default();
                 settled.push((
                     query_index,
@@ -188,6 +283,8 @@ pub async fn search_multi_with_bases(
                     Err(SearchProviderError::Upstream {
                         provider,
                         detail: "leg panicked".to_string(),
+                        status: None,
+                        retry_after_secs: None,
                     }),
                 ));
             }
@@ -197,21 +294,20 @@ pub async fn search_multi_with_bases(
     set.abort_all();
     // Legs cut by the deadlines report `Timeout`. Reconstruct leg order by
     // spawn index: settled legs keep results; missing slots (per Query in
-    // input order, SP then DDG) time out. Duplicate query strings keep
-    // separate slots.
+    // input order, over `enabled` in priority order) time out. Duplicate
+    // query strings keep separate slots.
     let mut by_leg: std::collections::HashMap<
         usize,
         Result<Vec<SearchResult>, SearchProviderError>,
     > = std::collections::HashMap::new();
     for (query_index, provider, _query, outcome) in settled {
-        let slot = query_index * 2 + usize::from(provider != SearchProvider::Startpage);
-        by_leg.insert(slot, outcome);
+        by_leg.insert(leg_slot(query_index, provider, &enabled), outcome);
     }
     let mut raw_hits: Vec<SearchResult> = Vec::new();
     let mut errors: Vec<SearchProviderError> = Vec::new();
     for (query_index, query) in queries.iter().enumerate() {
-        for provider in [SearchProvider::Startpage, SearchProvider::DuckDuckGo] {
-            let slot = query_index * 2 + usize::from(provider != SearchProvider::Startpage);
+        for provider in enabled.iter().copied() {
+            let slot = leg_slot(query_index, provider, &enabled);
             match by_leg.remove(&slot) {
                 Some(Ok(rows)) => raw_hits.extend(rows),
                 Some(Err(err)) => errors.push(err),
@@ -223,9 +319,12 @@ pub async fn search_multi_with_bases(
     let mut merged = merge_sources_in_order(raw_hits, &queries);
     let merged_count = merged.len();
     if merged.is_empty() && errors.len() == leg_count && leg_count > 0 {
-        let all_challenged = errors
-            .iter()
-            .all(|err| matches!(err, SearchProviderError::Challenge { .. }));
+        let all_challenged = errors.iter().all(|err| {
+            matches!(
+                err,
+                SearchProviderError::Challenge { .. } | SearchProviderError::Suspended { .. }
+            )
+        });
         let failures: Vec<(String, String)> = errors
             .iter()
             .map(|err| {
@@ -263,6 +362,11 @@ fn error_detail(err: &SearchProviderError) -> String {
         SearchProviderError::Challenge { detail, .. } => detail.clone(),
         SearchProviderError::Timeout { query, .. } => format!("timed out: {query}"),
         SearchProviderError::Upstream { detail, .. } => detail.clone(),
+        SearchProviderError::Suspended {
+            remaining_secs,
+            reason,
+            ..
+        } => format!("suspended ({reason}), {remaining_secs}s left"),
         SearchProviderError::AllFailed { failures, .. } => failures.clone(),
     }
 }
@@ -270,6 +374,7 @@ fn error_detail(err: &SearchProviderError) -> String {
 #[cfg(test)]
 mod tests {
     use super::super::ddg::map_ddg_response;
+    use super::super::governor::Governor;
     use super::super::startpage::map_startpage_response;
     use super::super::test_support::{ddg_rows, sp_home_form, sp_rows, FanoutStub, StubServer};
     use super::*;
@@ -292,9 +397,9 @@ mod tests {
 
     #[test]
     fn http_500_maps_503() {
-        let err = map_ddg_response(500, "boom", "q").unwrap_err();
+        let err = map_ddg_response(500, "boom", "q", None).unwrap_err();
         assert_eq!(err.http_status(), 503);
-        let err = map_startpage_response(500, "boom", "https://x/", "q").unwrap_err();
+        let err = map_startpage_response(500, "boom", "https://x/", "q", None).unwrap_err();
         assert_eq!(err.http_status(), 503);
     }
 
@@ -346,6 +451,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
         )
         .await
         .expect("partial overlap still merges");
@@ -389,6 +495,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
         )
         .await
         .expect("duplicate queries still merge");
@@ -429,6 +536,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
         )
         .await
         .expect("partial success is Ok");
@@ -464,6 +572,7 @@ mod tests {
             &format!("{base}/missing/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
         )
         .await
         .expect_err("all legs fail -> AllFailed");
@@ -503,6 +612,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
         )
         .await
         .expect_err("both legs Challenge -> AllFailed");

@@ -8,7 +8,7 @@ use std::collections::HashSet;
 
 use scraper::{Html, Selector};
 
-use super::fanout::map_transport_error;
+use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::search::decode::{collapse_whitespace, percent_encode};
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, MAX_NUM_RESULTS,
@@ -44,12 +44,15 @@ pub fn is_startpage_challenge(body: &str, final_url: &str) -> bool {
 
 /// Map a finished Startpage HTTP exchange to rows or a typed leg error:
 /// challenge signals -> `Challenge` (429); non-2xx without markers ->
-/// `Upstream` (503); otherwise parse (possibly empty).
+/// `Upstream` (503, carrying the real `status` and any parsed
+/// `retry_after_secs` for #62's suspension mapping); otherwise parse
+/// (possibly empty).
 pub(crate) fn map_startpage_response(
     status: u16,
     body: &str,
     final_url: &str,
     query: &str,
+    retry_after_secs: Option<u64>,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     if is_startpage_challenge(body, final_url) {
         return Err(SearchProviderError::Challenge {
@@ -61,6 +64,8 @@ pub(crate) fn map_startpage_response(
         return Err(SearchProviderError::Upstream {
             provider: SearchProvider::Startpage,
             detail: format!("Startpage HTML error ({status})"),
+            status: Some(status),
+            retry_after_secs,
         });
     }
     Ok(parse_startpage_html(body, query))
@@ -108,14 +113,15 @@ async fn fetch_startpage_form_inputs(
 }
 
 /// Startpage search POST: hidden inputs echoed verbatim + `query`
-/// (`+with_date` when recency is set).
+/// (`+with_date` when recency is set). Returns status + body + final URL +
+/// any parsed `Retry-After` header (#62).
 async fn startpage_post(
     client: &reqwest::Client,
     url: &str,
     inputs: &[(String, String)],
     query: &str,
     recency: Option<Recency>,
-) -> Result<(u16, String, String), SearchProviderError> {
+) -> Result<(u16, String, String, Option<u64>), SearchProviderError> {
     let mut form: Vec<(String, String)> = inputs.to_vec();
     form.push(("query".to_string(), query.to_string()));
     if let Some(recency) = recency {
@@ -146,6 +152,7 @@ async fn startpage_post(
     })?;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
+    let retry_after = parse_retry_after(&response);
     let text = response.text().await.map_err(|err| {
         map_transport_error(
             SearchProvider::Startpage,
@@ -154,17 +161,18 @@ async fn startpage_post(
             format!("Startpage body read failed: {err}"),
         )
     })?;
-    Ok((status, text, final_url))
+    Ok((status, text, final_url, retry_after))
 }
 
 /// Startpage direct-GET fallback (Omp "best effort ... falls back to a direct
-/// GET"): `query`/`with_date` on the search URL. One fallback only.
+/// GET"): `query`/`with_date` on the search URL. One fallback only. Returns
+/// status + body + final URL + any parsed `Retry-After` header (#62).
 async fn startpage_get(
     client: &reqwest::Client,
     url: &str,
     query: &str,
     recency: Option<Recency>,
-) -> Result<(u16, String, String), SearchProviderError> {
+) -> Result<(u16, String, String, Option<u64>), SearchProviderError> {
     let mut request = apply_browser_headers(
         client
             .get(url)
@@ -184,6 +192,7 @@ async fn startpage_get(
     })?;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
+    let retry_after = parse_retry_after(&response);
     let text = response.text().await.map_err(|err| {
         map_transport_error(
             SearchProvider::Startpage,
@@ -192,7 +201,7 @@ async fn startpage_get(
             format!("Startpage body read failed: {err}"),
         )
     })?;
-    Ok((status, text, final_url))
+    Ok((status, text, final_url, retry_after))
 }
 
 /// Startpage leg: token path (homepage GET -> verbatim POST), else direct-GET
@@ -207,14 +216,15 @@ pub(crate) async fn startpage_search(
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     match fetch_startpage_form_inputs(client, home_url, query).await {
         FormFetch::Inputs(inputs) => {
-            let (status, body, final_url) =
+            let (status, body, final_url, retry_after) =
                 startpage_post(client, search_url, &inputs, query, recency).await?;
-            return map_startpage_response(status, &body, &final_url, query);
+            return map_startpage_response(status, &body, &final_url, query, retry_after);
         }
         FormFetch::Miss => {}
     }
-    let (status, body, final_url) = startpage_get(client, search_url, query, recency).await?;
-    map_startpage_response(status, &body, &final_url, query)
+    let (status, body, final_url, retry_after) =
+        startpage_get(client, search_url, query, recency).await?;
+    map_startpage_response(status, &body, &final_url, query, retry_after)
 }
 
 /// Keep only absolute http(s) URLs outside `startpage.com` (Omp
@@ -423,6 +433,7 @@ mod tests {
             "xx component---src-pages-captcha yy",
             "https://www.startpage.com/sp/search",
             "q",
+            None,
         )
         .unwrap_err();
         assert_eq!(err.http_status(), 429);
@@ -438,6 +449,7 @@ mod tests {
             "how do captchas work? explained",
             "https://www.startpage.com/sp/search",
             "q",
+            None,
         )
         .expect("bare captcha word parses, not a challenge");
         assert!(rows.is_empty());
@@ -465,6 +477,7 @@ mod tests {
             ANUBIS_CHALLENGE_EXCERPT,
             "https://www.startpage.com/sp/search",
             "q",
+            None,
         )
         .unwrap_err();
         assert_eq!(err.http_status(), 429);
@@ -488,6 +501,7 @@ mod tests {
             "<html>blocked</html>",
             "https://cdn.startpage.com/sp/cdn/error-pages/blocked.html",
             "q",
+            None,
         )
         .unwrap_err();
         assert_eq!(err.http_status(), 429);
@@ -506,8 +520,9 @@ mod tests {
   <p class="description">Anubis is a proof-of-work challenge used by some sites to block bots.</p>
 </div>"#;
         assert!(!is_startpage_challenge(html, "https://x/"));
-        let rows = map_startpage_response(200, html, "https://www.startpage.com/sp/search", "q")
-            .expect("bare Anubis mention parses, not a challenge");
+        let rows =
+            map_startpage_response(200, html, "https://www.startpage.com/sp/search", "q", None)
+                .expect("bare Anubis mention parses, not a challenge");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].title, "Anubis bot-wall guide");
     }
