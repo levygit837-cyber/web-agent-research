@@ -59,11 +59,34 @@ The binary reads only the process environment; it does not load `.env` itself. L
 
 To clear the cache, delete the resolved cache root's `search/` directory (`rm -rf "${SEARCH_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/web-agent-research}/search"`), or set `SEARCH_CACHE_DIR` to an empty/fresh directory for one run.
 
+### Engine governor
+
+`web::search::governor::Governor` (#62, #63, #64) skips walled engines, paces requests like a person, and keeps Startpage off by default. State (suspension + last-request time) persists to `<cache_root>/engines.json` (same root as the search cache above); a corrupt or missing file loads as empty, never an error.
+
+| Variable | Required | Default | Invalid value |
+|---|---|---|---|
+| `SEARCH_ENGINES` | no | `duckduckgo` (Startpage off by default, #64: it serves an Anubis proof-of-work challenge to bot-detected clients, and soliciting it would deliberately bypass that wall) | comma list, case-insensitive `duckduckgo`/`ddg`/`startpage`/`sp`; unknown tokens are ignored; a result that ends up empty after filtering falls back to the default |
+| `SEARCH_SUSPEND_CHALLENGE_SECS` | no | `3600` | not a valid `u64` falls back to the default |
+| `SEARCH_SUSPEND_403_SECS` | no | `180` | not a valid `u64` falls back to the default |
+| `SEARCH_SUSPEND_429_SECS` | no | `180` (a response's `Retry-After` header, when present, wins over this default) | not a valid `u64` falls back to the default |
+| `SEARCH_SUSPEND_UPSTREAM_SECS` | no | `30` (other non-2xx/non-403/429 responses; `0` disables suspension for this kind) | not a valid `u64` falls back to the default |
+| `SEARCH_SUSPEND_TIMEOUT_SECS` | no | `0` (a fan-out `Timeout` never suspends by default; a slow leg is as likely to be the local network or the fan-out deadline as a bot wall) | not a valid `u64` falls back to the default |
+| `SEARCH_PACE_MIN_MS` / `SEARCH_PACE_MAX_MS` | no | `1500` / `4000` (global default gap between requests to one engine) | not a valid `u64` falls back to the default; a max at or below min degenerates to that fixed gap |
+| `SEARCH_PACE_<ENGINE>_MIN_MS` / `_MAX_MS` (`<ENGINE>` = `DUCKDUCKGO`/`STARTPAGE`) | no | falls back to `SEARCH_PACE_MIN_MS`/`_MAX_MS` | same as above |
+| `SEARCH_MAX_REQUESTS_PER_ENGINE` | no | `200` (per-run request cap; further requests degrade to `Upstream`, not a bot-wall signal) | not a valid `u64`/`u32` falls back to the default |
+| `SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN` | no | `4` (per-turn cap on Queries sent to one engine; see the pacing note below) | not a valid `u64` falls back to the default |
+
+Suspension: a `Challenge`, HTTP `403`/`429`, or other `Upstream` leg error suspends that engine for the mapped duration (idea inspired by SearXNG's `search.suspended_times`, AGPL-3.0, no code reuse); a suspended engine is skipped with zero HTTP requests for the rest of the suspension. If every enabled engine is suspended, the fan-out fails with a typed error naming the engines and the time left, which reaches the same exit `7` `SearchBlocked` path below as a live Challenge — again with zero HTTP requests.
+
+Pacing: requests to one engine are serialized with a random gap between them; different engines run in parallel with each other. `SOFT_DEADLINE_SECS`/`HARD_DEADLINE_SECS` (5 s / 30 s, unchanged) still bound one fan-out call: the default `SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN` of 4 is sized so the 4th Query to one engine waits at most `3 * SEARCH_PACE_MAX_MS` (12 s at defaults) before its request even starts, leaving comfortable headroom inside the 30 s hard deadline for the round-trips themselves (measured live fan-out latency is ~1.7 s per query below). A caller sending more Queries than the cap per turn sees the excess legs degrade to `Upstream`, never a bot-wall signal.
+
+Hermetic rule: `Searcher::with_bases` and every test use a `Governor` that never persists, never paces, has no cap, and always enables both engines, regardless of ambient `SEARCH_*` env vars — the suite never touches the real cache or the network's pacing state.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
 
-- Search fan-out: ~1.7 s live for 1 query returning 5 Hits.
+- Search fan-out: ~1.7 s live for 1 query returning 5 Hits (unpaced; the engine governor's per-engine pacing gap, default 1500..4000 ms, applies on top of this for a second Query to the same engine, and persists across back-to-back CLI runs).
 - Static fetch (reqwest + htmd, no browser): 0.25–0.96 s — docs.rs 0.25 s, react.dev 0.41 s, wikipedia 0.63 s, github.com 0.96 s.
 - Browser fallback (Obscura, JS shells/challenge pages): 1.5–8.2 s.
 
@@ -100,7 +123,7 @@ End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by 
 | 4 | Tool failures exceeded the repair budget | retry, or rephrase the goal |
 | 5 | Turn budget exhausted | retry with a higher `--max-turns` |
 | 6 | Session file I/O | check `--session-out` path |
-| 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was a bot-detection Challenge (DuckDuckGo anomaly page or Startpage Anubis proof-of-work/CAPTCHA) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
+| 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page or Startpage Anubis proof-of-work/CAPTCHA) or a skip of an already-suspended engine (#62) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 
 Errors are printed to stderr as `error: <message>`; stdout stays empty.
 
