@@ -111,15 +111,23 @@ pub struct Searcher {
     ddg: String,
     sp_home: String,
     sp_search: String,
+    /// Disk cache root for search legs (`web::search::cache`); `None` under
+    /// `with_bases` and every test constructor -- the hermetic rule: tests
+    /// never touch the real user cache.
+    cache_root: Option<std::path::PathBuf>,
 }
 
 impl Searcher {
-    /// Production endpoints (DuckDuckGo HTML, Startpage).
+    /// Production endpoints (DuckDuckGo HTML, Startpage), disk cache
+    /// resolved from `SEARCH_CACHE_DIR`/`XDG_CACHE_HOME`/`HOME`
+    /// (`web::cache_dir::cache_root`).
     pub fn new() -> Self {
-        Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL)
+        let mut searcher = Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL);
+        searcher.cache_root = crate::web::cache_dir::cache_root();
+        searcher
     }
 
-    /// Test seam: point every leg at local servers.
+    /// Test seam: point every leg at local servers, no disk cache.
     #[doc(hidden)]
     pub fn with_bases(ddg: &str, sp_home: &str, sp_search: &str) -> Self {
         Self {
@@ -127,6 +135,7 @@ impl Searcher {
             ddg: ddg.to_owned(),
             sp_home: sp_home.to_owned(),
             sp_search: sp_search.to_owned(),
+            cache_root: None,
         }
     }
 
@@ -138,6 +147,7 @@ impl Searcher {
             &self.ddg,
             &self.sp_home,
             &self.sp_search,
+            self.cache_root.as_deref(),
         )
         .await
     }

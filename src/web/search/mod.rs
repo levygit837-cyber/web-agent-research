@@ -9,6 +9,7 @@
 //! order (Apache-2.0, h4ckf0r0day/obscura@542df14); see
 //! `THIRD-PARTY-NOTICES.md`.
 
+pub(crate) mod cache;
 pub mod ddg;
 pub mod decode;
 pub mod dedup;

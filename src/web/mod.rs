@@ -2,6 +2,7 @@
 //!
 //! ADR-0006: `research` depends on `web`; `web` never imports `research` or `llm`.
 
+pub(crate) mod cache_dir;
 pub mod fetch;
 pub(crate) mod profile;
 pub mod search;
