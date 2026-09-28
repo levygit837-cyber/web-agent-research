@@ -5,6 +5,7 @@
 //! (`dedup`), fan-out (`fanout`) and codecs (`decode`). Callers cross only
 //! this root; provider forms and deadlines stay inside.
 
+pub(crate) mod cache;
 pub mod ddg;
 pub mod decode;
 pub mod dedup;
