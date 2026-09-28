@@ -124,13 +124,25 @@ pub async fn search_multi_with_bases(
                     // Cache lookup per leg, not per merged output: a hit
                     // here for one provider never blocks the other
                     // provider's live request for the same Query.
-                    if let Some(rows) = cache::lookup(
+                    if let Some(mut rows) = cache::lookup(
                         cache_root_owned.as_deref(),
                         provider,
                         &query_owned,
                         recency,
                         0,
                     ) {
+                        // A cache hit may come from a differently-spelled
+                        // Query that normalizes to the same key (e.g.
+                        // "Rust  async" vs "rust async"); re-stamp `query`
+                        // with this call's exact string so
+                        // `merge_sources_in_order`'s `queries.position`
+                        // lookup and the documented `SearchResult.query`
+                        // contract ("the exact Query string that produced
+                        // this hit") both hold on a hit, not only on a
+                        // live leg.
+                        for row in &mut rows {
+                            row.query = query_owned.clone();
+                        }
                         return (slot, query_owned, Ok(rows));
                     }
                     let outcome: Result<Vec<SearchResult>, SearchProviderError> = match provider {
@@ -299,6 +311,7 @@ fn error_detail(err: &SearchProviderError) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::super::cache::test_support::EnvGuard;
     use super::super::ddg::map_ddg_response;
     use super::super::startpage::map_startpage_response;
     use super::super::test_support::{ddg_rows, sp_home_form, sp_rows, FanoutStub, StubServer};
@@ -319,7 +332,11 @@ mod tests {
         // call against the same `cache_root` must not touch the network at
         // all -- proven here by the local stub's per-route hit counter
         // staying flat across the second call, not just by asserting the
-        // returned rows match.
+        // returned rows match. Holds the same env lock as `cache::tests`:
+        // this test depends on `SEARCH_CACHE`/`SEARCH_CACHE_TTL_SECS`/
+        // `SEARCH_CACHE_MAX_BYTES` staying at their defaults, which those
+        // tests mutate in the same process.
+        let _guard = EnvGuard::lock();
         let root = std::env::temp_dir().join(format!(
             "war-fanout-cache-test-{}-{}",
             std::process::id(),
@@ -406,6 +423,85 @@ mod tests {
         assert_eq!(
             second.results, first.results,
             "cached rows must round-trip identically"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn challenged_leg_is_never_cached() {
+        // Acceptance (#67): "a Challenge is never cached." Drives the real
+        // fan-out call site (not a reimplemented `if let Ok` in the test)
+        // against a stub that Challenge-walls both legs: a second call
+        // must hit the stub again, and the cache directory must end up
+        // with no entries, because `store` is inside `if let Ok(rows) =
+        // &outcome` at the leg closure and a Challenge is an `Err`.
+        let _guard = EnvGuard::lock();
+        let root = std::env::temp_dir().join(format!(
+            "war-fanout-challenge-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&root).expect("create temp cache root");
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            r#"<script id="anubis_challenge" type="application/json">{}</script>"#.to_string(),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let make_input = || {
+            SearchInput::validate(vec!["walled query".to_string()], Some(15), None).expect("valid")
+        };
+        let first_err = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect_err("both legs Challenge -> AllFailed, nothing merges");
+        assert_eq!(first_err.code(), "all_failed");
+        let html_hits_after_first = hits
+            .lock()
+            .expect("hits")
+            .get("/html/")
+            .copied()
+            .unwrap_or(0);
+        assert!(
+            html_hits_after_first > 0,
+            "the DDG leg must have hit the stub"
+        );
+        // The cache must hold no entry for the Challenged leg.
+        let search_dir = root.join("search");
+        let entry_count = std::fs::read_dir(&search_dir)
+            .map(|read_dir| read_dir.flatten().count())
+            .unwrap_or(0);
+        assert_eq!(
+            entry_count, 0,
+            "a Challenge leg must never write a cache entry"
+        );
+        // A second call must hit the stub again -- proof by absence of a
+        // cache short-circuit, not merely by inspecting the directory.
+        let second_err = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect_err("still Challenge-walled, no cache to short-circuit it");
+        assert_eq!(second_err.code(), "all_failed");
+        assert!(
+            hits.lock().expect("hits").get("/html/").copied().unwrap_or(0) > html_hits_after_first,
+            "a Challenge leg must never be served from cache: the second call must hit the stub again"
         );
         std::fs::remove_dir_all(&root).ok();
     }

@@ -202,16 +202,19 @@ fn enforce_cap(search_dir: &Path, cap_bytes: u64) {
     let Ok(read_dir) = std::fs::read_dir(search_dir) else {
         return;
     };
-    struct Item {
+    // Pass 1: sizes only, from directory metadata -- no read/parse of any
+    // entry body. `store` calls `enforce_cap` on every successful leg, so
+    // the common case (well under the cap) must stay a cheap `stat` walk,
+    // not a full read+deserialize of every cached entry.
+    struct Candidate {
         path: PathBuf,
         len: u64,
-        fetched_at_secs: u64,
     }
-    let mut items: Vec<Item> = Vec::new();
+    let mut candidates: Vec<Candidate> = Vec::new();
     let mut total: u64 = 0;
     for dir_entry in read_dir.flatten() {
         let path = dir_entry.path();
-        // Skip `write_atomic`'s sibling `*.tmp-<pid>` files (in-flight
+        // Skip `write_atomic`'s sibling `*.tmp-<pid>-<n>` files (in-flight
         // writes) and anything else that is not one of our entries.
         if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
             continue;
@@ -220,21 +223,38 @@ fn enforce_cap(search_dir: &Path, cap_bytes: u64) {
             continue;
         };
         let len = metadata.len();
-        let fetched_at_secs = std::fs::read(&path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<CacheEntry>(&bytes).ok())
-            .map(|entry| entry.fetched_at_secs)
-            .unwrap_or(0);
         total += len;
-        items.push(Item {
-            path,
-            len,
-            fetched_at_secs,
-        });
+        candidates.push(Candidate { path, len });
     }
     if total <= cap_bytes {
         return;
     }
+    // Pass 2: only reached over the cap -- now read+parse each entry's
+    // `fetched_at_secs` to sort oldest-first. A corrupt entry sorts as
+    // `fetched_at_secs = 0`, i.e. oldest, so it is evicted before any
+    // valid entry rather than lingering. Best effort: an unreadable
+    // directory, an unparseable entry, or a `remove_file` failure is
+    // skipped, never panics.
+    struct Item {
+        path: PathBuf,
+        len: u64,
+        fetched_at_secs: u64,
+    }
+    let mut items: Vec<Item> = candidates
+        .into_iter()
+        .map(|candidate| {
+            let fetched_at_secs = std::fs::read(&candidate.path)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<CacheEntry>(&bytes).ok())
+                .map(|entry| entry.fetched_at_secs)
+                .unwrap_or(0);
+            Item {
+                path: candidate.path,
+                len: candidate.len,
+                fetched_at_secs,
+            }
+        })
+        .collect();
     items.sort_by_key(|item| item.fetched_at_secs);
     for item in items {
         if total <= cap_bytes {
@@ -246,9 +266,12 @@ fn enforce_cap(search_dir: &Path, cap_bytes: u64) {
     }
 }
 
+/// Test-only env-var guard shared across `cache::tests` and
+/// `fanout::tests`: both mutate `SEARCH_CACHE*` and run in the same test
+/// binary, so a test in either module that does not hold this lock could
+/// observe another test's override mid-run (full-suite-safe requirement).
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(crate) mod test_support {
     use std::sync::{LazyLock, Mutex, MutexGuard};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -256,13 +279,15 @@ mod tests {
     /// Serializes tests that mutate `SEARCH_CACHE*` env vars and clears
     /// them on drop, so one test's override never leaks into the next
     /// (same pattern as `llm::config::tests::EnvGuard`).
-    struct EnvGuard {
+    pub(crate) struct EnvGuard {
         _lock: MutexGuard<'static, ()>,
     }
 
     impl EnvGuard {
-        fn lock() -> Self {
-            let lock = ENV_LOCK.lock().expect("env lock");
+        pub(crate) fn lock() -> Self {
+            let lock = ENV_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             for key in [
                 "SEARCH_CACHE",
                 "SEARCH_CACHE_TTL_SECS",
@@ -285,6 +310,12 @@ mod tests {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::EnvGuard;
+    use super::*;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()
@@ -339,6 +370,13 @@ mod tests {
             None,
             0,
             &[row("https://x/", "q")],
+        );
+        // `store` under `off` must be a real no-op, not just a lookup that
+        // happens to also miss: the `search/` directory must not even
+        // exist yet.
+        assert!(
+            !root.join("search").exists(),
+            "store must not write anything while SEARCH_CACHE=off"
         );
         // Even a manually-planted valid entry must not be served while off.
         std::env::remove_var("SEARCH_CACHE");
@@ -473,26 +511,27 @@ mod tests {
     }
 
     #[test]
-    fn error_leg_pattern_never_persists_and_ok_leg_does() {
+    fn store_then_lookup_roundtrips() {
         let _guard = EnvGuard::lock();
-        let root = temp_dir("errleg");
-        // Mirrors the agreed fan-out call site: `store` only runs inside
-        // `if let Ok(rows) = &outcome`. A Challenge/Timeout/Upstream leg
-        // is an `Err` and never reaches `store` at all.
-        let challenge_outcome: Result<Vec<SearchResult>, &str> = Err("challenge");
-        if let Ok(rows) = &challenge_outcome {
-            store(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0, rows);
-        }
+        let root = temp_dir("roundtrip");
+        // Unit-level roundtrip for `store`'s own contract: it takes rows,
+        // never a `Result`, so there is no branch inside `store` itself
+        // that could persist an error leg -- the guarantee that a real
+        // Challenge/Timeout/Upstream leg never reaches `store` at all is
+        // enforced by the call site in `fanout.rs`, covered by
+        // `fanout::tests::challenged_leg_is_never_cached`, not by this
+        // function.
         assert_eq!(
             lookup(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0),
             None,
-            "an Err leg outcome must never produce a cache entry"
+            "nothing stored yet must miss"
         );
-        let ok_outcome: Result<Vec<SearchResult>, &str> = Ok(vec![row("https://x/", "q")]);
-        if let Ok(rows) = &ok_outcome {
-            store(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0, rows);
-        }
-        assert!(lookup(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0).is_some());
+        let rows = vec![row("https://x/", "q")];
+        store(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0, &rows);
+        assert_eq!(
+            lookup(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0),
+            Some(rows)
+        );
         std::fs::remove_dir_all(&root).ok();
     }
 
