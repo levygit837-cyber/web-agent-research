@@ -269,6 +269,10 @@ struct GovernorInner {
     /// run in parallel with each other (#63).
     queues: HashMap<SearchProvider, AsyncMutex<()>>,
     max_requests_per_engine: u32,
+    /// Per-turn cap on Queries dispatched to one engine (#63); see
+    /// [`Governor::max_queries_per_engine`] for the deadline math behind
+    /// the default.
+    max_queries_per_engine: usize,
     base_wall_ms: i64,
     base_mono: Instant,
 }
@@ -291,10 +295,10 @@ pub struct Governor(std::sync::Arc<GovernorInner>);
 
 impl Governor {
     /// Hermetic seam: no persisted state, zero pacing delay, no per-run
-    /// cap, both providers always enabled. Used by `Searcher::with_bases`
-    /// and every pre-existing fan-out test; the #62/#63/#64 features
-    /// themselves are tested via `enabled_providers` directly and via
-    /// [`Governor::new`] with an explicit temp dir.
+    /// cap, no per-turn query cap, both providers always enabled. Used by
+    /// `Searcher::with_bases` and every pre-existing fan-out test; the
+    /// #62/#63/#64 features themselves are tested via `enabled_providers`
+    /// directly and via [`Governor::new`] with an explicit temp dir.
     #[doc(hidden)]
     pub fn hermetic() -> Self {
         Governor(std::sync::Arc::new(GovernorInner {
@@ -303,18 +307,19 @@ impl Governor {
             views: Mutex::new(HashMap::new()),
             queues: fresh_queues(),
             max_requests_per_engine: u32::MAX,
+            max_queries_per_engine: usize::MAX,
             base_wall_ms: now_wall_ms(),
             base_mono: Instant::now(),
         }))
     }
 
     /// Production seam: engine allowlist, suspension durations, pacing
-    /// gaps, and the per-run request cap all come from `SEARCH_*` env vars
-    /// read once here. Persists to `<cache_root>/engines.json` when
-    /// `cache_root` is `Some`; in-memory only (still paced/suspension-aware
-    /// for this `Governor`'s lifetime, just with no cross-run memory)
-    /// otherwise. A corrupt or missing `engines.json` loads as empty state,
-    /// never an error.
+    /// gaps, the per-run request cap, and the per-turn query cap all come
+    /// from `SEARCH_*` env vars read once here. Persists to
+    /// `<cache_root>/engines.json` when `cache_root` is `Some`; in-memory
+    /// only (still paced/suspension-aware for this `Governor`'s lifetime,
+    /// just with no cross-run memory) otherwise. A corrupt or missing
+    /// `engines.json` loads as empty state, never an error.
     pub(crate) fn new(cache_root: Option<PathBuf>) -> Self {
         let persisted = cache_root
             .as_deref()
@@ -343,12 +348,29 @@ impl Governor {
         }
         let max_requests_per_engine =
             env_u64("SEARCH_MAX_REQUESTS_PER_ENGINE", 200).min(u32::MAX as u64) as u32;
+        // #63: "per-turn cap on queries per engine", accounting for the
+        // pacing gap so the soft/hard fan-out deadlines (5 s / 30 s,
+        // `SOFT_DEADLINE_SECS`/`HARD_DEADLINE_SECS`) still make sense once
+        // requests to one engine are serialized with a jittered gap
+        // between them instead of firing in parallel. Default 4: with the
+        // default pacing gap (`SEARCH_PACE_MAX_MS`, 4000 ms worst case),
+        // the 4th query to one engine waits at most 3 * 4000 ms = 12 s of
+        // pure pacing before its request even starts, leaving 18 of the
+        // 30 s hard deadline for the round-trips themselves (measured live
+        // fan-out latency is ~1.7 s per `docs/harness.md`, so 4 serial
+        // round-trips comfortably fit). `MAX_QUERIES` (8) queries all
+        // landing on one engine (e.g. `SEARCH_ENGINES=duckduckgo` and 8
+        // input Queries) would otherwise let the 8th wait up to 7 * 4000 ms
+        // = 28 s before starting -- past the soft deadline and eating
+        // nearly the whole hard one.
+        let max_queries_per_engine = env_u64("SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN", 4) as usize;
         Governor(std::sync::Arc::new(GovernorInner {
             cache_root,
             hermetic: false,
             views: Mutex::new(views),
             queues: fresh_queues(),
             max_requests_per_engine,
+            max_queries_per_engine,
             base_wall_ms,
             base_mono,
         }))
@@ -362,6 +384,13 @@ impl Governor {
         } else {
             enabled_providers()
         }
+    }
+
+    /// Per-turn cap on Queries dispatched to one engine (#63,
+    /// `SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN`, default 4); `usize::MAX`
+    /// for a hermetic `Governor` (no cap).
+    pub(crate) fn max_queries_per_engine(&self) -> usize {
+        self.0.max_queries_per_engine
     }
 
     /// `Some((remaining_secs, reason))` if `provider` is currently under an
@@ -524,42 +553,80 @@ impl Governor {
     }
 }
 
+/// Test-only env-var guard for `SEARCH_ENGINES`/`SEARCH_SUSPEND_*`/
+/// `SEARCH_PACE_*`/`SEARCH_MAX_REQUESTS_PER_ENGINE`, shared across
+/// `governor::tests` and `fanout::tests` (both mutate these and run in the
+/// same test binary; same pattern as `cache::test_support::EnvGuard`).
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::{LazyLock, MutexGuard};
+pub(crate) mod test_support {
+    use std::sync::{LazyLock, Mutex, MutexGuard};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-    /// Serializes tests that mutate `SEARCH_*` env vars (matches the
-    /// `EnvGuard` pattern in `llm::config::tests`): every ambient env var
-    /// this module reads is process-global, so parallel `cargo test`
-    /// threads racing on `SEARCH_ENGINES`/`SEARCH_SUSPEND_*`/`SEARCH_PACE_*`
-    /// would otherwise see each other's values. Clears every set key on
-    /// drop, after releasing nothing until the guard itself drops (the lock
-    /// is held for the guard's whole lifetime).
-    struct EnvGuard {
-        keys: Vec<String>,
+    /// Every `SEARCH_*` key this module's env-reading functions consult, so
+    /// `set`/`Drop` can clear exactly the keys a test might have touched
+    /// without hard-coding the same list at every call site.
+    const GOVERNOR_KEYS: [&str; 12] = [
+        "SEARCH_ENGINES",
+        "SEARCH_SUSPEND_CHALLENGE_SECS",
+        "SEARCH_SUSPEND_403_SECS",
+        "SEARCH_SUSPEND_429_SECS",
+        "SEARCH_SUSPEND_UPSTREAM_SECS",
+        "SEARCH_SUSPEND_TIMEOUT_SECS",
+        "SEARCH_PACE_MIN_MS",
+        "SEARCH_PACE_MAX_MS",
+        "SEARCH_PACE_DUCKDUCKGO_MIN_MS",
+        "SEARCH_PACE_DUCKDUCKGO_MAX_MS",
+        "SEARCH_PACE_STARTPAGE_MIN_MS",
+        "SEARCH_PACE_STARTPAGE_MAX_MS",
+    ];
+
+    /// Serializes tests that mutate any governor env var and clears every
+    /// known key on both acquisition and drop, so one test's override never
+    /// leaks into the next regardless of which side left it set.
+    pub(crate) struct EnvGuard {
         _lock: MutexGuard<'static, ()>,
     }
+
     impl EnvGuard {
-        fn set(pairs: &[(&str, &str)]) -> Self {
-            let lock = ENV_LOCK.lock().expect("env lock");
-            let mut keys = Vec::new();
+        pub(crate) fn lock() -> Self {
+            let lock = ENV_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            for key in GOVERNOR_KEYS {
+                std::env::remove_var(key);
+            }
+            Self { _lock: lock }
+        }
+
+        /// Acquire the lock, clear every known key, then set the given
+        /// pairs (which may include `SEARCH_MAX_REQUESTS_PER_ENGINE`, not
+        /// in `GOVERNOR_KEYS` since it is cleared via `Drop` separately by
+        /// callers that use it -- kept out of the shared list because only
+        /// one test reads it).
+        pub(crate) fn set(pairs: &[(&str, &str)]) -> Self {
+            let guard = Self::lock();
             for (k, v) in pairs {
                 std::env::set_var(k, v);
-                keys.push(k.to_string());
             }
-            EnvGuard { keys, _lock: lock }
+            guard
         }
     }
+
     impl Drop for EnvGuard {
         fn drop(&mut self) {
-            for k in &self.keys {
-                std::env::remove_var(k);
+            for key in GOVERNOR_KEYS {
+                std::env::remove_var(key);
             }
+            std::env::remove_var("SEARCH_MAX_REQUESTS_PER_ENGINE");
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::EnvGuard;
 
     #[test]
     fn enabled_providers_defaults_to_duckduckgo_only() {
