@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `web::search::cache`: on-disk cache for search legs, keyed by normalized query (trim, collapse whitespace, lowercase) + recency + engine + page (#67). Entries live under `<cache_root>/search/`, one file per leg, atomic writes via `cache_dir::write_atomic`. Cached per engine leg, not per merged fan-out output, so a cached leg for one engine and a live leg for another still merge normally. TTL defaults to 24h, 1h when the Query's `recency` is `day`; `SEARCH_CACHE_TTL_SECS` overrides both uniformly; `SEARCH_CACHE=off` disables lookup and store outright. Only a settled `Ok` leg is ever stored: a `Challenge`/`Timeout`/`Upstream` leg error has no code path into the cache. A zero-row result is cached like any other successful leg. Size-capped (`SEARCH_CACHE_MAX_BYTES`, default 20 MiB) with oldest-first eviction by `fetched_at`, run automatically after every `store`. A corrupt entry is treated as already expired (ignored on lookup, evicted first, overwritten on the next `store` at the same key) rather than failing the leg.
+- `web::cache_dir`: shared cache-root resolution (`SEARCH_CACHE_DIR`, else `XDG_CACHE_HOME/web-agent-research`, else `HOME/.cache/web-agent-research`, else disabled) and the atomic-write helper, used by `web::search::cache` (#67).
+
 ### Changed
 
 - `is_startpage_challenge` also detects the Anubis proof-of-work challenge page (`id="anubis_challenge"`, `/.within.website/x/cmd/anubis/`) and a final URL under `/sp/cdn/error-pages/blocked`, alongside the existing `/sp/captcha`/`component---src-pages-captcha` markers; the bare word `anubis` in a result snippet never triggers it (#53).

@@ -46,6 +46,19 @@ The binary reads only the process environment; it does not load `.env` itself. L
 - Reasoning/thinking tokens count against `max_completion_tokens`/`max_tokens`, not a separate budget: `GATEWAY_THINKING_BUDGET` must stay strictly below `GATEWAY_MAX_TOKENS` when both are set (some providers, e.g. Anthropic via OpenRouter, enforce this themselves and error otherwise).
 - Claude Haiku 4.5 supports manual thinking only (`budget_tokens`), not `output_config.effort`: leave `GATEWAY_REASONING_EFFORT` unset for it.
 
+### Search cache
+
+`web::search::cache` (#67) persists search-leg results per (engine, normalized query, recency, page) under `<cache_root>/search/` so a repeated `search` call across turns or runs skips the HTTP request entirely. Cache root resolution (`web::cache_dir`): `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research`; when none of those resolve (both `HOME` and `XDG_CACHE_HOME` unset/empty) caching is silently disabled, never an error.
+
+| Variable | Required | Default | Invalid value |
+|---|---|---|---|
+| `SEARCH_CACHE_DIR` | no | unset (falls back to `XDG_CACHE_HOME`/`HOME`) | n/a (any non-empty path accepted) |
+| `SEARCH_CACHE` | no | enabled | `off` disables both lookup and store; any other value is ignored and caching stays enabled |
+| `SEARCH_CACHE_TTL_SECS` | no | `86400` (24h), `3600` (1h) when the `search` call's `recency` is `day` | not a valid `u64` is ignored, default TTL applies |
+| `SEARCH_CACHE_MAX_BYTES` | no | `20971520` (20 MiB) of `search/`, oldest-first eviction by fetched-at | not a valid `u64` is ignored, default cap applies |
+
+To clear the cache, delete the resolved cache root's `search/` directory (`rm -rf "${SEARCH_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/web-agent-research}/search"`), or set `SEARCH_CACHE_DIR` to an empty/fresh directory for one run.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
