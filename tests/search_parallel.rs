@@ -130,6 +130,7 @@ async fn fanout_merges_across_queries_and_providers() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        None,
     )
     .await
     .expect("overlap merges");
@@ -166,6 +167,7 @@ async fn fanout_all_fail_returns_all_failed_503() {
         &format!("{base}/missing/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        None,
     )
     .await
     .expect_err("all legs fail -> AllFailed");

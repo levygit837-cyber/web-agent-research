@@ -4,8 +4,10 @@
 //! per-leg errors collect into the output. Partial success is `Ok`; only
 //! total-leg failure is `Err(AllFailed)`.
 
+use std::path::Path;
 use std::time::Duration;
 
+use crate::web::search::cache;
 use crate::web::search::ddg::{ddg_search, DDG_HTML_URL};
 use crate::web::search::dedup::merge_sources_in_order;
 use crate::web::search::startpage::{startpage_search, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL};
@@ -62,6 +64,7 @@ pub fn all_failed_message(failures: &[(String, String)]) -> String {
 pub async fn search_multi(
     client: &reqwest::Client,
     input: SearchInput,
+    cache_root: Option<&Path>,
 ) -> Result<SearchOutput, SearchProviderError> {
     search_multi_with_bases(
         client,
@@ -69,6 +72,7 @@ pub async fn search_multi(
         DDG_HTML_URL,
         STARTPAGE_HOME_URL,
         STARTPAGE_SEARCH_URL,
+        cache_root,
     )
     .await
 }
@@ -90,6 +94,7 @@ pub async fn search_multi_with_bases(
     ddg_base: &str,
     sp_home: &str,
     sp_search: &str,
+    cache_root: Option<&Path>,
 ) -> Result<SearchOutput, SearchProviderError> {
     let queries = input.queries.clone();
     let recency = input.recency;
@@ -111,10 +116,35 @@ pub async fn search_multi_with_bases(
                 sp_home.to_string(),
                 sp_search.to_string(),
             );
+            let cache_root_owned = cache_root.map(Path::to_path_buf);
             let slot = (query_index, provider);
             leg_slots.push(slot);
             leg_ids.push(
                 set.spawn(async move {
+                    // Cache lookup per leg, not per merged output: a hit
+                    // here for one provider never blocks the other
+                    // provider's live request for the same Query.
+                    if let Some(mut rows) = cache::lookup(
+                        cache_root_owned.as_deref(),
+                        provider,
+                        &query_owned,
+                        recency,
+                        0,
+                    ) {
+                        // A cache hit may come from a differently-spelled
+                        // Query that normalizes to the same key (e.g.
+                        // "Rust  async" vs "rust async"); re-stamp `query`
+                        // with this call's exact string so
+                        // `merge_sources_in_order`'s `queries.position`
+                        // lookup and the documented `SearchResult.query`
+                        // contract ("the exact Query string that produced
+                        // this hit") both hold on a hit, not only on a
+                        // live leg.
+                        for row in &mut rows {
+                            row.query = query_owned.clone();
+                        }
+                        return (slot, query_owned, Ok(rows));
+                    }
                     let outcome: Result<Vec<SearchResult>, SearchProviderError> = match provider {
                         SearchProvider::Startpage => {
                             startpage_search(&client_owned, &query_owned, recency, &home, &search)
@@ -124,6 +154,18 @@ pub async fn search_multi_with_bases(
                             ddg_search(&client_owned, &query_owned, recency, &ddg).await
                         }
                     };
+                    // Store only a settled `Ok` leg: a Challenge/Timeout/
+                    // Upstream `Err` never reaches `cache::store`.
+                    if let Ok(rows) = &outcome {
+                        cache::store(
+                            cache_root_owned.as_deref(),
+                            provider,
+                            &query_owned,
+                            recency,
+                            0,
+                            rows,
+                        );
+                    }
                     (slot, query_owned, outcome)
                 })
                 .id(),
@@ -269,6 +311,7 @@ fn error_detail(err: &SearchProviderError) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::super::cache::test_support::EnvGuard;
     use super::super::ddg::map_ddg_response;
     use super::super::startpage::map_startpage_response;
     use super::super::test_support::{ddg_rows, sp_home_form, sp_rows, FanoutStub, StubServer};
@@ -281,6 +324,186 @@ mod tests {
             ("startpage".to_string(), "bust".to_string()),
         ]);
         assert_eq!(msg, "duckduckgo: boom; startpage: bust");
+    }
+
+    #[tokio::test]
+    async fn repeat_search_with_cache_root_makes_zero_http_requests() {
+        // Acceptance (#67): a second identical `search_multi_with_bases`
+        // call against the same `cache_root` must not touch the network at
+        // all -- proven here by the local stub's per-route hit counter
+        // staying flat across the second call, not just by asserting the
+        // returned rows match. Holds the same env lock as `cache::tests`:
+        // this test depends on `SEARCH_CACHE`/`SEARCH_CACHE_TTL_SECS`/
+        // `SEARCH_CACHE_MAX_BYTES` staying at their defaults, which those
+        // tests mutate in the same process.
+        let _guard = EnvGuard::lock();
+        let root = std::env::temp_dir().join(format!(
+            "war-fanout-cache-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&root).expect("create temp cache root");
+        let shared = "https://example.com/cached";
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows(shared, "Cached DDG", "ddg text"),
+            sp_home_form(),
+            sp_rows(shared, "Cached SP", "sp text"),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let make_input = || {
+            SearchInput::validate(vec!["cached query".to_string()], Some(15), None).expect("valid")
+        };
+        let first = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect("first call succeeds and populates the cache");
+        assert!(
+            !first.results.is_empty(),
+            "first call must actually hit the stub"
+        );
+        let html_hits_after_first = hits
+            .lock()
+            .expect("hits")
+            .get("/html/")
+            .copied()
+            .unwrap_or(0);
+        let sp_hits_after_first = hits
+            .lock()
+            .expect("hits")
+            .get("/sp/search")
+            .copied()
+            .unwrap_or(0);
+        assert!(
+            html_hits_after_first > 0,
+            "DDG leg must have hit the stub once"
+        );
+        assert!(
+            sp_hits_after_first > 0,
+            "Startpage leg must have hit the stub once"
+        );
+        let second = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect("second call is served entirely from cache");
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/html/")
+                .copied()
+                .unwrap_or(0),
+            html_hits_after_first,
+            "a second identical search must make zero DDG HTTP requests"
+        );
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/sp/search")
+                .copied()
+                .unwrap_or(0),
+            sp_hits_after_first,
+            "a second identical search must make zero Startpage HTTP requests"
+        );
+        assert_eq!(
+            second.results, first.results,
+            "cached rows must round-trip identically"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[tokio::test]
+    async fn challenged_leg_is_never_cached() {
+        // Acceptance (#67): "a Challenge is never cached." Drives the real
+        // fan-out call site (not a reimplemented `if let Ok` in the test)
+        // against a stub that Challenge-walls both legs: a second call
+        // must hit the stub again, and the cache directory must end up
+        // with no entries, because `store` is inside `if let Ok(rows) =
+        // &outcome` at the leg closure and a Challenge is an `Err`.
+        let _guard = EnvGuard::lock();
+        let root = std::env::temp_dir().join(format!(
+            "war-fanout-challenge-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&root).expect("create temp cache root");
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            r#"<script id="anubis_challenge" type="application/json">{}</script>"#.to_string(),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let make_input = || {
+            SearchInput::validate(vec!["walled query".to_string()], Some(15), None).expect("valid")
+        };
+        let first_err = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect_err("both legs Challenge -> AllFailed, nothing merges");
+        assert_eq!(first_err.code(), "all_failed");
+        let html_hits_after_first = hits
+            .lock()
+            .expect("hits")
+            .get("/html/")
+            .copied()
+            .unwrap_or(0);
+        assert!(
+            html_hits_after_first > 0,
+            "the DDG leg must have hit the stub"
+        );
+        // The cache must hold no entry for the Challenged leg.
+        let search_dir = root.join("search");
+        let entry_count = std::fs::read_dir(&search_dir)
+            .map(|read_dir| read_dir.flatten().count())
+            .unwrap_or(0);
+        assert_eq!(
+            entry_count, 0,
+            "a Challenge leg must never write a cache entry"
+        );
+        // A second call must hit the stub again -- proof by absence of a
+        // cache short-circuit, not merely by inspecting the directory.
+        let second_err = search_multi_with_bases(
+            &client,
+            make_input(),
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            Some(&root),
+        )
+        .await
+        .expect_err("still Challenge-walled, no cache to short-circuit it");
+        assert_eq!(second_err.code(), "all_failed");
+        assert!(
+            hits.lock().expect("hits").get("/html/").copied().unwrap_or(0) > html_hits_after_first,
+            "a Challenge leg must never be served from cache: the second call must hit the stub again"
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]
@@ -346,6 +569,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            None,
         )
         .await
         .expect("partial overlap still merges");
@@ -389,6 +613,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            None,
         )
         .await
         .expect("duplicate queries still merge");
@@ -429,6 +654,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            None,
         )
         .await
         .expect("partial success is Ok");
@@ -464,6 +690,7 @@ mod tests {
             &format!("{base}/missing/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            None,
         )
         .await
         .expect_err("all legs fail -> AllFailed");
@@ -503,6 +730,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            None,
         )
         .await
         .expect_err("both legs Challenge -> AllFailed");
