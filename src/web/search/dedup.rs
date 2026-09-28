@@ -2,6 +2,9 @@
 //!
 //! Raw provider hits fold into deduped groups keyed by URL identity;
 //! each group becomes one MergedResult for the agent-loop Queries.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use std::collections::HashMap;
 

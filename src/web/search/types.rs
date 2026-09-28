@@ -4,6 +4,9 @@
 //! (both fetch-only HTML, no credentials), dedups hits by URL key and returns
 //! consensus-ranked merged results. Provider text inside hits is an ungrounded
 //! candidate: only fetched page content with URL + time becomes Evidence.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use serde::{Deserialize, Serialize};
 
