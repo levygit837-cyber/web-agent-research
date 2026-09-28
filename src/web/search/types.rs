@@ -243,13 +243,26 @@ pub enum SearchProviderError {
         retry_after_secs: Option<u64>,
     },
     /// Engine skipped: still under an active suspension recorded from a
-    /// prior Challenge/403/429 on this or an earlier run (#62). No HTTP
-    /// request was attempted for this leg. `remaining_secs` is the time
-    /// left on the suspension at the moment it was checked.
+    /// prior Challenge/403/429/5xx/transport failure, or from a real
+    /// `Retry-After`, on this or an earlier run (#62). No HTTP request was
+    /// attempted for this leg. `remaining_secs` is the time left on the
+    /// suspension at the moment it was checked.
     Suspended {
         provider: SearchProvider,
         remaining_secs: u64,
         reason: String,
+    },
+    /// Engine skipped by a local scheduling decision, not a bot-wall
+    /// signal: the cap on Queries dispatched to one engine within a call
+    /// (`SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`) or the per-run request
+    /// cap (`SEARCH_MAX_REQUESTS_PER_ENGINE`) was already reached for this
+    /// engine (#63). No HTTP request was attempted for this leg. Distinct
+    /// from `Suspended`/`Challenge` so it never counts toward
+    /// `AllFailed.all_challenged` -- a busy run hitting its own cap says
+    /// nothing about the engine's health.
+    Throttled {
+        provider: SearchProvider,
+        detail: String,
     },
     /// Every leg failed AND nothing merged -> 503
     /// (Omp "All public engines failed: ...").
@@ -257,8 +270,9 @@ pub enum SearchProviderError {
         failures: String,
         /// Whether every one of those failed legs was itself a bot-wall
         /// signal -- a live `Challenge` or an active `Suspended` skip
-        /// recorded from one (#53, extended #62) -- never a `Timeout`/
-        /// `Upstream` mix: the signal `research::agent_loop` uses to
+        /// whose `reason` is itself `"challenge"` (#53, extended #62) --
+        /// never a `Timeout`/`Upstream`/`Throttled`/non-challenge
+        /// `Suspended` mix: the signal `research::agent_loop` uses to
         /// surface a typed `SearchBlocked` failure instead of a silent
         /// empty Synthesis.
         all_challenged: bool,
@@ -277,6 +291,9 @@ impl SearchProviderError {
             // A skip, not a live response, but the bot-wall condition it
             // reflects is the same class as `Challenge` (#62).
             SearchProviderError::Suspended { .. } => 429,
+            // A local scheduling decision, not a bot-wall signal: same
+            // numeric class as `Upstream` (#63).
+            SearchProviderError::Throttled { .. } => 503,
             SearchProviderError::AllFailed { .. } => 503,
         }
     }
@@ -290,6 +307,7 @@ impl SearchProviderError {
             SearchProviderError::Timeout { .. } => "timeout",
             SearchProviderError::Upstream { .. } => "upstream",
             SearchProviderError::Suspended { .. } => "suspended",
+            SearchProviderError::Throttled { .. } => "throttled",
             SearchProviderError::AllFailed { .. } => "all_failed",
         }
     }
@@ -303,6 +321,7 @@ impl SearchProviderError {
             SearchProviderError::Timeout { provider, .. } => Some(*provider),
             SearchProviderError::Upstream { provider, .. } => Some(*provider),
             SearchProviderError::Suspended { provider, .. } => Some(*provider),
+            SearchProviderError::Throttled { provider, .. } => Some(*provider),
             SearchProviderError::AllFailed { .. } => None,
         }
     }

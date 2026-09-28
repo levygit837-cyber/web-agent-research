@@ -10,7 +10,24 @@
 //! deterministically in hermetic tests. Wall clock (`SystemTime`) is used
 //! only to bridge a persisted timestamp across process boundaries: once at
 //! load (`wall_to_mono`) and once at save (`mono_to_wall`), both relative to
-//! one `(base_wall_ms, base_mono)` pair fixed at construction.
+//! one `(base_wall_ms, base_mono)` pair fixed at construction. A persisted
+//! timestamp is loaded lazily (`ensure_loaded`, on first real use of a
+//! non-hermetic `Governor`), not eagerly at construction: `Searcher::new()`
+//! is not fallible and must not touch disk before the first `search` call.
+//!
+//! One engine's requests never overlap: [`Governor::acquire`] returns an
+//! [`EnginePermit`] that holds this engine's serial queue for the whole
+//! leg (however many wire requests it turns out to need -- DDG's page-1
+//! POST plus any continuation re-POSTs, Startpage's homepage GET plus its
+//! search POST/GET fallback); [`EnginePermit::pace`], called once right
+//! after acquiring and before the leg's first wire request, rechecks
+//! suspension and the per-run budget (closing the race where a sibling
+//! leg for the same engine settles -- and suspends the engine, or
+//! exhausts the budget -- while this leg was still queued) and then waits
+//! the jittered gap since the last *leg* dispatched to this engine. A
+//! multi-request leg's own internal follow-up requests (DDG continuation
+//! pages, Startpage's GET fallback) are not independently gapped or
+//! re-checked; only each leg's first request is.
 //!
 //! Hermetic rule: [`Governor::hermetic`] (used by `Searcher::with_bases`
 //! and every existing fan-out test) never persists, never paces, and always
@@ -18,14 +35,19 @@
 //! allowlist (#64) is a production-path concern, tested directly via
 //! [`enabled_providers`] and via [`Governor::new`] with an opt-in temp dir,
 //! never through the hermetic seam. [`Governor::new`] is the production
-//! (and opt-in-test) path: engine allowlist, suspension durations, pacing
-//! gaps, and the per-run request cap all come from `SEARCH_*` env vars read
-//! once at construction; state persists to `<cache_root>/engines.json` when
-//! a cache root is given, in-memory-only otherwise.
+//! (and opt-in-test) path: only the two request caps
+//! (`SEARCH_MAX_REQUESTS_PER_ENGINE`/`SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`)
+//! are read once, at construction; the engine allowlist, suspension
+//! durations, and pacing gaps are re-read from env on every call
+//! ([`enabled_providers`], [`suspension_for`], [`resolve_gap`]), so a test
+//! that mutates `SEARCH_*` between two calls on the same `Governor` sees
+//! the new value immediately. State persists to
+//! `<cache_root>/engines.json` when a cache root is given, in-memory-only
+//! otherwise.
 
 use std::collections::HashMap;
-use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -80,17 +102,28 @@ fn now_wall_ms() -> i64 {
 
 /// `ms` (wall clock, millis since epoch) -> the `Instant` that same moment
 /// corresponds to, given the `(base_wall_ms, base_mono)` reference pair.
-/// Clamps to `base_mono` on overflow or on a timestamp before the epoch
-/// reference (safe direction: never waits *less* than a correct bridge
-/// would have).
-fn wall_to_mono(ms: i64, base_wall_ms: i64, base_mono: Instant) -> Instant {
+/// `ms` at or after `base_wall_ms` (the common case for a still-active
+/// suspension, or a future timestamp from clock skew) offsets forward from
+/// `base_mono`, clamping to `base_mono` on the (pathological) overflow case.
+/// `ms` before `base_wall_ms` (the common case for `last_request_ms`, which
+/// is always in the past by construction, and for an already-expired
+/// suspension) offsets *backward* from `base_mono` by the real elapsed wall
+/// time, so callers see the true historical gap instead of "just now" --
+/// `None` when that offset underflows `Instant` (a timestamp far enough in
+/// the past that no realistic pacing gap or suspension window could still
+/// apply to it), which callers treat as "no residual state", the same
+/// outcome an accurate arbitrary-precision clock would produce.
+fn wall_to_mono(ms: i64, base_wall_ms: i64, base_mono: Instant) -> Option<Instant> {
     let delta_ms = ms.saturating_sub(base_wall_ms);
-    if delta_ms <= 0 {
-        return base_mono;
+    if delta_ms >= 0 {
+        Some(
+            base_mono
+                .checked_add(Duration::from_millis(delta_ms as u64))
+                .unwrap_or(base_mono),
+        )
+    } else {
+        base_mono.checked_sub(Duration::from_millis((-delta_ms) as u64))
     }
-    base_mono
-        .checked_add(Duration::from_millis(delta_ms as u64))
-        .unwrap_or(base_mono)
 }
 
 /// Inverse of [`wall_to_mono`].
@@ -169,9 +202,10 @@ struct Suspension {
 ///   conditions it may not have caused. Operators on a congested network
 ///   can opt in via env.
 /// - Anything else (`EmptyQuery`, `TooManyQueries`, `Suspended`,
-///   `AllFailed`) -> never suspends here (input errors do not belong to a
-///   leg; `Suspended` is itself the skip, not a new failure to record; the
-///   whole-call `AllFailed` is derived, not a leg outcome).
+///   `Throttled`, `AllFailed`) -> never suspends here (input errors do not
+///   belong to a leg; `Suspended`/`Throttled` are themselves a skip, not a
+///   new failure to record; the whole-call `AllFailed` is derived, not a
+///   leg outcome).
 fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
     match err {
         SearchProviderError::Challenge { .. } => Some(Suspension {
@@ -217,15 +251,16 @@ fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
         SearchProviderError::EmptyQuery
         | SearchProviderError::TooManyQueries { .. }
         | SearchProviderError::Suspended { .. }
+        | SearchProviderError::Throttled { .. }
         | SearchProviderError::AllFailed { .. } => None,
     }
 }
 
-/// Per-engine pacing gap `[min, max)` (#63: "random gap between requests").
+/// Per-engine pacing gap `[min, max]` (#63: "random gap between requests").
 /// `SEARCH_PACE_<ENGINE>_MIN_MS`/`_MAX_MS` (engine = `provider.id()`
 /// upper-cased, e.g. `SEARCH_PACE_DUCKDUCKGO_MIN_MS`) override the engine,
 /// else `SEARCH_PACE_MIN_MS`/`_MAX_MS` override the global default, else
-/// 1500..4000 ms. A max at or below min degenerates to that fixed gap (no
+/// 1500..=4000 ms. A max at or below min degenerates to that fixed gap (no
 /// jitter, never a panic).
 fn resolve_gap(provider: SearchProvider) -> (Duration, Duration) {
     let engine = provider.id().to_uppercase();
@@ -261,15 +296,28 @@ struct GovernorInner {
     /// are all no-ops and `enabled_providers` always returns both engines,
     /// regardless of ambient `SEARCH_*` env vars.
     hermetic: bool,
+    /// `true` once `engines.json` has been read into `views` (or would be,
+    /// for a hermetic `Governor`, which starts `true` and never loads).
+    /// Guards a one-time lazy load on first real use, so `Governor::new`
+    /// (and therefore `Searcher::new`) never touches disk before the first
+    /// suspension check or paced call.
+    loaded: AtomicBool,
     views: Mutex<HashMap<SearchProvider, EngineView>>,
     /// One serial queue per engine: concurrent legs for the *same* engine
-    /// queue up here and each wait their turn (including holding the lock
-    /// across the paced HTTP call itself, so same-engine requests never
-    /// overlap); different engines have independent queues and therefore
-    /// run in parallel with each other (#63).
+    /// queue up here and each wait their turn (an [`EnginePermit`] holds
+    /// this lock for its entire leg, however many wire requests that leg
+    /// turns out to need, so same-engine wire requests never overlap);
+    /// different engines have independent queues and therefore run in
+    /// parallel with each other (#63).
     queues: HashMap<SearchProvider, AsyncMutex<()>>,
+    /// Serializes `persist`'s snapshot-then-write so two engines'
+    /// concurrent persists cannot race: without this, engine A could
+    /// snapshot, engine B could snapshot and rename first, then A's
+    /// (older) snapshot renames last and silently drops B's update.
+    persist_lock: Mutex<()>,
     max_requests_per_engine: u32,
-    /// Per-turn cap on Queries dispatched to one engine (#63); see
+    /// Cap on Queries dispatched to one engine within a single
+    /// `search_multi_with_bases` call (#63); see
     /// [`Governor::max_queries_per_engine`] for the deadline math behind
     /// the default.
     max_queries_per_engine: usize,
@@ -294,8 +342,8 @@ fn fresh_queues() -> HashMap<SearchProvider, AsyncMutex<()>> {
 pub struct Governor(std::sync::Arc<GovernorInner>);
 
 impl Governor {
-    /// Hermetic seam: no persisted state, zero pacing delay, no per-run
-    /// cap, no per-turn query cap, both providers always enabled. Used by
+    /// Hermetic seam: no persisted state, zero pacing delay, no per-run or
+    /// per-call cap, both providers always enabled. Used by
     /// `Searcher::with_bases` and every pre-existing fan-out test; the
     /// #62/#63/#64 features themselves are tested via `enabled_providers`
     /// directly and via [`Governor::new`] with an explicit temp dir.
@@ -304,8 +352,10 @@ impl Governor {
         Governor(std::sync::Arc::new(GovernorInner {
             cache_root: None,
             hermetic: true,
+            loaded: AtomicBool::new(true),
             views: Mutex::new(HashMap::new()),
             queues: fresh_queues(),
+            persist_lock: Mutex::new(()),
             max_requests_per_engine: u32::MAX,
             max_queries_per_engine: usize::MAX,
             base_wall_ms: now_wall_ms(),
@@ -314,42 +364,17 @@ impl Governor {
     }
 
     /// Production seam: engine allowlist, suspension durations, pacing
-    /// gaps, the per-run request cap, and the per-turn query cap all come
-    /// from `SEARCH_*` env vars read once here. Persists to
-    /// `<cache_root>/engines.json` when `cache_root` is `Some`; in-memory
-    /// only (still paced/suspension-aware for this `Governor`'s lifetime,
-    /// just with no cross-run memory) otherwise. A corrupt or missing
+    /// gaps, and both caps all come from `SEARCH_*` env vars read once
+    /// here. `<cache_root>/engines.json`, when `cache_root` is `Some`, is
+    /// read lazily on first real use ([`ensure_loaded`](Self::acquire)),
+    /// not here: construction never touches disk. A corrupt or missing
     /// `engines.json` loads as empty state, never an error.
     pub(crate) fn new(cache_root: Option<PathBuf>) -> Self {
-        let persisted = cache_root
-            .as_deref()
-            .map(load_persisted)
-            .unwrap_or_default();
-        let base_wall_ms = now_wall_ms();
-        let base_mono = Instant::now();
-        let mut views = HashMap::new();
-        for provider in ALL_PROVIDERS {
-            let entry = persisted.engines.get(provider.id());
-            views.insert(
-                provider,
-                EngineView {
-                    suspended_until: entry
-                        .and_then(|e| e.suspended_until_ms)
-                        .map(|ms| wall_to_mono(ms, base_wall_ms, base_mono)),
-                    suspend_reason: entry
-                        .and_then(|e| e.suspend_reason.clone())
-                        .unwrap_or_default(),
-                    last_request: entry
-                        .and_then(|e| e.last_request_ms)
-                        .map(|ms| wall_to_mono(ms, base_wall_ms, base_mono)),
-                    request_count: 0,
-                },
-            );
-        }
         let max_requests_per_engine =
             env_u64("SEARCH_MAX_REQUESTS_PER_ENGINE", 200).min(u32::MAX as u64) as u32;
-        // #63: "per-turn cap on queries per engine", accounting for the
-        // pacing gap so the soft/hard fan-out deadlines (5 s / 30 s,
+        // #63: cap on Queries dispatched to one engine within a single
+        // `search_multi_with_bases` call, accounting for the pacing gap so
+        // the soft/hard fan-out deadlines (5 s / 30 s,
         // `SOFT_DEADLINE_SECS`/`HARD_DEADLINE_SECS`) still make sense once
         // requests to one engine are serialized with a jittered gap
         // between them instead of firing in parallel. Default 4: with the
@@ -363,17 +388,47 @@ impl Governor {
         // input Queries) would otherwise let the 8th wait up to 7 * 4000 ms
         // = 28 s before starting -- past the soft deadline and eating
         // nearly the whole hard one.
-        let max_queries_per_engine = env_u64("SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN", 4) as usize;
+        let max_queries_per_engine = env_u64("SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL", 4) as usize;
         Governor(std::sync::Arc::new(GovernorInner {
             cache_root,
             hermetic: false,
-            views: Mutex::new(views),
+            loaded: AtomicBool::new(false),
+            views: Mutex::new(HashMap::new()),
             queues: fresh_queues(),
+            persist_lock: Mutex::new(()),
             max_requests_per_engine,
             max_queries_per_engine,
-            base_wall_ms,
-            base_mono,
+            base_wall_ms: now_wall_ms(),
+            base_mono: Instant::now(),
         }))
+    }
+
+    /// One-time lazy load of `<cache_root>/engines.json` into `views`, on
+    /// first real use of a non-hermetic `Governor` with a cache root.
+    /// Idempotent (an `AtomicBool` swap guards the actual read): safe to
+    /// call at the top of every accessor that needs persisted state.
+    fn ensure_loaded(&self) {
+        if self.0.loaded.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let Some(cache_root) = &self.0.cache_root else {
+            return;
+        };
+        let persisted = load_persisted(cache_root);
+        let mut views = self.0.views.lock().expect("governor views lock");
+        for provider in ALL_PROVIDERS {
+            let entry = persisted.engines.get(provider.id());
+            let view = views.entry(provider).or_default();
+            view.suspended_until = entry
+                .and_then(|e| e.suspended_until_ms)
+                .and_then(|ms| wall_to_mono(ms, self.0.base_wall_ms, self.0.base_mono));
+            view.suspend_reason = entry
+                .and_then(|e| e.suspend_reason.clone())
+                .unwrap_or_default();
+            view.last_request = entry
+                .and_then(|e| e.last_request_ms)
+                .and_then(|ms| wall_to_mono(ms, self.0.base_wall_ms, self.0.base_mono));
+        }
     }
 
     /// Providers this fan-out call should attempt, in merge-priority order
@@ -386,9 +441,9 @@ impl Governor {
         }
     }
 
-    /// Per-turn cap on Queries dispatched to one engine (#63,
-    /// `SEARCH_MAX_QUERIES_PER_ENGINE_PER_TURN`, default 4); `usize::MAX`
-    /// for a hermetic `Governor` (no cap).
+    /// Cap on Queries dispatched to one engine within a single fan-out call
+    /// (#63, `SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`, default 4);
+    /// `usize::MAX` for a hermetic `Governor` (no cap).
     pub(crate) fn max_queries_per_engine(&self) -> usize {
         self.0.max_queries_per_engine
     }
@@ -398,6 +453,9 @@ impl Governor {
     /// call). Compares against `Instant::now()`, so a paused tokio clock
     /// drives expiry deterministically in tests.
     pub(crate) fn suspended_remaining(&self, provider: SearchProvider) -> Option<(u64, String)> {
+        if !self.0.hermetic {
+            self.ensure_loaded();
+        }
         let views = self.0.views.lock().expect("governor views lock");
         let view = views.get(&provider)?;
         let until = view.suspended_until?;
@@ -411,8 +469,12 @@ impl Governor {
 
     /// `true` once `provider` has reached the per-run request cap
     /// (`SEARCH_MAX_REQUESTS_PER_ENGINE`, default 200); always `false` for
-    /// a hermetic `Governor`. Checked before pacing/dispatch, so an
-    /// exhausted budget never sends an HTTP request either.
+    /// a hermetic `Governor`. A cheap up-front check so a leg that is
+    /// already over budget skips queueing on this engine entirely; the
+    /// actual enforcement (closing the race a plain check-then-later-
+    /// increment would leave open under concurrent legs) is
+    /// [`EnginePermit::pace`]'s check-and-reserve, which runs while this
+    /// engine's serial queue is held and so can never race with itself.
     pub(crate) fn over_budget(&self, provider: SearchProvider) -> bool {
         if self.0.hermetic {
             return false;
@@ -424,53 +486,28 @@ impl Governor {
             .unwrap_or(false)
     }
 
-    /// Run one leg's dispatch under this engine's serial queue: wait for
-    /// the jittered gap since the last request to *this* engine (across
-    /// the whole process, seeded from `engines.json` on a fresh process),
-    /// then run `dispatch`, holding the queue lock the entire time so a
-    /// second leg for the same engine cannot start until this one's
-    /// request has fully completed (#63: "requests to one engine never
-    /// overlap"). A no-op wrapper (immediate dispatch, no wait, no
-    /// bookkeeping) for a hermetic `Governor`.
-    pub(crate) async fn paced_call<F, Fut, T>(&self, provider: SearchProvider, dispatch: F) -> T
-    where
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = T>,
-    {
-        if self.0.hermetic {
-            return dispatch().await;
-        }
-        let queue = self
+    /// Acquire `provider`'s serial queue for the whole leg that follows,
+    /// however many wire requests it turns out to need. Holding the
+    /// returned [`EnginePermit`] blocks every other leg for the *same*
+    /// engine (including a leg on a different query, or a concurrent
+    /// fan-out call sharing this `Governor`) until it is dropped; legs for
+    /// a *different* engine are never blocked by this (#63: "engines still
+    /// run in parallel with each other"). Acquiring does not itself wait
+    /// or make any HTTP request -- call [`EnginePermit::pace`] before each
+    /// actual wire request.
+    pub(crate) async fn acquire(&self, provider: SearchProvider) -> EnginePermit<'_> {
+        let serial = self
             .0
             .queues
             .get(&provider)
-            .expect("every provider has a pre-populated queue");
-        let _serial = queue.lock().await;
-        let (gap_min, gap_max) = resolve_gap(provider);
-        let gap = pick_gap(gap_min, gap_max);
-        let last = {
-            let views = self.0.views.lock().expect("governor views lock");
-            views.get(&provider).and_then(|v| v.last_request)
-        };
-        if let Some(last) = last {
-            let elapsed = Instant::now().saturating_duration_since(last);
-            if elapsed < gap {
-                tokio::time::sleep(gap - elapsed).await;
-            }
+            .expect("every provider has a pre-populated queue")
+            .lock()
+            .await;
+        EnginePermit {
+            governor: self,
+            provider,
+            _serial: serial,
         }
-        // Gap measured from request *start*, so consecutive starts are
-        // always >= gap apart regardless of how long the request itself
-        // takes.
-        let start = Instant::now();
-        let result = dispatch().await;
-        {
-            let mut views = self.0.views.lock().expect("governor views lock");
-            let view = views.entry(provider).or_default();
-            view.last_request = Some(start);
-            view.request_count += 1;
-        }
-        self.persist();
-        result
     }
 
     /// A leg succeeded: clear any residual suspension (a 200 proves the
@@ -480,6 +517,7 @@ impl Governor {
         if self.0.hermetic {
             return;
         }
+        self.ensure_loaded();
         let changed = {
             let mut views = self.0.views.lock().expect("governor views lock");
             match views.get_mut(&provider) {
@@ -498,7 +536,14 @@ impl Governor {
 
     /// A leg failed: suspend `provider` if `err`'s kind maps to a
     /// suspension duration (see [`suspension_for`]); a `None`/zero mapping
-    /// is a no-op. No-op for a hermetic `Governor`.
+    /// is a no-op. Never *shortens* an existing suspension (two concurrent
+    /// legs for the same engine can settle in either order; a live
+    /// `Challenge` at 3600 s must not be overwritten by a slower-arriving
+    /// 503 at 30 s) -- compares the new candidate expiry against the
+    /// current one and keeps whichever is later. Overflow-safe: a
+    /// pathological duration (e.g. a hostile `Retry-After` near `u64::MAX`
+    /// seconds) that cannot be represented as an `Instant` is dropped
+    /// rather than panicking. No-op for a hermetic `Governor`.
     pub(crate) fn record_failure(&self, provider: SearchProvider, err: &SearchProviderError) {
         if self.0.hermetic {
             return;
@@ -509,22 +554,38 @@ impl Governor {
         if suspension.duration.is_zero() {
             return;
         }
-        let until = Instant::now() + suspension.duration;
-        {
+        let Some(candidate_until) = Instant::now().checked_add(suspension.duration) else {
+            return;
+        };
+        self.ensure_loaded();
+        let changed = {
             let mut views = self.0.views.lock().expect("governor views lock");
             let view = views.entry(provider).or_default();
-            view.suspended_until = Some(until);
-            view.suspend_reason = suspension.reason.to_string();
+            let should_replace = view
+                .suspended_until
+                .map(|existing| candidate_until > existing)
+                .unwrap_or(true);
+            if should_replace {
+                view.suspended_until = Some(candidate_until);
+                view.suspend_reason = suspension.reason.to_string();
+            }
+            should_replace
+        };
+        if changed {
+            self.persist();
         }
-        self.persist();
     }
 
     /// Write the whole engine map back to `<cache_root>/engines.json`,
     /// atomically. Best-effort: a write failure never fails the search.
+    /// `persist_lock` holds the snapshot-then-write pair together so two
+    /// concurrent persists (typically one per engine) cannot interleave
+    /// their rename and silently drop each other's update.
     fn persist(&self) {
         let Some(cache_root) = &self.0.cache_root else {
             return;
         };
+        let _order = self.0.persist_lock.lock().expect("governor persist lock");
         let engines = {
             let views = self.0.views.lock().expect("governor views lock");
             ALL_PROVIDERS
@@ -553,20 +614,104 @@ impl Governor {
     }
 }
 
-/// Test-only env-var guard for `SEARCH_ENGINES`/`SEARCH_SUSPEND_*`/
-/// `SEARCH_PACE_*`/`SEARCH_MAX_REQUESTS_PER_ENGINE`, shared across
-/// `governor::tests` and `fanout::tests` (both mutate these and run in the
-/// same test binary; same pattern as `cache::test_support::EnvGuard`).
+/// A held per-engine serial-queue lock spanning one entire leg, however
+/// many wire requests it turns out to need (DDG pagination, Startpage's
+/// homepage-then-search). Returned by [`Governor::acquire`]; dropping it
+/// releases the queue for the next queued leg on the same engine.
+pub(crate) struct EnginePermit<'g> {
+    governor: &'g Governor,
+    provider: SearchProvider,
+    _serial: tokio::sync::MutexGuard<'g, ()>,
+}
+
+/// Result of [`EnginePermit::pace`]: whether the leg may proceed to its
+/// first wire request, or was skipped by a state that changed while this
+/// leg's `EnginePermit` was still queued behind a sibling leg for the same
+/// engine.
+#[derive(Debug)]
+pub(crate) enum PaceOutcome {
+    /// Proceed: the gap has elapsed and the budget has been reserved.
+    Proceed,
+    /// A sibling leg suspended this engine while this one was queued.
+    Suspended { remaining_secs: u64, reason: String },
+    /// A sibling leg exhausted the per-run budget while this one was
+    /// queued.
+    Throttled,
+}
+
+impl EnginePermit<'_> {
+    /// Recheck suspension and the per-run budget (closing the race where a
+    /// sibling leg for the *same* engine settled -- and suspended the
+    /// engine, or exhausted the budget -- while this leg was still queued
+    /// behind it: this engine's serial queue, held by this `EnginePermit`
+    /// for its whole lifetime, guarantees at most one task is ever inside
+    /// this method for a given provider, so the checks below can never
+    /// race with a concurrent update to the same provider's state), then
+    /// wait the jittered gap since the last leg dispatched to this engine
+    /// (initial value seeded from `engines.json` on a fresh process), then
+    /// atomically reserve the budget and record *this* moment as the new
+    /// last-request time, persisting both. Call once per leg, immediately
+    /// after [`Governor::acquire`] and before the leg's first wire
+    /// request. Always [`PaceOutcome::Proceed`], with zero wait, for a
+    /// hermetic `Governor`.
+    pub(crate) async fn pace(&self) -> PaceOutcome {
+        if self.governor.0.hermetic {
+            return PaceOutcome::Proceed;
+        }
+        self.governor.ensure_loaded();
+        if let Some((remaining_secs, reason)) = self.governor.suspended_remaining(self.provider) {
+            return PaceOutcome::Suspended {
+                remaining_secs,
+                reason,
+            };
+        }
+        if self.governor.over_budget(self.provider) {
+            return PaceOutcome::Throttled;
+        }
+        let (gap_min, gap_max) = resolve_gap(self.provider);
+        let gap = pick_gap(gap_min, gap_max);
+        let last = {
+            let views = self.governor.0.views.lock().expect("governor views lock");
+            views.get(&self.provider).and_then(|v| v.last_request)
+        };
+        if let Some(last) = last {
+            let elapsed = Instant::now().saturating_duration_since(last);
+            if elapsed < gap {
+                tokio::time::sleep(gap - elapsed).await;
+            }
+        }
+        // Gap measured from request *start*, so consecutive starts are
+        // always >= gap apart regardless of how long the request itself
+        // takes. The budget increment happens here, not after the wire
+        // request resolves, so a leg aborted mid-flight by the fan-out
+        // deadline still counts against the cap and still advances the
+        // pacing clock -- it did send a real request.
+        let now = Instant::now();
+        {
+            let mut views = self.governor.0.views.lock().expect("governor views lock");
+            let view = views.entry(self.provider).or_default();
+            view.last_request = Some(now);
+            view.request_count += 1;
+        }
+        self.governor.persist();
+        PaceOutcome::Proceed
+    }
+}
+
+/// Test-only env-var guard for every `SEARCH_*` key this module's
+/// env-reading functions consult, shared across `governor::tests` and
+/// `fanout::tests` (both mutate these and run in the same test binary;
+/// same pattern as `cache::test_support::EnvGuard`).
 #[cfg(test)]
 pub(crate) mod test_support {
     use std::sync::{LazyLock, Mutex, MutexGuard};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-    /// Every `SEARCH_*` key this module's env-reading functions consult, so
+    /// Every key this module's env-reading functions consult, so
     /// `set`/`Drop` can clear exactly the keys a test might have touched
     /// without hard-coding the same list at every call site.
-    const GOVERNOR_KEYS: [&str; 12] = [
+    const GOVERNOR_KEYS: [&str; 14] = [
         "SEARCH_ENGINES",
         "SEARCH_SUSPEND_CHALLENGE_SECS",
         "SEARCH_SUSPEND_403_SECS",
@@ -579,6 +724,8 @@ pub(crate) mod test_support {
         "SEARCH_PACE_DUCKDUCKGO_MAX_MS",
         "SEARCH_PACE_STARTPAGE_MIN_MS",
         "SEARCH_PACE_STARTPAGE_MAX_MS",
+        "SEARCH_MAX_REQUESTS_PER_ENGINE",
+        "SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL",
     ];
 
     /// Serializes tests that mutate any governor env var and clears every
@@ -600,10 +747,7 @@ pub(crate) mod test_support {
         }
 
         /// Acquire the lock, clear every known key, then set the given
-        /// pairs (which may include `SEARCH_MAX_REQUESTS_PER_ENGINE`, not
-        /// in `GOVERNOR_KEYS` since it is cleared via `Drop` separately by
-        /// callers that use it -- kept out of the shared list because only
-        /// one test reads it).
+        /// pairs.
         pub(crate) fn set(pairs: &[(&str, &str)]) -> Self {
             let guard = Self::lock();
             for (k, v) in pairs {
@@ -618,13 +762,14 @@ pub(crate) mod test_support {
             for key in GOVERNOR_KEYS {
                 std::env::remove_var(key);
             }
-            std::env::remove_var("SEARCH_MAX_REQUESTS_PER_ENGINE");
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+
     use super::*;
     use test_support::EnvGuard;
 
@@ -663,6 +808,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn challenge_suspends_only_that_engine_and_expires() {
+        let _guard = EnvGuard::set(&[]);
         let governor = Governor::new(None);
         assert!(governor
             .suspended_remaining(SearchProvider::DuckDuckGo)
@@ -723,7 +869,44 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn a_shorter_failure_never_shortens_a_longer_active_suspension() {
+        let _guard = EnvGuard::set(&[]);
+        let governor = Governor::new(None);
+        governor.record_failure(
+            SearchProvider::DuckDuckGo,
+            &SearchProviderError::Challenge {
+                provider: SearchProvider::DuckDuckGo,
+                detail: "walled".to_string(),
+            },
+        );
+        let (long_remaining, _) = governor
+            .suspended_remaining(SearchProvider::DuckDuckGo)
+            .expect("challenge suspended");
+        governor.record_failure(
+            SearchProvider::DuckDuckGo,
+            &SearchProviderError::Upstream {
+                provider: SearchProvider::DuckDuckGo,
+                detail: "boom".to_string(),
+                status: Some(500),
+                retry_after_secs: None,
+            },
+        );
+        let (remaining, reason) = governor
+            .suspended_remaining(SearchProvider::DuckDuckGo)
+            .expect("still suspended");
+        assert_eq!(
+            reason, "challenge",
+            "a later, shorter 500 suspension must not overwrite the longer challenge one"
+        );
+        assert!(
+            remaining >= long_remaining - 1,
+            "remaining time must not have shrunk to the 500's ~30s window: {remaining}"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn success_clears_a_residual_suspension() {
+        let _guard = EnvGuard::set(&[]);
         let governor = Governor::new(None);
         governor.record_failure(
             SearchProvider::Startpage,
@@ -743,6 +926,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn timeout_never_suspends_by_default() {
+        let _guard = EnvGuard::set(&[]);
         let governor = Governor::new(None);
         governor.record_failure(
             SearchProvider::DuckDuckGo,
@@ -757,23 +941,23 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn paced_call_respects_minimum_gap_same_engine() {
+    async fn acquire_pace_respects_minimum_gap_same_engine() {
         let _guard = EnvGuard::set(&[
             ("SEARCH_PACE_MIN_MS", "2000"),
             ("SEARCH_PACE_MAX_MS", "2000"),
         ]);
         let governor = Governor::new(None);
-        governor
-            .paced_call(SearchProvider::DuckDuckGo, || async { 1 })
-            .await;
+        {
+            let permit = governor.acquire(SearchProvider::DuckDuckGo).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
 
         let start = tokio::time::Instant::now();
         let second = tokio::spawn({
             let governor = governor.clone();
             async move {
-                governor
-                    .paced_call(SearchProvider::DuckDuckGo, || async { 2 })
-                    .await
+                let permit = governor.acquire(SearchProvider::DuckDuckGo).await;
+                assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
             }
         });
         // The second call must not resolve before the 2s gap elapses.
@@ -791,38 +975,69 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn paced_call_different_engines_run_in_parallel() {
+    async fn acquire_different_engines_run_in_parallel() {
+        // Proof of real overlap, not just "finishes within the window": an
+        // in-flight counter observes both engines' dispatches concurrently
+        // in the air at once, which a single shared queue (a same-engine
+        // bug) could never produce.
         let _guard = EnvGuard::set(&[
             ("SEARCH_PACE_MIN_MS", "5000"),
             ("SEARCH_PACE_MAX_MS", "5000"),
         ]);
         let governor = Governor::new(None);
-        let ddg = tokio::spawn({
+        let in_flight = std::sync::Arc::new(AtomicUsize::new(0));
+        let max_seen = std::sync::Arc::new(AtomicUsize::new(0));
+        let run_leg = |provider: SearchProvider| {
             let governor = governor.clone();
+            let in_flight = in_flight.clone();
+            let max_seen = max_seen.clone();
             async move {
-                governor
-                    .paced_call(SearchProvider::DuckDuckGo, || async {
-                        tokio::time::sleep(Duration::from_millis(10)).await;
-                    })
-                    .await
+                let permit = governor.acquire(provider).await;
+                assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+                let now = in_flight.fetch_add(1, AtomicOrdering::SeqCst) + 1;
+                max_seen.fetch_max(now, AtomicOrdering::SeqCst);
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                in_flight.fetch_sub(1, AtomicOrdering::SeqCst);
             }
-        });
-        let sp = tokio::spawn({
-            let governor = governor.clone();
-            async move {
-                governor
-                    .paced_call(SearchProvider::Startpage, || async {
-                        tokio::time::sleep(Duration::from_millis(10)).await;
-                    })
-                    .await
-            }
-        });
+        };
+        let ddg = tokio::spawn(run_leg(SearchProvider::DuckDuckGo));
+        let sp = tokio::spawn(run_leg(SearchProvider::Startpage));
         tokio::time::advance(Duration::from_millis(20)).await;
-        // Neither engine waits on the other's pacing gap: both finish long
-        // before either engine's 5s gap would matter (there is no prior
-        // request to either engine yet).
         ddg.await.expect("ddg leg completes");
         sp.await.expect("sp leg completes");
+        assert_eq!(
+            max_seen.load(AtomicOrdering::SeqCst),
+            2,
+            "both engines must have been in flight at the same instant"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_suspension_recorded_while_a_leg_waits_is_visible_after_acquire() {
+        // The suspension check before acquiring the queue is not the only
+        // one that matters: a leg already queued behind another same-
+        // engine leg must not dispatch once that other leg has just
+        // suspended the engine. Governor::acquire itself does not
+        // recheck (that is fanout.rs's job, right after acquiring); this
+        // test proves the state acquire/pace would observe is correct.
+        let _guard = EnvGuard::set(&[]);
+        let governor = Governor::new(None);
+        {
+            let _first = governor.acquire(SearchProvider::DuckDuckGo).await;
+            governor.record_failure(
+                SearchProvider::DuckDuckGo,
+                &SearchProviderError::Challenge {
+                    provider: SearchProvider::DuckDuckGo,
+                    detail: "walled".to_string(),
+                },
+            );
+        }
+        assert!(
+            governor
+                .suspended_remaining(SearchProvider::DuckDuckGo)
+                .is_some(),
+            "a second leg acquiring after the first releases must see the suspension"
+        );
     }
 
     #[tokio::test]
@@ -866,11 +1081,81 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn over_budget_trips_after_the_configured_cap() {
-        let _guard = EnvGuard::set(&[("SEARCH_MAX_REQUESTS_PER_ENGINE", "2")]);
+    #[tokio::test]
+    async fn a_last_request_from_days_ago_imposes_no_wait_on_a_fresh_process() {
+        // Regression: `wall_to_mono` used to clamp every past timestamp
+        // (the normal case for `last_request_ms`) to "construction time",
+        // making a fresh process wait almost the full gap on its very
+        // first request regardless of how long ago the real last request
+        // was. A persisted request from days ago must impose zero wait.
+        let dir = std::env::temp_dir().join(format!("war-governor-oldreq-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let days_ago_ms = now_wall_ms() - Duration::from_secs(3 * 24 * 3600).as_millis() as i64;
+        let state = PersistedState {
+            engines: [(
+                "duckduckgo".to_string(),
+                PersistedEngine {
+                    suspended_until_ms: None,
+                    suspend_reason: None,
+                    last_request_ms: Some(days_ago_ms),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+        std::fs::write(
+            dir.join(ENGINES_FILE),
+            serde_json::to_vec(&state).expect("serialize"),
+        )
+        .expect("write engines.json");
+        let _guard = EnvGuard::set(&[
+            ("SEARCH_PACE_MIN_MS", "2000"),
+            ("SEARCH_PACE_MAX_MS", "2000"),
+        ]);
+        let governor = Governor::new(Some(dir.clone()));
+        let start = std::time::Instant::now();
+        {
+            let permit = governor.acquire(SearchProvider::DuckDuckGo).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
+        assert!(
+            start.elapsed() < Duration::from_millis(500),
+            "a 3-day-old last request must not impose the 2s gap: waited {:?}",
+            start.elapsed()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn over_budget_trips_after_the_configured_cap() {
+        let _guard = EnvGuard::set(&[
+            ("SEARCH_MAX_REQUESTS_PER_ENGINE", "2"),
+            ("SEARCH_PACE_MIN_MS", "0"),
+            ("SEARCH_PACE_MAX_MS", "0"),
+        ]);
         let governor = Governor::new(None);
         assert!(!governor.over_budget(SearchProvider::DuckDuckGo));
+        {
+            let permit = governor.acquire(SearchProvider::DuckDuckGo).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
+        assert!(
+            !governor.over_budget(SearchProvider::DuckDuckGo),
+            "1 of 2 requests used"
+        );
+        {
+            let permit = governor.acquire(SearchProvider::DuckDuckGo).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
+        assert!(
+            governor.over_budget(SearchProvider::DuckDuckGo),
+            "2 of 2 requests used, cap reached"
+        );
+        assert!(
+            !governor.over_budget(SearchProvider::Startpage),
+            "the cap is per engine, Startpage is untouched"
+        );
     }
 
     #[test]
