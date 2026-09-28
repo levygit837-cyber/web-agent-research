@@ -3,17 +3,21 @@
 //! Homepage token fetch, verbatim form POST with direct-GET fallback,
 //! DOM parse into raw hits for the agent-loop Queries. Selector drift
 //! and bot-wall changes land here.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use std::collections::HashSet;
 
 use scraper::{Html, Selector};
 
 use super::fanout::map_transport_error;
+use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{collapse_whitespace, percent_encode};
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, MAX_NUM_RESULTS,
 };
-use crate::web::search::{apply_browser_headers, leg_timeout};
+use crate::web::search::{apply_navigation_headers, leg_timeout, request_origin, ChainPosition};
 
 /// Startpage homepage for anti-bot `sc` token extraction (Omp `fetchFormInputs`).
 pub const STARTPAGE_HOME_URL: &str = "https://www.startpage.com/";
@@ -83,11 +87,14 @@ async fn fetch_startpage_form_inputs(
     client: &reqwest::Client,
     home_url: &str,
     query: &str,
+    profile: &BrowserProfile,
 ) -> FormFetch {
     let _ = query;
-    let Ok(response) = apply_browser_headers(client.get(home_url).timeout(leg_timeout()))
-        .send()
-        .await
+    let Ok(response) =
+        apply_navigation_headers(client.get(home_url), profile, ChainPosition::First)
+            .timeout(leg_timeout())
+            .send()
+            .await
     else {
         return FormFetch::Miss;
     };
@@ -108,13 +115,15 @@ async fn fetch_startpage_form_inputs(
 }
 
 /// Startpage search POST: hidden inputs echoed verbatim + `query`
-/// (`+with_date` when recency is set).
+/// (`+with_date` when recency is set). Always a follow-up: it only runs
+/// after the homepage GET (#59/#58 chain).
 async fn startpage_post(
     client: &reqwest::Client,
     url: &str,
     inputs: &[(String, String)],
     query: &str,
     recency: Option<Recency>,
+    profile: &BrowserProfile,
 ) -> Result<(u16, String, String), SearchProviderError> {
     let mut form: Vec<(String, String)> = inputs.to_vec();
     form.push(("query".to_string(), query.to_string()));
@@ -126,24 +135,25 @@ async fn startpage_post(
         .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let response = apply_browser_headers(
-        client
-            .post(url)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Referer", STARTPAGE_HOME_URL)
-            .body(body)
-            .timeout(leg_timeout()),
-    )
-    .send()
-    .await
-    .map_err(|err| {
-        map_transport_error(
-            SearchProvider::Startpage,
-            query,
-            err.is_timeout(),
-            format!("Startpage request failed: {err}"),
-        )
-    })?;
+    let mut builder = apply_navigation_headers(client.post(url), profile, ChainPosition::FollowUp)
+        .header("Referer", STARTPAGE_HOME_URL);
+    if let Some(origin) = request_origin(url) {
+        builder = builder.header("Origin", origin);
+    }
+    let response = builder
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .timeout(leg_timeout())
+        .send()
+        .await
+        .map_err(|err| {
+            map_transport_error(
+                SearchProvider::Startpage,
+                query,
+                err.is_timeout(),
+                format!("Startpage request failed: {err}"),
+            )
+        })?;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
     let text = response.text().await.map_err(|err| {
@@ -158,19 +168,19 @@ async fn startpage_post(
 }
 
 /// Startpage direct-GET fallback (Omp "best effort ... falls back to a direct
-/// GET"): `query`/`with_date` on the search URL. One fallback only.
+/// GET"): `query`/`with_date` on the search URL. One fallback only. A
+/// follow-up: it only runs after the homepage GET attempt (#59/#58 chain),
+/// even when that attempt missed.
 async fn startpage_get(
     client: &reqwest::Client,
     url: &str,
     query: &str,
     recency: Option<Recency>,
+    profile: &BrowserProfile,
 ) -> Result<(u16, String, String), SearchProviderError> {
-    let mut request = apply_browser_headers(
-        client
-            .get(url)
-            .query(&[("query", query)])
-            .timeout(leg_timeout()),
-    );
+    let mut request = apply_navigation_headers(client.get(url), profile, ChainPosition::FollowUp)
+        .query(&[("query", query)])
+        .timeout(leg_timeout());
     if let Some(recency) = recency {
         request = request.query(&[("with_date", recency.param())]);
     }
@@ -205,15 +215,19 @@ pub(crate) async fn startpage_search(
     home_url: &str,
     search_url: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    match fetch_startpage_form_inputs(client, home_url, query).await {
+    // One profile per chain (#59): homepage GET, search POST/GET fallback
+    // all share it, matching a real browser tab.
+    let profile = pick_profile();
+    match fetch_startpage_form_inputs(client, home_url, query, &profile).await {
         FormFetch::Inputs(inputs) => {
             let (status, body, final_url) =
-                startpage_post(client, search_url, &inputs, query, recency).await?;
+                startpage_post(client, search_url, &inputs, query, recency, &profile).await?;
             return map_startpage_response(status, &body, &final_url, query);
         }
         FormFetch::Miss => {}
     }
-    let (status, body, final_url) = startpage_get(client, search_url, query, recency).await?;
+    let (status, body, final_url) =
+        startpage_get(client, search_url, query, recency, &profile).await?;
     map_startpage_response(status, &body, &final_url, query)
 }
 

@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `src/web/profile.rs`: a Chrome-family browser profile table (stable + 2 previous majors, macOS/Windows/Linux) with UA, coherent GREASE `sec-ch-ua`/`sec-ch-ua-mobile`/`sec-ch-ua-platform`, `accept`, `accept-encoding`, `accept-language`; one profile drawn at random per request chain (DDG pagination and Startpage homepage → search POST reuse the same profile, since DDG's `vqd` is bound to the UA) (#59).
+- `THIRD-PARTY-NOTICES.md`: attribution and license text for code ported from oh-my-pi (MIT) and Obscura (Apache-2.0); SearXNG credited as prior art only, no code copied (#61).
+
 ### Changed
 
+- `reqwest` gains the `gzip`, `brotli`, `zstd`, `deflate` features on the search and fetch clients; both send an explicit `Accept-Encoding` matching the active browser profile (Chrome: `gzip, deflate, br, zstd`) (#57).
+- `apply_browser_headers` is replaced by `apply_navigation_headers`, sending headers in Chrome's navigation order (`sec-ch-ua*`, `upgrade-insecure-requests`, `user-agent`, `accept`, `sec-fetch-*`, `accept-encoding`, `accept-language`, then `referer`/`origin`/`content-type` where Chrome sends them); `sec-fetch-site` is `none` on the first request of a chain and `same-origin` on follow-ups. `reqwest` still appends `Host` (and `Content-Length` on a body) after every header this crate sets; unavoidable without the #56 transport (#58).
 - `is_startpage_challenge` also detects the Anubis proof-of-work challenge page (`id="anubis_challenge"`, `/.within.website/x/cmd/anubis/`) and a final URL under `/sp/cdn/error-pages/blocked`, alongside the existing `/sp/captcha`/`component---src-pages-captcha` markers; the bare word `anubis` in a result snippet never triggers it (#53).
 - `SearchProviderError::AllFailed` carries `all_challenged: bool`; `research::agent_loop` maps an all-Challenge `search` failure to `ToolResult::SearchBlocked` instead of the generic `Failed` (#53).
-- `docs/harness.md`: exit code `7` documents the new `SearchBlocked` failure.
+- `docs/harness.md`: exit code `7` documents the new `SearchBlocked` failure; a new "Browser profile bump" section documents the #59 table-refresh procedure.
 
 ### Fixed
 

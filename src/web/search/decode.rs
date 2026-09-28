@@ -3,6 +3,9 @@
 //! Pure string transforms used by both provider legs: HTML-tag
 //! stripping, entity decoding, whitespace collapsing and form-style
 //! percent coding. No HTTP, no regex, no scraper.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 /// Decode HTML text: strip inline tags (Omp `decodeHtmlText` `<b>`
 /// highlights), decode named + numeric entities, normalise whitespace.

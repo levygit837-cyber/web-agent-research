@@ -3,6 +3,7 @@
 //! ADR-0006: `research` depends on `web`; `web` never imports `research` or `llm`.
 
 pub mod fetch;
+pub(crate) mod profile;
 pub mod search;
 
 /// Browser-like User-Agent shared by every `web/` HTTP client (search legs
