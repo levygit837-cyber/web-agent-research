@@ -70,13 +70,17 @@ pub(crate) fn map_startpage_response(
     Ok(parse_startpage_html(body, query))
 }
 
-/// Homepage fetch outcome: token inputs or a silent miss (any failure,
-/// non-OK status, homepage challenge wall, markup drift) that degrades to
-/// the direct-GET fallback. The fallback body re-runs challenge detection,
-/// so a live wall still surfaces as `Challenge` (429).
+/// Homepage fetch outcome: token inputs, a reached-but-no-token miss (the
+/// origin answered -- non-OK status, homepage challenge wall, markup
+/// drift -- so the fallback below is a same-origin follow-up with a
+/// Referer), or a transport failure (the origin was never reached, so the
+/// fallback below is really the chain's first navigation: `none`, no
+/// Referer). The fallback body re-runs challenge detection, so a live wall
+/// still surfaces as `Challenge` (429).
 enum FormFetch {
     Inputs(Vec<(String, String)>),
     Miss,
+    Unreached,
 }
 
 /// Startpage form fetch (Omp `fetchFormInputs`, best effort): GET the homepage
@@ -91,12 +95,12 @@ async fn fetch_startpage_form_inputs(
 ) -> FormFetch {
     let _ = query;
     let Ok(response) =
-        apply_navigation_headers(client.get(home_url), profile, ChainPosition::First)
+        apply_navigation_headers(client.get(home_url), profile, ChainPosition::First, None)
             .timeout(leg_timeout())
             .send()
             .await
     else {
-        return FormFetch::Miss;
+        return FormFetch::Unreached;
     };
     if !response.status().is_success() {
         return FormFetch::Miss;
@@ -116,7 +120,8 @@ async fn fetch_startpage_form_inputs(
 
 /// Startpage search POST: hidden inputs echoed verbatim + `query`
 /// (`+with_date` when recency is set). Always a follow-up: it only runs
-/// after the homepage GET (#59/#58 chain).
+/// after a homepage GET that reached the origin and returned a token
+/// (#59/#58 chain).
 async fn startpage_post(
     client: &reqwest::Client,
     url: &str,
@@ -135,8 +140,12 @@ async fn startpage_post(
         .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let mut builder = apply_navigation_headers(client.post(url), profile, ChainPosition::FollowUp)
-        .header("Referer", STARTPAGE_HOME_URL);
+    let mut builder = apply_navigation_headers(
+        client.post(url),
+        profile,
+        ChainPosition::FollowUp,
+        Some(STARTPAGE_HOME_URL),
+    );
     if let Some(origin) = request_origin(url) {
         builder = builder.header("Origin", origin);
     }
@@ -168,17 +177,21 @@ async fn startpage_post(
 }
 
 /// Startpage direct-GET fallback (Omp "best effort ... falls back to a direct
-/// GET"): `query`/`with_date` on the search URL. One fallback only. A
-/// follow-up: it only runs after the homepage GET attempt (#59/#58 chain),
-/// even when that attempt missed.
+/// GET"): `query`/`with_date` on the search URL. One fallback only.
+/// `chain_position`/`referer` come from whether the earlier homepage GET
+/// reached the origin (`FollowUp` + `Referer: STARTPAGE_HOME_URL`) or never
+/// did (`First`, no Referer -- this GET is then the chain's real first
+/// navigation).
 async fn startpage_get(
     client: &reqwest::Client,
     url: &str,
     query: &str,
     recency: Option<Recency>,
     profile: &BrowserProfile,
+    chain_position: ChainPosition,
+    referer: Option<&str>,
 ) -> Result<(u16, String, String), SearchProviderError> {
-    let mut request = apply_navigation_headers(client.get(url), profile, ChainPosition::FollowUp)
+    let mut request = apply_navigation_headers(client.get(url), profile, chain_position, referer)
         .query(&[("query", query)])
         .timeout(leg_timeout());
     if let Some(recency) = recency {
@@ -218,16 +231,30 @@ pub(crate) async fn startpage_search(
     // One profile per chain (#59): homepage GET, search POST/GET fallback
     // all share it, matching a real browser tab.
     let profile = pick_profile();
-    match fetch_startpage_form_inputs(client, home_url, query, &profile).await {
-        FormFetch::Inputs(inputs) => {
-            let (status, body, final_url) =
-                startpage_post(client, search_url, &inputs, query, recency, &profile).await?;
-            return map_startpage_response(status, &body, &final_url, query);
-        }
-        FormFetch::Miss => {}
-    }
-    let (status, body, final_url) =
-        startpage_get(client, search_url, query, recency, &profile).await?;
+    let (fallback_position, fallback_referer) =
+        match fetch_startpage_form_inputs(client, home_url, query, &profile).await {
+            FormFetch::Inputs(inputs) => {
+                let (status, body, final_url) =
+                    startpage_post(client, search_url, &inputs, query, recency, &profile).await?;
+                return map_startpage_response(status, &body, &final_url, query);
+            }
+            // The homepage GET reached the origin (even if it 404'd,
+            // challenged, or had no `sc`): the fallback is same-origin.
+            FormFetch::Miss => (ChainPosition::FollowUp, Some(STARTPAGE_HOME_URL)),
+            // The homepage GET never reached the origin: the fallback is
+            // really the chain's first navigation.
+            FormFetch::Unreached => (ChainPosition::First, None),
+        };
+    let (status, body, final_url) = startpage_get(
+        client,
+        search_url,
+        query,
+        recency,
+        &profile,
+        fallback_position,
+        fallback_referer,
+    )
+    .await?;
     map_startpage_response(status, &body, &final_url, query)
 }
 
@@ -597,6 +624,97 @@ mod tests {
             stub.hits("/sp/search"),
             1,
             "homepage challenge degrades to the GET fallback"
+        );
+    }
+
+    #[tokio::test]
+    async fn header_order_matches_chrome_navigation_for_homepage_and_search_post() {
+        // #58/#59: the homepage GET (`sec-fetch-site: none`, no Referer --
+        // it is the chain's real first navigation) and the search POST
+        // (`sec-fetch-site: same-origin`, Referer/Origin) must both match
+        // Chrome's navigation header order, and both must carry the same
+        // profile (#59 chain-reuse).
+        let (stub, captured) = StubServer::serve_capturing_headers_startpage().await;
+        let client = reqwest::Client::new();
+        let rows = startpage_search_with_base(
+            &client,
+            "q",
+            None,
+            &format!("{}/", stub.base()),
+            &format!("{}/sp/search", stub.base()),
+        )
+        .await
+        .expect("stub always replies 200");
+        assert_eq!(rows.len(), 0, "empty stub search page yields no rows");
+
+        let requests = captured.lock().expect("captured");
+        assert_eq!(requests.len(), 2, "homepage GET + one search POST");
+
+        let expected_homepage: Vec<&str> = vec![
+            "sec-ch-ua",
+            "sec-ch-ua-mobile",
+            "sec-ch-ua-platform",
+            "upgrade-insecure-requests",
+            "user-agent",
+            "accept",
+            "sec-fetch-site",
+            "sec-fetch-mode",
+            "sec-fetch-user",
+            "sec-fetch-dest",
+            "accept-encoding",
+            "accept-language",
+            // No Referer: the homepage GET is the chain's first request.
+            "host",
+        ];
+        let expected_search_post: Vec<&str> = vec![
+            "sec-ch-ua",
+            "sec-ch-ua-mobile",
+            "sec-ch-ua-platform",
+            "upgrade-insecure-requests",
+            "user-agent",
+            "accept",
+            "sec-fetch-site",
+            "sec-fetch-mode",
+            "sec-fetch-user",
+            "sec-fetch-dest",
+            "accept-encoding",
+            "accept-language",
+            "referer",
+            "origin",
+            "content-type",
+            "host",
+            "content-length",
+        ];
+        let homepage_names = super::super::test_support::header_names(&requests[0]);
+        assert_eq!(
+            homepage_names, expected_homepage,
+            "homepage GET header order must match Chrome navigation order"
+        );
+        let search_post_names = super::super::test_support::header_names(&requests[1]);
+        assert_eq!(
+            search_post_names, expected_search_post,
+            "search POST header order must match Chrome navigation order"
+        );
+
+        let header_value = |lines: &[String], name: &str| -> String {
+            lines
+                .iter()
+                .find_map(|line| {
+                    let (n, value) = line.split_once(':')?;
+                    if n.trim().eq_ignore_ascii_case(name) {
+                        Some(value.trim().to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| panic!("{name} present"))
+        };
+        assert_eq!(header_value(&requests[0], "sec-fetch-site"), "none");
+        assert_eq!(header_value(&requests[1], "sec-fetch-site"), "same-origin");
+        assert_eq!(
+            header_value(&requests[0], "user-agent"),
+            header_value(&requests[1], "user-agent"),
+            "homepage and search POST must reuse one profile"
         );
     }
 }

@@ -77,8 +77,8 @@ To bump when Chrome ships a new stable major:
 
 1. Check `https://versionhistory.googleapis.com/v1/chrome/platforms/{mac,win,linux}/channels/stable/versions?pageSize=3` for the current stable major per platform.
 2. Update `STABLE_MAJORS` in `src/web/profile.rs` to the new stable major and its 2 predecessors.
-3. Run `cargo test -- --ignored profile_table_matches_chrome_stable` (a live network call) to confirm the table now matches; it also runs unignored in the ignored-test sweep to catch regressions before a real gap opens.
-4. `cargo test` for the coherence suite (`web::profile::tests::every_profile_is_internally_coherent`, `table_has_nine_profiles_three_majors_three_platforms`): every profile's UA major must equal its `sec_ch_ua` version, and its platform must equal `sec_ch_ua_platform`.
+3. Run `cargo test -- --ignored profile_table_matches_chrome_stable` (a live network call) to confirm the table now matches. This is a manual step: no CI job runs `--ignored`/`--include-ignored`, so a lagging table is caught only by running this command, not automatically.
+4. `cargo test web::profile::` for the coherence suite (`every_profile_is_internally_coherent`): every profile's UA major must equal its `sec_ch_ua` version, and its platform must equal `sec_ch_ua_platform`.
 
 Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls (no TLS/JA3 emulation, #56/#60): a Firefox or Safari UA over a generic rustls ClientHello would be its own family/TLS mismatch signal.
 

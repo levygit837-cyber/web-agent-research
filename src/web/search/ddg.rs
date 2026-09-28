@@ -102,19 +102,25 @@ async fn ddg_post(
     form: &[(String, String)],
     query: &str,
     profile: &BrowserProfile,
-    position: ChainPosition,
 ) -> Result<(u16, String), SearchProviderError> {
     let body = form
         .iter()
         .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let mut builder = apply_navigation_headers(client.post(url), profile, position)
-        .header("Referer", DDG_REFERER)
-        .body(body)
-        .timeout(leg_timeout());
-    // Chrome sends `Origin` on a same-origin form POST too (not only
-    // cross-origin): `request_origin(url)` is the DDG host itself.
+    // Always same-origin, never `none`: a form POST is issued from a page,
+    // and that page is `DDG_REFERER` even for the first POST of a chain
+    // (the user's own query submission from `html.duckduckgo.com`'s own
+    // markup). `none` is only for a request with no initiating page at
+    // all (Obscura `request_fetch_site`, client.rs:438-450 @542df14).
+    let mut builder = apply_navigation_headers(
+        client.post(url),
+        profile,
+        ChainPosition::FollowUp,
+        Some(DDG_REFERER),
+    )
+    .body(body)
+    .timeout(leg_timeout());
     if let Some(origin) = request_origin(url) {
         builder = builder.header("Origin", origin);
     }
@@ -158,10 +164,8 @@ pub(crate) async fn ddg_search(
     let mut seen: HashSet<String> = HashSet::new();
     let mut form = create_ddg_form(query, recency);
     let mut last_s: Option<String> = None;
-    let mut position = ChainPosition::First;
     loop {
-        let (status, body) = ddg_post(client, base, &form, query, &profile, position).await?;
-        position = ChainPosition::FollowUp;
+        let (status, body) = ddg_post(client, base, &form, query, &profile).await?;
         let page = map_ddg_response(status, &body, query)?;
         for mut row in page {
             if !seen.insert(row.url.clone()) {
@@ -619,9 +623,12 @@ mod tests {
     #[tokio::test]
     async fn header_order_matches_chrome_navigation_for_first_request_and_pagination_follow_up() {
         // #58: a local HTTP/1.1 server records raw request header lines;
-        // the order must equal the profile's navigation list for the first
-        // request AND for a DDG pagination follow-up (same profile, per
-        // #59's chain-reuse contract).
+        // the order must equal the profile's navigation list for every
+        // request in a multi-page pagination chain (same profile
+        // throughout, per #59's chain-reuse contract). Every DDG request
+        // is a form POST issued from a page, so `sec-fetch-site` is
+        // `same-origin` with a Referer/Origin on all of them, including
+        // the first (there is no `none` DDG request: #58 review finding).
         let (stub, captured) = StubServer::serve_capturing_headers().await;
         let client = reqwest::Client::new();
         let rows = ddg_search_with_base(&client, "q", None, &format!("{}/html/", stub.base()))
@@ -632,10 +639,10 @@ mod tests {
         let requests = captured.lock().expect("captured");
         assert_eq!(
             requests.len(),
-            2,
-            "first request + exactly one pagination follow-up"
+            5,
+            "first request + 4 pagination follow-ups (serve_capturing_headers stops the chain at request 5)"
         );
-        let expected_first: Vec<&str> = vec![
+        let expected: Vec<&str> = vec![
             "sec-ch-ua",
             "sec-ch-ua-mobile",
             "sec-ch-ua-platform",
@@ -656,56 +663,51 @@ mod tests {
             "host",
             "content-length",
         ];
-        let first_names = super::super::test_support::header_names(&requests[0]);
-        assert_eq!(
-            first_names, expected_first,
-            "first request header order must match Chrome navigation order"
-        );
+        for (i, request) in requests.iter().enumerate() {
+            let names = super::super::test_support::header_names(request);
+            assert_eq!(
+                names, expected,
+                "request {i} header order must match Chrome navigation order"
+            );
+        }
 
-        let follow_up_names = super::super::test_support::header_names(&requests[1]);
-        assert_eq!(
-            follow_up_names, expected_first,
-            "pagination follow-up keeps the same header order"
-        );
-
-        // sec-fetch-site: none on the first request, same-origin on the
-        // follow-up (#58/#59).
-        let sec_fetch_site = |lines: &[String]| -> String {
+        let header_value = |lines: &[String], name: &str| -> String {
             lines
                 .iter()
                 .find_map(|line| {
-                    let (name, value) = line.split_once(':')?;
-                    if name.trim().eq_ignore_ascii_case("sec-fetch-site") {
+                    let (n, value) = line.split_once(':')?;
+                    if n.trim().eq_ignore_ascii_case(name) {
                         Some(value.trim().to_string())
                     } else {
                         None
                     }
                 })
-                .expect("sec-fetch-site present")
+                .unwrap_or_else(|| panic!("{name} present"))
         };
-        assert_eq!(sec_fetch_site(&requests[0]), "none");
-        assert_eq!(sec_fetch_site(&requests[1]), "same-origin");
+        for request in requests.iter() {
+            assert_eq!(header_value(request, "sec-fetch-site"), "same-origin");
+        }
 
-        // #59: the pagination follow-up reuses the exact same profile as
-        // the first request (User-Agent identical -- DDG's vqd is bound to it).
-        let user_agent = |lines: &[String]| -> String {
-            lines
-                .iter()
-                .find_map(|line| {
-                    let (name, value) = line.split_once(':')?;
-                    if name.trim().eq_ignore_ascii_case("user-agent") {
-                        Some(value.trim().to_string())
-                    } else {
-                        None
-                    }
-                })
-                .expect("user-agent present")
-        };
-        assert_eq!(
-            user_agent(&requests[0]),
-            user_agent(&requests[1]),
-            "pagination chain must reuse one profile"
-        );
+        // #59: every request in the pagination chain reuses the exact same
+        // profile (User-Agent AND sec-ch-ua identical -- DDG's vqd is bound
+        // to the UA). Checked over 5 requests: a regression that re-picks
+        // the profile per request would need to draw the same one of 9
+        // profiles 4 times running by chance to slip through, (1/9)^4,
+        // rather than the 1-in-9 chance a 2-request chain would give it.
+        let first_ua = header_value(&requests[0], "user-agent");
+        let first_hints = header_value(&requests[0], "sec-ch-ua");
+        for request in requests.iter().skip(1) {
+            assert_eq!(
+                header_value(request, "user-agent"),
+                first_ua,
+                "pagination chain must reuse one profile's User-Agent"
+            );
+            assert_eq!(
+                header_value(request, "sec-ch-ua"),
+                first_hints,
+                "pagination chain must reuse one profile's sec-ch-ua"
+            );
+        }
     }
 
     /// #57: a local server returns gzip- and brotli-encoded DDG fixtures;

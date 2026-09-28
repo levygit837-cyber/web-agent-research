@@ -52,14 +52,22 @@ SOFTWARE.
 
 - License: Apache License 2.0.
 - Source: `h4ckf0r0day/obscura@542df14` (2026-09-27).
-- Ported: the Chrome navigation header order and the GREASE `sec-ch-ua`
-  brand-list algorithm (`crates/obscura-net/src/client.rs:991-1029` for
-  `chrome_client_hints`, `:1447-1499` for the header-insertion order,
-  `:438-450` for `request_fetch_site`'s `none`/`same-origin` decision).
-- Files in this repo: `src/web/profile.rs` (`chrome_client_hints` ->
-  `chrome_client_hints`), `src/web/search/mod.rs`
-  (`apply_navigation_headers`, `request_origin` -> the header-order block
-  and `request_fetch_site`).
+- Ported: the GREASE `sec-ch-ua` brand-list algorithm
+  (`crates/obscura-net/src/client.rs:991-1029`, `chrome_client_hints`) and
+  the `sec-fetch-site` `none`/`same-origin` decision
+  (`:438-450`, `request_fetch_site`).
+- Modified: `chrome_client_hints` here takes `major: u32` directly instead
+  of parsing it out of a full UA string, and platform derivation moved to
+  a separate `Platform` enum rather than staying inline; the
+  `none`/`same-origin` decision was adapted from Obscura's
+  `initiator`/`RequestMode`-based navigation model to this crate's
+  simpler `ChainPosition` (first request vs. follow-up in a search leg).
+  This crate's own Chrome header *order* in
+  `apply_navigation_headers` (`src/web/search/mod.rs`) is independently
+  verified against live Chrome (see that function's doc), not ported from
+  Obscura's insertion order.
+- Files in this repo: `src/web/profile.rs` (`chrome_client_hints`),
+  `src/web/search/mod.rs` (`ChainPosition::sec_fetch_site`).
 
 ### Apache License 2.0 text
 
@@ -271,10 +279,11 @@ Apache License
 
 - License: AGPL-3.0-or-later.
 - Source: `searxng/searxng`.
-- No code from SearXNG is copied into this repo. `docs/adr` and issue
-  discussion credit SearXNG as prior art for two ideas implemented
-  independently here: per-error-type engine suspension (see
-  `docs/research/search-engines.md`) and the observation that DuckDuckGo's
-  bot detector is sensitive to header order and identity
+- No code from SearXNG is copied into this repo. `docs/adr/0006-web-search-tool-architecture.md`
+  credits SearXNG as prior art for the observation that DuckDuckGo's bot
+  detector is sensitive to header order and identity
   (`searx/engines/duckduckgo.py`, issue
-  [searxng#6596](https://github.com/searxng/searxng/issues/6596)).
+  [searxng#6596](https://github.com/searxng/searxng/issues/6596)), which
+  shaped this repo's own #58/#59 header-order and profile-coherence work.
+  Per-error-type engine suspension (also inspired by SearXNG's engine
+  scoring) is not implemented in this repo yet.

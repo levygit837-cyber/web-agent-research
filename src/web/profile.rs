@@ -45,19 +45,13 @@ impl Platform {
 }
 
 /// One coherent Chrome-family header set. "Coherent" (#59 acceptance): the
-/// UA's `Chrome/{major}` token equals `major`, and equals the `Chromium`/
-/// `Google Chrome` versions inside `sec_ch_ua`; `platform` matches
-/// `sec_ch_ua_platform` and the UA's OS token.
+/// UA's `Chrome/{major}` token equals the `Chromium`/`Google Chrome`
+/// versions inside `sec_ch_ua`; `sec_ch_ua_platform` matches the UA's OS
+/// token. No `major`/`platform` fields: they would only be read back by
+/// tests, and `build_profile` already takes them as the source of truth
+/// (tests call it directly instead of re-deriving from the struct).
 #[derive(Debug, Clone)]
 pub(crate) struct BrowserProfile {
-    /// Read only by the `#[cfg(test)]` coherence checks below; kept on the
-    /// struct (not derived from `user_agent`/`sec_ch_ua` at use time) so a
-    /// profile is one source of truth for "which Chrome major/platform is
-    /// this", not a string to re-parse.
-    #[allow(dead_code)]
-    pub(crate) major: u32,
-    #[allow(dead_code)]
-    pub(crate) platform: Platform,
     pub(crate) user_agent: String,
     pub(crate) sec_ch_ua: String,
     pub(crate) sec_ch_ua_mobile: &'static str,
@@ -92,8 +86,6 @@ pub(crate) fn profiles() -> Vec<BrowserProfile> {
 
 fn build_profile(major: u32, platform: Platform) -> BrowserProfile {
     BrowserProfile {
-        major,
-        platform,
         user_agent: format!(
             "Mozilla/5.0 ({}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36",
             platform.ua_os_token(),
@@ -101,7 +93,10 @@ fn build_profile(major: u32, platform: Platform) -> BrowserProfile {
         sec_ch_ua: chrome_client_hints(major),
         sec_ch_ua_mobile: "?0",
         sec_ch_ua_platform: platform.sec_ch_ua_platform(),
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        // Chrome's full navigation document Accept (Obscura client.rs:295
+        // @542df14, itself Chrome's real value): includes `image/apng` and
+        // the `signed-exchange` token that the pre-#59 constant dropped.
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         accept_encoding: "gzip, deflate, br, zstd",
         accept_language: crate::web::ACCEPT_LANGUAGE,
     }
@@ -143,9 +138,17 @@ fn chrome_client_hints(major: u32) -> String {
         ("Google Chrome".to_string(), major.to_string()),
     ];
     let order = PERMS[seed % PERMS.len()];
-    order
+    // Chromium's `ShuffleBrandList` *scatters*: `shuffled[order[i]] =
+    // list[i]`, not a gather (`out[i] = list[order[i]]`). The two only
+    // agree when `order` is an involution; `PERMS[3]` and `PERMS[4]` are
+    // not, so a gather here would silently mis-order 153/154's `sec-ch-ua`.
+    let mut shuffled: [&(String, String); 3] = [&brands[0]; 3];
+    for (i, &slot) in order.iter().enumerate() {
+        shuffled[slot] = &brands[i];
+    }
+    shuffled
         .iter()
-        .map(|&i| format!("\"{}\";v=\"{}\"", brands[i].0, brands[i].1))
+        .map(|(b, v)| format!("\"{b}\";v=\"{v}\""))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -166,64 +169,62 @@ mod tests {
 
     #[test]
     fn every_profile_is_internally_coherent() {
-        for profile in profiles() {
-            let major = profile.major;
-            assert!(
-                profile
-                    .user_agent
-                    .contains(&format!("Chrome/{major}.0.0.0")),
-                "UA major mismatch: {}",
-                profile.user_agent
-            );
-            assert!(
-                profile
-                    .sec_ch_ua
-                    .contains(&format!("\"Chromium\";v=\"{major}\"")),
-                "sec-ch-ua Chromium version mismatch: {}",
-                profile.sec_ch_ua
-            );
-            assert!(
-                profile
-                    .sec_ch_ua
-                    .contains(&format!("\"Google Chrome\";v=\"{major}\"")),
-                "sec-ch-ua Google Chrome version mismatch: {}",
-                profile.sec_ch_ua
-            );
-            let (expected_platform_hint, expected_os_token) = match profile.platform {
-                Platform::MacOs => ("\"macOS\"", "Macintosh"),
-                Platform::Windows => ("\"Windows\"", "Windows NT"),
-                Platform::Linux => ("\"Linux\"", "X11; Linux"),
-            };
-            assert_eq!(profile.sec_ch_ua_platform, expected_platform_hint);
-            assert!(
-                profile.user_agent.contains(expected_os_token),
-                "UA platform token mismatch: {}",
-                profile.user_agent
-            );
+        for &major in &STABLE_MAJORS {
+            for &platform in &PLATFORMS {
+                let profile = build_profile(major, platform);
+                assert!(
+                    profile
+                        .user_agent
+                        .contains(&format!("Chrome/{major}.0.0.0")),
+                    "UA major mismatch: {}",
+                    profile.user_agent
+                );
+                assert!(
+                    profile
+                        .sec_ch_ua
+                        .contains(&format!("\"Chromium\";v=\"{major}\"")),
+                    "sec-ch-ua Chromium version mismatch: {}",
+                    profile.sec_ch_ua
+                );
+                assert!(
+                    profile
+                        .sec_ch_ua
+                        .contains(&format!("\"Google Chrome\";v=\"{major}\"")),
+                    "sec-ch-ua Google Chrome version mismatch: {}",
+                    profile.sec_ch_ua
+                );
+                let (expected_platform_hint, expected_os_token) = match platform {
+                    Platform::MacOs => ("\"macOS\"", "Macintosh"),
+                    Platform::Windows => ("\"Windows\"", "Windows NT"),
+                    Platform::Linux => ("\"Linux\"", "X11; Linux"),
+                };
+                assert_eq!(profile.sec_ch_ua_platform, expected_platform_hint);
+                assert!(
+                    profile.user_agent.contains(expected_os_token),
+                    "UA platform token mismatch: {}",
+                    profile.user_agent
+                );
+            }
         }
     }
 
+    /// Pins `chrome_client_hints` against captured real-Chrome values
+    /// (regression for the gather-vs-scatter bug in Chromium's
+    /// `ShuffleBrandList`: the two only agree when the permutation is an
+    /// involution, and `PERMS[major % 6]` is not one for major % 6 in
+    /// {3, 4}). 123 (justhyped/hyper-sdk-go gist, Chrome 123 capture) and
+    /// 124 (docs.hypersolutions.co header-order guide) are both real
+    /// captured values, not derived from this algorithm.
     #[test]
-    fn table_has_nine_profiles_three_majors_three_platforms() {
-        let all = profiles();
-        assert_eq!(all.len(), 9);
-        for major in STABLE_MAJORS {
-            assert_eq!(all.iter().filter(|p| p.major == major).count(), 3);
-        }
-        for platform in PLATFORMS {
-            assert_eq!(all.iter().filter(|p| p.platform == platform).count(), 3);
-        }
-    }
-
-    #[test]
-    fn pick_profile_always_returns_a_table_entry() {
-        let table = profiles();
-        for _ in 0..20 {
-            let picked = pick_profile();
-            assert!(table
-                .iter()
-                .any(|p| p.major == picked.major && p.platform == picked.platform));
-        }
+    fn chrome_client_hints_matches_real_chrome_captures() {
+        assert_eq!(
+            chrome_client_hints(123),
+            r#""Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123""#
+        );
+        assert_eq!(
+            chrome_client_hints(124),
+            r#""Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99""#
+        );
     }
 
     /// Ignored live test (#59): fails once `STABLE_MAJORS` lags behind

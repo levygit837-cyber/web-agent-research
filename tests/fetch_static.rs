@@ -158,6 +158,30 @@ fn route(path: &str) -> RouteResponse {
                 body: Body::Bytes(encoder.finish().unwrap()),
             }
         }
+        // 200, gzip-compressed body whose *decoded* size is over the cap,
+        // but whose *compressed* `Content-Length` is tiny (repeated bytes
+        // compress hard): proves the cap is enforced against decoded
+        // bytes streamed as they arrive, not against the wire size.
+        "/gzip-bomb" => {
+            use std::io::Write;
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder
+                .write_all(&vec![b'a'; MAX_BODY_BYTES + 1024])
+                .unwrap();
+            let compressed = encoder.finish().unwrap();
+            assert!(
+                compressed.len() < 65536,
+                "sanity: compressed gzip-bomb body must stay well under the cap, got {}",
+                compressed.len()
+            );
+            RouteResponse {
+                status: 200,
+                content_type: "text/plain",
+                extra_headers: &[("Content-Encoding", "gzip")],
+                body: Body::Bytes(compressed),
+            }
+        }
         // 200 success, no Content-Length, real chunked transfer coding,
         // body above the cap: the streamed reader must abort mid-stream.
         "/oversize-chunked" => RouteResponse {
@@ -326,6 +350,27 @@ async fn chunked_body_over_cap_aborts_without_content_length() {
     let base = serve().await;
     let err = fetcher()
         .fetch(&format!("{base}/oversize-chunked"))
+        .await
+        .unwrap_err();
+    let FetchError::Http { detail, .. } = &err else {
+        panic!("expected Http, got {err}");
+    };
+    assert!(
+        detail.starts_with("body exceeds"),
+        "expected size-cap detail, got {detail}"
+    );
+}
+
+#[tokio::test]
+async fn gzip_decoded_body_over_cap_aborts_on_decoded_size_not_wire_size() {
+    // #57: with decompression enabled, the body-size cap module doc claims
+    // it "always applies to decoded bytes, streamed chunk-by-chunk, never
+    // to the compressed size". `/gzip-bomb` serves a wire body well under
+    // the cap that decodes to well over it, so this fails unless the cap
+    // is really enforced post-decode.
+    let base = serve().await;
+    let err = fetcher()
+        .fetch(&format!("{base}/gzip-bomb"))
         .await
         .unwrap_err();
     let FetchError::Http { detail, .. } = &err else {
