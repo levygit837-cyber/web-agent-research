@@ -1,0 +1,99 @@
+{
+  "_fixture_note": "api.mwmbl.org/api/v2/search/?q=tokio+rust+crate+documentation. Captured 2026-09-28T15:58:45Z. HTTP 200, no API key (anonymous free tier: 1000 req/month, 1 req/s, IP-tied, per developer.mwmbl.org). Found via SearXNG's own mwmbl.py engine (searx/engines/mwmbl.py) as the 'any free keyless engine you find in SearXNG/ddgs' candidate. Open-source (AGPL-3.0), small community-crawled index -- result quality on this Q1 sample skewed toward incidental keyword co-occurrence ('crate' + 'documentation' + 'Rust' matched a pyembed Python-Rust-binding doc site repeatedly) rather than the tokio crate itself. Trimmed to 6 of 16 total_results.",
+  "query": "tokio rust crate documentation",
+  "number_of_results": 16,
+  "results": [
+    {
+      "url": "https://users.rust-lang.org/t/good-crate-documentation-example/29014",
+      "title": "Good crate documentation example - help - The Rust Programming L\u2026",
+      "title_highlights": [
+        "crate documentation",
+        "Rust"
+      ],
+      "content": "",
+      "content_highlights": [],
+      "engine": "mwmbl",
+      "score": 1.0
+    },
+    {
+      "url": "https://gregoryszorc.com/docs/pyembed/main/",
+      "title": "The pyembed Rust Crate \u2014 pyembed 0.25.0-pre documentation",
+      "title_highlights": [
+        "documentation",
+        "Rust Crate"
+      ],
+      "content": "The pyembed Rust crate facilitates the control of an embedded Python interpreter. The crate provides an API for instantiating and controlling an embedded \u2026",
+      "content_highlights": [
+        "Rust crate",
+        "crate"
+      ],
+      "engine": "mwmbl",
+      "score": 0.5
+    },
+    {
+      "url": "https://users.rust-lang.org/t/view-own-crate-documentation/53552",
+      "title": "View own crate documentation - help - The Rust Programming Langu\u2026",
+      "title_highlights": [
+        "crate documentation",
+        "Rust"
+      ],
+      "content": "I know I can view lots of Rust documentation, including API documentation for the standard library, in my default browser by entering rustup doc .   And I\u2026",
+      "content_highlights": [
+        "Rust documentation",
+        "documentation"
+      ],
+      "engine": "mwmbl",
+      "score": 0.3333333333333333
+    },
+    {
+      "url": "https://gregoryszorc.com/docs/pyembed/0.17.0/",
+      "title": "The pyembed Rust Crate \u2014 pyembed 0.17.0 documentation",
+      "title_highlights": [
+        "documentation",
+        "Rust Crate"
+      ],
+      "content": " The pyembed Rust crate facilitates the embedding of a Python interpreter\nin a Rust binary. The crate provides an API for instantiating and controlling an\u2026",
+      "content_highlights": [
+        "Rust crate",
+        "crate",
+        "Rust"
+      ],
+      "engine": "mwmbl",
+      "score": 0.25
+    },
+    {
+      "url": "https://gregoryszorc.com/docs/pyembed/0.13.2/",
+      "title": "The pyembed Rust Crate \u2014 pyembed 0.13.2 documentation",
+      "title_highlights": [
+        "documentation",
+        "Rust Crate"
+      ],
+      "content": " The pyembed Rust crate facilitates the embedding of a Python interpreter\nin a Rust binary. The crate provides an API for instantiating and controlling an\u2026",
+      "content_highlights": [
+        "Rust crate",
+        "crate",
+        "Rust"
+      ],
+      "engine": "mwmbl",
+      "score": 0.2
+    },
+    {
+      "url": "https://gregoryszorc.com/docs/pyembed/0.13.0/",
+      "title": "The pyembed Rust Crate \u2014 pyembed 0.13.0 documentation",
+      "title_highlights": [
+        "documentation",
+        "Rust Crate"
+      ],
+      "content": " The pyembed Rust crate facilitates the embedding of a Python interpreter\nin a Rust binary. The crate provides an API for instantiating and controlling an\u2026",
+      "content_highlights": [
+        "Rust crate",
+        "crate",
+        "Rust"
+      ],
+      "engine": "mwmbl",
+      "score": 0.16666666666666666
+    }
+  ],
+  "monthly_usage": null,
+  "monthly_limit": null
+}

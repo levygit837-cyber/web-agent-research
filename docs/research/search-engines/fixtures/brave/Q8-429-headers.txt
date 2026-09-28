@@ -1,0 +1,12 @@
+HTTP/2 429 
+content-type: text/html; charset=utf-8
+content-length: 73998
+date: Mon, 28 Sep 2026 15:55:12 GMT
+content-security-policy: default-src 'self' https://*.search.brave.com https://*.safesearch.brave.com; worker-src 'self' blob: https://cdn.search.brave.com; connect-src 'self' https://*.search.brave.com https://*.safesearch.brave.com https://search-ads-confirmation.brave.com https://search.anonymous.ads.brave.com https://ads-serve.brave.com https://payment.rewards.brave.com; font-src 'self' data: https://cdn.search.brave.com; img-src 'self' blob: data: https://*.search.brave.com https://*.safesearch.brave.com; manifest-src 'self' data: https://cdn.search.brave.com; object-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob: 'sha256-814SnTyn5ALg8TJXV+oyKfWuNiBuC4efTpUrmrxoOCg=' 'sha256-SmTwPjqn0XvcfrmE4x0RbrJTxpXaEf2fSzIn0kj7ckI=' 'sha256-d1dDypqZNlvvw7S73u6vZbvWfwqGGY0cgXENpwDs0Ak=' https://cdn.search.brave.com 'nonce-iKHkRG24pXvOLukaICS8VA=='; script-src-attr 'self' 'unsafe-hashes' 'sha256-7dQwUgLau1NFCCGjfn9FsYptB6ZtWxJin6VohGIu20I='; style-src 'self' 'unsafe-inline' https://cdn.search.brave.com; base-uri 'self'; frame-ancestors 'self'; upgrade-insecure-requests
+cache-control: no-store
+x-cache: Error from cloudfront
+via: 1.1 abe08123028bf81a9d375ae21490c284.cloudfront.net (CloudFront)
+x-amz-cf-pop: FOR50-P6
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: RiHWXWTmBxKs9ocb5bjdfvPdGkv2nxSKr8DQHd83756O-bj_quxbRQ==
+

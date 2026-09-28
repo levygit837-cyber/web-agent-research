@@ -1,0 +1,67 @@
+{
+  "_fixture_note": "en.wikipedia.org/w/rest.php/v1/search/page?q=tokio+rust+crate+documentation&limit=10. Captured 2026-09-28T15:53:30Z. HTTP 200. User-Agent used: honest/descriptive per Wikimedia Foundation User-Agent Policy (NOT a browser-impersonating UA -- this is the one engine in this survey where impersonation is explicitly discouraged by the origin, not just tolerated as a browser-shaped default). Trimmed to 5 pages (full response had 5+).",
+  "pages": [
+    {
+      "id": 29414838,
+      "key": "Rust_(programming_language)",
+      "title": "Rust (programming language)",
+      "excerpt": "website <span class=\"searchmatch\">Crates</span>.io. The development of the Servo browser engine continued in parallel with <span class=\"searchmatch\">Rust</span>, funded by Mozilla and Samsung. New features in <span class=\"searchmatch\">Rust</span> were",
+      "matched_title": null,
+      "anchor": null,
+      "description": "General-purpose programming language",
+      "thumbnail": {
+        "mimetype": "image/svg+xml",
+        "width": 60,
+        "height": 60,
+        "duration": null,
+        "url": "//thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/Rust_programming_language_black_logo.svg/60px-Rust_programming_language_black_logo.svg.png?utm_source=en.wikipedia.org&utm_campaign=rest&utm_content=thumbnail"
+      }
+    },
+    {
+      "id": 81297551,
+      "key": "Outline_of_the_Rust_programming_language",
+      "title": "Outline of the Rust programming language",
+      "excerpt": "Language&quot;. web.mit.edu. &quot;<span class=\"searchmatch\">Crates</span> \u2013 <span class=\"searchmatch\">Rust</span> By Example&quot;. doc.<span class=\"searchmatch\">rust</span>-lang.org. &quot;Enums \u2013 <span class=\"searchmatch\">Rust</span> By Example&quot;. doc.<span class=\"searchmatch\">rust</span>-lang.org. &quot;<span class=\"searchmatch\">Rust</span> \u2013 Enum&quot;. GeeksforGeeks. March",
+      "matched_title": null,
+      "anchor": null,
+      "description": "Overview of and topical guide to Rust",
+      "thumbnail": null
+    },
+    {
+      "id": 81186004,
+      "key": "List_of_Rust_software_and_tools",
+      "title": "List of Rust software and tools",
+      "excerpt": "the <span class=\"searchmatch\">Rust</span> programming language Awesome-<span class=\"searchmatch\">Rust</span> \u2014 GitHub list of <span class=\"searchmatch\">Rust</span> software and tools <span class=\"searchmatch\">crates</span>.io \u2014 <span class=\"searchmatch\">Rust</span> package registry Official <span class=\"searchmatch\">Rust</span> <span class=\"searchmatch\">documentation</span> Official",
+      "matched_title": null,
+      "anchor": null,
+      "description": "Rust software and development tools",
+      "thumbnail": null
+    },
+    {
+      "id": 81277628,
+      "key": "Glauber_Costa",
+      "title": "Glauber Costa",
+      "excerpt": " &quot;docs.rs \u2013 <span class=\"searchmatch\">Rust</span> <span class=\"searchmatch\">crate</span> <span class=\"searchmatch\">documentation</span>&quot;. docs.rs. Retrieved 29 September 2025. &quot;Announcing <span class=\"searchmatch\">tokio</span>-uring: io-uring support for <span class=\"searchmatch\">Tokio</span>&quot;. <span class=\"searchmatch\">Tokio</span>. 2021. Retrieved",
+      "matched_title": null,
+      "anchor": null,
+      "description": "Canadian software engineer (born 1982)",
+      "thumbnail": {
+        "mimetype": "image/jpeg",
+        "width": 60,
+        "height": 90,
+        "duration": null,
+        "url": "//thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Glauber-Costa_P99CONF.jpg/60px-Glauber-Costa_P99CONF.jpg?utm_source=en.wikipedia.org&utm_campaign=rest&utm_content=thumbnail"
+      }
+    },
+    {
+      "id": 84331995,
+      "key": "ETamil",
+      "title": "ETamil",
+      "excerpt": "English and Tamil. The reference implementation, etamil, is a single <span class=\"searchmatch\">Rust</span> <span class=\"searchmatch\">crate</span>. Source text is tokenised by a lexer generated with the logos library",
+      "matched_title": null,
+      "anchor": null,
+      "description": "Tamil-vocabulary programming language for finance",
+      "thumbnail": null
+    }
+  ]
+}

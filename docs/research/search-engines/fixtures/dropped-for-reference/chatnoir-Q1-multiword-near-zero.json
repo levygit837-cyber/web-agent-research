@@ -1,0 +1,12 @@
+{
+  "_fixture_note": "www.chatnoir.eu/api/v1/_search POST {query: 'tokio rust crate documentation', ...}, public shared API key (LTmnNLQeQvBlNjwWeuNxz1vdya3HpSzN, rate-limited but keyless-in-spirit -- a request key is baked into every open-source client incl. the official Python package's own defaults.py). Captured 2026-09-28T15:55:39Z. HTTP 200, default search_method, default index (auto-selected wows-owi-2025 = the Open Web Search / OpenWebSearch.eu 2025 crawl). total_results: 2, zero returned -- ChatNoir's default search_method appears to require ALL terms present (AND-like), and this 4-term academic-IR-benchmark query matched almost nothing in this particular crawl.",
+  "meta": {
+    "indices": [
+      "wows-owi-2025"
+    ],
+    "query_time": 1958,
+    "total_results": 2,
+    "search_method": "default"
+  },
+  "results": []
+}

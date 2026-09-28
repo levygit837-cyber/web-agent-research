@@ -1,0 +1,18 @@
+{
+  "_fixture_note": "api2.marginalia-search.com/search?query=<query>&count=10, API-Key: public. Captured across this session (first hit 2026-09-28T15:52:53Z by helper Tier2Probes, reconfirmed 2026-09-28T15:57:17Z and 15:57:33Z by EngineEvaluation): every attempt hit HTTP 429 immediately, even the FIRST request of the session (not just after sustained use). Plain-text body, not JSON. Two distinct rate-limit messages observed across the session: 'QPM Limit Exceeded' (early) and 'Daily Limit Exceeded' with header API-Remaining-Daily-Capacity: 0 (later) -- i.e. the shared 'public' key's daily quota may already be exhausted for this IP/key globally, independent of this session's own request rate. Docs (about.marginalia-search.com/article/api/) state this key 'often hits a rate limit' by design.",
+  "example_1": {
+    "status": 429,
+    "body": "QPM Limit Exceeded",
+    "headers_of_note": {
+      "server": "nginx/1.26.3"
+    }
+  },
+  "example_2": {
+    "status": 429,
+    "body": "Daily Limit Exceeded",
+    "headers_of_note": {
+      "API-Remaining-Daily-Capacity": "0",
+      "API-Event-Type": "OverLimitBlock"
+    }
+  }
+}

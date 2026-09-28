@@ -1,0 +1,4 @@
+{
+  "_fixture_note": "en.wikipedia.org/w/rest.php/v1/search/page?q=reqwest+ClientBuilder+timeout+method+rust&limit=10 (Q3, API-specific method-name query). Captured 2026-09-28T15:54:09Z. HTTP 200 but pages:[] -- zero results. Kept as a NEGATIVE fixture: Wikipedia's REST search is a poor fit for API-reference-shaped queries (also reproduced on Q4 error-message query, Q7 pt-BR query, Q10 long natural-language question -- 4 of 10 fixed queries returned empty despite 10/10 HTTP 200). This is a relevance/fit limitation, not a bot-wall: no error, no challenge marker, just zero matches.",
+  "pages": []
+}
