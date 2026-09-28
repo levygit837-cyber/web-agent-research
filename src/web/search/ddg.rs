@@ -3,12 +3,16 @@
 //! Form POST plus `s`/`vqd` continuation re-POSTs over plain HTTP, parsed
 //! with regex into raw hits for the agent-loop Queries. Selector drift
 //! and bot-wall changes land here.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use std::collections::HashSet;
 
 use regex::Regex;
 
 use super::fanout::{map_transport_error, parse_retry_after};
+use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{
     collapse_whitespace, decode_entities, decode_html_text, percent_decode, percent_encode,
     strip_tags,
@@ -16,7 +20,7 @@ use crate::web::search::decode::{
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, DDG_KL_DEFAULT, MAX_NUM_RESULTS,
 };
-use crate::web::search::{apply_browser_headers, leg_timeout};
+use crate::web::search::{apply_navigation_headers, leg_timeout, request_origin, ChainPosition};
 
 /// DuckDuckGo no-JS frontend (Omp `DUCKDUCKGO_HTML_URL`). Tests override via
 /// `ddg_search_with_base`; never the Instant Answer API (Omp tried and
@@ -102,30 +106,41 @@ async fn ddg_post(
     url: &str,
     form: &[(String, String)],
     query: &str,
+    profile: &BrowserProfile,
 ) -> Result<(u16, String, Option<u64>), SearchProviderError> {
     let body = form
         .iter()
         .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let response = apply_browser_headers(
-        client
-            .post(url)
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Referer", DDG_REFERER)
-            .body(body)
-            .timeout(leg_timeout()),
+    // Always same-origin, never `none`: a form POST is issued from a page,
+    // and that page is `DDG_REFERER` even for the first POST of a chain
+    // (the user's own query submission from `html.duckduckgo.com`'s own
+    // markup). `none` is only for a request with no initiating page at
+    // all (Obscura `request_fetch_site`, client.rs:438-450 @542df14).
+    let mut builder = apply_navigation_headers(
+        client.post(url),
+        profile,
+        ChainPosition::FollowUp,
+        Some(DDG_REFERER),
     )
-    .send()
-    .await
-    .map_err(|err| {
-        map_transport_error(
-            SearchProvider::DuckDuckGo,
-            query,
-            err.is_timeout(),
-            format!("DuckDuckGo request failed: {err}"),
-        )
-    })?;
+    .body(body)
+    .timeout(leg_timeout());
+    if let Some(origin) = request_origin(url) {
+        builder = builder.header("Origin", origin);
+    }
+    let response = builder
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .send()
+        .await
+        .map_err(|err| {
+            map_transport_error(
+                SearchProvider::DuckDuckGo,
+                query,
+                err.is_timeout(),
+                format!("DuckDuckGo request failed: {err}"),
+            )
+        })?;
     let status = response.status().as_u16();
     let retry_after = parse_retry_after(&response);
     let text = response.text().await.map_err(|err| {
@@ -148,12 +163,15 @@ pub(crate) async fn ddg_search(
     recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
+    // One profile per chain (#59): DDG's `vqd` is bound to the UA, so every
+    // page of this same query re-POSTs with the same profile.
+    let profile = pick_profile();
     let mut rows: Vec<SearchResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut form = create_ddg_form(query, recency);
     let mut last_s: Option<String> = None;
     loop {
-        let (status, body, retry_after) = ddg_post(client, base, &form, query).await?;
+        let (status, body, retry_after) = ddg_post(client, base, &form, query, &profile).await?;
         let page = map_ddg_response(status, &body, query, retry_after)?;
         for mut row in page {
             if !seen.insert(row.url.clone()) {
@@ -606,6 +624,140 @@ mod tests {
             .expect_err("slow stub must time out at leg level");
         assert_eq!(err.http_status(), 504);
         assert_eq!(err.code(), "timeout");
+    }
+
+    #[tokio::test]
+    async fn header_order_matches_chrome_navigation_for_first_request_and_pagination_follow_up() {
+        // #58: a local HTTP/1.1 server records raw request header lines;
+        // the order must equal the profile's navigation list for every
+        // request in a multi-page pagination chain (same profile
+        // throughout, per #59's chain-reuse contract). Every DDG request
+        // is a form POST issued from a page, so `sec-fetch-site` is
+        // `same-origin` with a Referer/Origin on all of them, including
+        // the first (there is no `none` DDG request: #58 review finding).
+        let (stub, captured) = StubServer::serve_capturing_headers().await;
+        let client = reqwest::Client::new();
+        let rows = ddg_search_with_base(&client, "q", None, &format!("{}/html/", stub.base()))
+            .await
+            .expect("stub always replies 200");
+        assert_eq!(rows.len(), 0, "empty stub page yields no rows");
+
+        let requests = captured.lock().expect("captured");
+        assert_eq!(
+            requests.len(),
+            5,
+            "first request + 4 pagination follow-ups (serve_capturing_headers stops the chain at request 5)"
+        );
+        let expected: Vec<&str> = vec![
+            "sec-ch-ua",
+            "sec-ch-ua-mobile",
+            "sec-ch-ua-platform",
+            "upgrade-insecure-requests",
+            "user-agent",
+            "accept",
+            "sec-fetch-site",
+            "sec-fetch-mode",
+            "sec-fetch-user",
+            "sec-fetch-dest",
+            "accept-encoding",
+            "accept-language",
+            "referer",
+            "origin",
+            "content-type",
+            // reqwest inserts these itself, after every header this crate
+            // sets; unavoidable without the #56 transport (module docs).
+            "host",
+            "content-length",
+        ];
+        for (i, request) in requests.iter().enumerate() {
+            let names = super::super::test_support::header_names(request);
+            assert_eq!(
+                names, expected,
+                "request {i} header order must match Chrome navigation order"
+            );
+        }
+
+        let header_value = |lines: &[String], name: &str| -> String {
+            lines
+                .iter()
+                .find_map(|line| {
+                    let (n, value) = line.split_once(':')?;
+                    if n.trim().eq_ignore_ascii_case(name) {
+                        Some(value.trim().to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| panic!("{name} present"))
+        };
+        for request in requests.iter() {
+            assert_eq!(header_value(request, "sec-fetch-site"), "same-origin");
+        }
+
+        // #59: every request in the pagination chain reuses the exact same
+        // profile (User-Agent AND sec-ch-ua identical -- DDG's vqd is bound
+        // to the UA). Checked over 5 requests: a regression that re-picks
+        // the profile per request would need to draw the same one of 9
+        // profiles 4 times running by chance to slip through, (1/9)^4,
+        // rather than the 1-in-9 chance a 2-request chain would give it.
+        let first_ua = header_value(&requests[0], "user-agent");
+        let first_hints = header_value(&requests[0], "sec-ch-ua");
+        for request in requests.iter().skip(1) {
+            assert_eq!(
+                header_value(request, "user-agent"),
+                first_ua,
+                "pagination chain must reuse one profile's User-Agent"
+            );
+            assert_eq!(
+                header_value(request, "sec-ch-ua"),
+                first_hints,
+                "pagination chain must reuse one profile's sec-ch-ua"
+            );
+        }
+    }
+
+    /// #57: a local server returns gzip- and brotli-encoded DDG fixtures;
+    /// the parser must yield the same Hits as the plain fixture, proving
+    /// the `gzip`/`brotli` reqwest features actually decode the body
+    /// (rather than the fixture happening to parse as raw compressed
+    /// bytes, which it would not: `parse_ddg_html` runs regex over text).
+    #[tokio::test]
+    async fn gzip_and_brotli_encoded_pages_parse_to_the_same_hits_as_plain() {
+        let plain = r#"<html><body><div class="result"><h2 class="result__title"><a class="result__a" href="https://example.com/gz">Gzipped Result</a></h2><div class="result__snippet">decoded fine</div></div></body></html>"#;
+
+        let plain_rows = parse_ddg_html(plain, "q");
+        assert_eq!(
+            plain_rows.len(),
+            1,
+            "sanity: the plain fixture itself parses"
+        );
+
+        let gzip_bytes = {
+            use std::io::Write;
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(plain.as_bytes()).expect("gzip write");
+            encoder.finish().expect("gzip finish")
+        };
+        let brotli_bytes = {
+            let mut out = Vec::new();
+            let mut writer = brotli::CompressorWriter::new(&mut out, 4096, 5, 22);
+            std::io::Write::write_all(&mut writer, plain.as_bytes()).expect("brotli write");
+            drop(writer);
+            out
+        };
+
+        for (encoding, bytes) in [("gzip", gzip_bytes), ("br", brotli_bytes)] {
+            let stub = StubServer::serve_encoded(encoding, bytes).await;
+            let client = reqwest::Client::new();
+            let rows = ddg_search_with_base(&client, "q", None, &format!("{}/html/", stub.base()))
+                .await
+                .unwrap_or_else(|err| panic!("{encoding} fixture must decode and parse: {err:?}"));
+            assert_eq!(
+                rows, plain_rows,
+                "{encoding}-encoded fixture must yield the same Hits as plain"
+            );
+        }
     }
 
     #[test]

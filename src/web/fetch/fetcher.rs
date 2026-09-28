@@ -7,6 +7,13 @@
 //! *without* a challenge marker, and other HTTP errors (404, 500, …), return
 //! `FetchError::Http` without spawning the browser: Obscura would see the
 //! same status (or the same absence of one).
+//!
+//! `reqwest`'s `gzip`/`brotli`/`zstd`/`deflate` features (#57) decode the
+//! response body transparently; `Accept-Encoding` is sent explicitly so the
+//! wire value matches a real Chrome navigation rather than tower-http's
+//! insertion-order default. Decompression removes `Content-Length` before
+//! `read_capped_body` sees the response, so the cap always applies to
+//! decoded bytes, streamed chunk-by-chunk, never to the compressed size.
 
 use std::time::Duration;
 
@@ -130,6 +137,7 @@ impl Fetcher {
                 "Accept",
                 "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
             )
+            .header("Accept-Encoding", "gzip, deflate, br, zstd")
             .header("Accept-Language", ACCEPT_LANGUAGE)
             .send()
             .await

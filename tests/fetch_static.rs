@@ -50,6 +50,9 @@ fn challenge_body() -> String {
 /// A response body, wired as either a length-prefixed or chunked HTTP entity.
 enum Body {
     Plain(String),
+    /// Pre-encoded raw bytes sent with a normal `Content-Length` (used with
+    /// a `Content-Encoding` extra header for the #57 gzip-body-cap test).
+    Bytes(Vec<u8>),
     /// Sent as real HTTP/1.1 chunked transfer coding: no `Content-Length`.
     Chunked(Vec<u8>),
 }
@@ -140,6 +143,45 @@ fn route(path: &str) -> RouteResponse {
             extra_headers: &[("cf-mitigated", "challenge")],
             body: Body::Plain("<h1>Forbidden</h1>".to_owned()),
         },
+        // 200, gzip-compressed body + `Content-Encoding: gzip` (#57): the
+        // static client must decode this via reqwest's `gzip` feature and
+        // hand `Fetcher` decoded HTML, not raw compressed bytes.
+        "/gzip-article" => {
+            use std::io::Write;
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(article_html().as_bytes()).unwrap();
+            RouteResponse {
+                status: 200,
+                content_type: "text/html; charset=utf-8",
+                extra_headers: &[("Content-Encoding", "gzip")],
+                body: Body::Bytes(encoder.finish().unwrap()),
+            }
+        }
+        // 200, gzip-compressed body whose *decoded* size is over the cap,
+        // but whose *compressed* `Content-Length` is tiny (repeated bytes
+        // compress hard): proves the cap is enforced against decoded
+        // bytes streamed as they arrive, not against the wire size.
+        "/gzip-bomb" => {
+            use std::io::Write;
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder
+                .write_all(&vec![b'a'; MAX_BODY_BYTES + 1024])
+                .unwrap();
+            let compressed = encoder.finish().unwrap();
+            assert!(
+                compressed.len() < 65536,
+                "sanity: compressed gzip-bomb body must stay well under the cap, got {}",
+                compressed.len()
+            );
+            RouteResponse {
+                status: 200,
+                content_type: "text/plain",
+                extra_headers: &[("Content-Encoding", "gzip")],
+                body: Body::Bytes(compressed),
+            }
+        }
         // 200 success, no Content-Length, real chunked transfer coding,
         // body above the cap: the streamed reader must abort mid-stream.
         "/oversize-chunked" => RouteResponse {
@@ -197,6 +239,10 @@ async fn serve() -> String {
                         head.push_str(&format!("Content-Length: {}\r\n", text.len()));
                         text.as_bytes().to_vec()
                     }
+                    Body::Bytes(bytes) => {
+                        head.push_str(&format!("Content-Length: {}\r\n", bytes.len()));
+                        bytes.clone()
+                    }
                     Body::Chunked(bytes) => {
                         head.push_str("Transfer-Encoding: chunked\r\n");
                         chunk_encode(bytes)
@@ -224,6 +270,23 @@ async fn static_html_becomes_markdown_without_browser() {
     for chrome in ["Home | Docs", "track()", "(c)"] {
         assert!(!page.markdown.contains(chrome), "{chrome} leaked");
     }
+}
+
+#[tokio::test]
+async fn gzip_encoded_static_body_decodes_via_accept_encoding() {
+    // #57: reqwest's `gzip` feature must decode the compressed body before
+    // `Fetcher` ever sees it; the resulting markdown matches the same
+    // article served plain.
+    let base = serve().await;
+    let (page, path) = fetcher()
+        .fetch(&format!("{base}/gzip-article"))
+        .await
+        .unwrap();
+    assert_eq!(path, FetchPath::Static);
+    assert!(page.markdown.starts_with("# Article"), "{}", page.markdown);
+    assert!(page
+        .markdown
+        .contains("[reference](https://example.org/ref)"));
 }
 
 #[tokio::test]
@@ -287,6 +350,27 @@ async fn chunked_body_over_cap_aborts_without_content_length() {
     let base = serve().await;
     let err = fetcher()
         .fetch(&format!("{base}/oversize-chunked"))
+        .await
+        .unwrap_err();
+    let FetchError::Http { detail, .. } = &err else {
+        panic!("expected Http, got {err}");
+    };
+    assert!(
+        detail.starts_with("body exceeds"),
+        "expected size-cap detail, got {detail}"
+    );
+}
+
+#[tokio::test]
+async fn gzip_decoded_body_over_cap_aborts_on_decoded_size_not_wire_size() {
+    // #57: with decompression enabled, the body-size cap module doc claims
+    // it "always applies to decoded bytes, streamed chunk-by-chunk, never
+    // to the compressed size". `/gzip-bomb` serves a wire body well under
+    // the cap that decodes to well over it, so this fails unless the cap
+    // is really enforced post-decode.
+    let base = serve().await;
+    let err = fetcher()
+        .fetch(&format!("{base}/gzip-bomb"))
         .await
         .unwrap_err();
     let FetchError::Http { detail, .. } = &err else {

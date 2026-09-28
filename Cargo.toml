@@ -18,7 +18,7 @@ path = "src/lib.rs"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "brotli", "zstd", "deflate"] }
 clap = { version = "4", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
@@ -31,3 +31,5 @@ rand = "=0.9.5"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "net", "test-util"] }
+flate2 = "=1.1.10"
+brotli = "=9.0.0"

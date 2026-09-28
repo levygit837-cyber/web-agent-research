@@ -4,6 +4,9 @@
 //! by default), merged by consensus ranking; per-leg errors collect into
 //! the output. Partial success is `Ok`; only total-leg failure is
 //! `Err(AllFailed)`.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use std::path::Path;
 use std::time::Duration;

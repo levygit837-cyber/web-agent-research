@@ -92,6 +92,19 @@ Measured tool numbers, not end-to-end run time:
 
 End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by search/fetch. Measured live (#33, `docs/e2e-evidence.md`): 7.7 s for a 2-turn run on `claude-haiku-4.5` that fetched 2 pages.
 
+## Browser profile bump (#59)
+
+`src/web/profile.rs` pins Chrome stable and its two previous majors (`STABLE_MAJORS`), across macOS/Windows/Linux, so `web/search`'s DDG and Startpage legs never send a UA family/version DDG or Startpage can flag as stale. One profile is drawn at random per request chain (one engine leg plus its follow-ups: DDG's `s`/`vqd` pagination re-POSTs and the Startpage homepage → search POST both reuse the same profile, because DDG's `vqd` token is bound to the UA).
+
+To bump when Chrome ships a new stable major:
+
+1. Check `https://versionhistory.googleapis.com/v1/chrome/platforms/{mac,win,linux}/channels/stable/versions?pageSize=3` for the current stable major per platform.
+2. Update `STABLE_MAJORS` in `src/web/profile.rs` to the new stable major and its 2 predecessors.
+3. Run `cargo test -- --ignored profile_table_matches_chrome_stable` (a live network call) to confirm the table now matches. This is a manual step: no CI job runs `--ignored`/`--include-ignored`, so a lagging table is caught only by running this command, not automatically.
+4. `cargo test web::profile::` for the coherence suite (`every_profile_is_internally_coherent`): every profile's UA major must equal its `sec_ch_ua` version, and its platform must equal `sec_ch_ua_platform`.
+
+Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls (no TLS/JA3 emulation, #56/#60): a Firefox or Safari UA over a generic rustls ClientHello would be its own family/TLS mismatch signal.
+
 ## Output (`--json`, exit 0)
 
 ```json
