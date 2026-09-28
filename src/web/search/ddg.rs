@@ -11,7 +11,7 @@ use std::collections::HashSet;
 
 use regex::Regex;
 
-use super::fanout::map_transport_error;
+use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{
     collapse_whitespace, decode_entities, decode_html_text, percent_decode, percent_encode,
@@ -39,12 +39,14 @@ pub fn is_ddg_anomaly(body: &str) -> bool {
 
 /// Map a finished DDG HTTP exchange to rows or a typed leg error: anomaly
 /// body -> `Challenge` (429) even on status 200 (providers soft-block);
-/// non-2xx without markers -> `Upstream` (503). Empty with no marker is
-/// `Ok(vec![])` (zero results is not an error).
+/// non-2xx without markers -> `Upstream` (503, carrying the real `status`
+/// and any parsed `retry_after_secs` for #62's suspension mapping). Empty
+/// with no marker is `Ok(vec![])` (zero results is not an error).
 pub(crate) fn map_ddg_response(
     status: u16,
     body: &str,
     query: &str,
+    retry_after_secs: Option<u64>,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     if is_ddg_anomaly(body) {
         return Err(SearchProviderError::Challenge {
@@ -56,6 +58,8 @@ pub(crate) fn map_ddg_response(
         return Err(SearchProviderError::Upstream {
             provider: SearchProvider::DuckDuckGo,
             detail: format!("DuckDuckGo HTML error ({status})"),
+            status: Some(status),
+            retry_after_secs,
         });
     }
     Ok(parse_ddg_html(body, query))
@@ -94,15 +98,16 @@ fn create_ddg_form(query: &str, recency: Option<Recency>) -> Vec<(String, String
 
 /// One DDG POST: form body + Referer + desktop headers, per-request timeout
 /// ceiling (`LEG_TIMEOUT_SECS` in production, 1 s under `cfg(test)` so the
-/// slow-stub timeout test runs in milliseconds). Returns status + body;
-/// transport errors map to `Timeout` (504, `is_timeout`) or `Upstream` (503).
+/// slow-stub timeout test runs in milliseconds). Returns status + body +
+/// any parsed `Retry-After` header (#62); transport errors map to
+/// `Timeout` (504, `is_timeout`) or `Upstream` (503).
 async fn ddg_post(
     client: &reqwest::Client,
     url: &str,
     form: &[(String, String)],
     query: &str,
     profile: &BrowserProfile,
-) -> Result<(u16, String), SearchProviderError> {
+) -> Result<(u16, String, Option<u64>), SearchProviderError> {
     let body = form
         .iter()
         .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
@@ -137,6 +142,7 @@ async fn ddg_post(
             )
         })?;
     let status = response.status().as_u16();
+    let retry_after = parse_retry_after(&response);
     let text = response.text().await.map_err(|err| {
         map_transport_error(
             SearchProvider::DuckDuckGo,
@@ -145,7 +151,7 @@ async fn ddg_post(
             format!("DuckDuckGo body read failed: {err}"),
         )
     })?;
-    Ok((status, text))
+    Ok((status, text, retry_after))
 }
 
 /// DDG leg: page-1 POST + `s`+`vqd` continuation re-POSTs (verbatim input
@@ -165,8 +171,8 @@ pub(crate) async fn ddg_search(
     let mut form = create_ddg_form(query, recency);
     let mut last_s: Option<String> = None;
     loop {
-        let (status, body) = ddg_post(client, base, &form, query, &profile).await?;
-        let page = map_ddg_response(status, &body, query)?;
+        let (status, body, retry_after) = ddg_post(client, base, &form, query, &profile).await?;
+        let page = map_ddg_response(status, &body, query, retry_after)?;
         for mut row in page {
             if !seen.insert(row.url.clone()) {
                 continue;
@@ -567,7 +573,7 @@ mod tests {
 
     #[test]
     fn anomaly_body_maps_429_on_status_200() {
-        let err = map_ddg_response(200, "<div id=\"anomaly-modal\"></div>", "q").unwrap_err();
+        let err = map_ddg_response(200, "<div id=\"anomaly-modal\"></div>", "q", None).unwrap_err();
         assert_eq!(err.http_status(), 429);
         assert_eq!(err.code(), "challenge");
         assert_eq!(err.provider(), Some(SearchProvider::DuckDuckGo));

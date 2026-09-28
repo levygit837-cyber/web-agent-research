@@ -1,8 +1,9 @@
 //! Parallel fan-out over both provider legs with soft/hard deadlines.
 //!
-//! One leg per agent-loop Query x provider, merged by consensus ranking;
-//! per-leg errors collect into the output. Partial success is `Ok`; only
-//! total-leg failure is `Err(AllFailed)`.
+//! One leg per agent-loop Query x enabled provider (#64: Startpage is off
+//! by default), merged by consensus ranking; per-leg errors collect into
+//! the output. Partial success is `Ok`; only total-leg failure is
+//! `Err(AllFailed)`.
 //!
 //! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
 //! `THIRD-PARTY-NOTICES.md`.
@@ -11,9 +12,10 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::web::search::cache;
-use crate::web::search::ddg::{ddg_search, DDG_HTML_URL};
+use crate::web::search::ddg::ddg_search;
 use crate::web::search::dedup::merge_sources_in_order;
-use crate::web::search::startpage::{startpage_search, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL};
+use crate::web::search::governor::{Governor, PaceOutcome};
+use crate::web::search::startpage::startpage_search;
 use crate::web::search::types::{
     SearchInput, SearchOutput, SearchProvider, SearchProviderError, SearchResult, SearchStats,
     HARD_DEADLINE_SECS, SOFT_DEADLINE_SECS,
@@ -30,8 +32,8 @@ pub(crate) fn map_timeout(provider: SearchProvider, query: &str) -> SearchProvid
 }
 
 /// Map a `reqwest` transport error for one leg: timeouts -> `Timeout` (504),
-/// everything else -> `Upstream` (503). Pure over the error predicates so
-/// unit tests pin the mapping without network.
+/// everything else -> `Upstream` (503), `status: None`/`retry_after_secs:
+/// None` (no response was ever received to read either from).
 pub(crate) fn map_transport_error(
     provider: SearchProvider,
     query: &str,
@@ -41,8 +43,28 @@ pub(crate) fn map_transport_error(
     if is_timeout {
         map_timeout(provider, query)
     } else {
-        SearchProviderError::Upstream { provider, detail }
+        SearchProviderError::Upstream {
+            provider,
+            detail,
+            status: None,
+            retry_after_secs: None,
+        }
     }
+}
+
+/// Parse a response's `Retry-After` header, seconds form only (`Retry-After:
+/// 120`); the HTTP-date form is rare from these providers and not worth the
+/// parsing surface (#62: "Retry-After, when present, wins" -- a form we do
+/// not parse is treated as absent, falling back to the default duration).
+pub(crate) fn parse_retry_after(response: &reqwest::Response) -> Option<u64> {
+    response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
 }
 
 /// Format leg failures as `"id: msg; id: msg"` (Omp
@@ -55,29 +77,16 @@ pub fn all_failed_message(failures: &[(String, String)]) -> String {
         .join("; ")
 }
 
-/// Deep-module entry: full fan-out (validate is the caller's job -- this
-/// takes a validated `SearchInput`; run 2xN legs under soft/hard deadlines
-/// -> merge -> truncate). Accepts the shared client, creates nothing.
-/// Leg order is deterministic: per Query in input order, Startpage then DDG.
-/// Never fails a whole batch on one leg: leg errors collect into
-/// `output.errors`; only total-leg failure (`AllFailed`: merged empty AND
-/// every leg failed) returns `Err`. Otherwise `Ok` -- including partial
-/// success and empty results (zero results with no challenge marker is not an
-/// error). Leg panics surface as `Upstream { detail: "leg panicked" }`.
-pub async fn search_multi(
-    client: &reqwest::Client,
-    input: SearchInput,
-    cache_root: Option<&Path>,
-) -> Result<SearchOutput, SearchProviderError> {
-    search_multi_with_bases(
-        client,
-        input,
-        DDG_HTML_URL,
-        STARTPAGE_HOME_URL,
-        STARTPAGE_SEARCH_URL,
-        cache_root,
-    )
-    .await
+/// Leg index for `(query_index, provider)` given the enabled-provider list
+/// (#64: Startpage may be absent), so the settle-reconstruction map stays a
+/// dense `0..queries.len() * enabled.len()` range regardless of which, or
+/// how many, providers ran.
+fn leg_slot(query_index: usize, provider: SearchProvider, enabled: &[SearchProvider]) -> usize {
+    let provider_index = enabled
+        .iter()
+        .position(|p| *p == provider)
+        .expect("leg_slot only called for an enabled provider");
+    query_index * enabled.len() + provider_index
 }
 
 /// One settled fan-out leg: spawn index, provider, query, and outcome.
@@ -88,8 +97,20 @@ type SettledLeg = (
     Result<Vec<SearchResult>, SearchProviderError>,
 );
 
-/// Test override for the fan-out endpoints (local `TcpListener` stubs); the
-/// production path above pins the real hosts.
+/// Deep-module entry: full fan-out (validate is the caller's job -- this
+/// takes a validated `SearchInput`; run legs under soft/hard deadlines ->
+/// merge -> truncate). Accepts the shared client, base URLs (production
+/// callers pass the real hosts; tests pass local `TcpListener` stubs --
+/// `#[doc(hidden)]` since only the base-URL override makes this a test
+/// seam, not the function's purpose), creates nothing. Leg order is
+/// deterministic: per Query in input order, over
+/// `governor.enabled_providers()` in priority order (Startpage first when
+/// enabled, then DuckDuckGo; #64). Never fails a whole batch on one leg:
+/// leg errors collect into `output.errors`; only total-leg failure
+/// (`AllFailed`: merged empty AND every leg failed) returns `Err`.
+/// Otherwise `Ok` -- including partial success and empty results (zero
+/// results with no challenge marker is not an error). Leg panics surface as
+/// `Upstream { detail: "leg panicked" }`.
 #[doc(hidden)]
 pub async fn search_multi_with_bases(
     client: &reqwest::Client,
@@ -97,28 +118,36 @@ pub async fn search_multi_with_bases(
     ddg_base: &str,
     sp_home: &str,
     sp_search: &str,
+    governor: &Governor,
     cache_root: Option<&Path>,
 ) -> Result<SearchOutput, SearchProviderError> {
     let queries = input.queries.clone();
     let recency = input.recency;
     let top_k = input.top_k;
-    // Legs in deterministic order: per Query in input order, Startpage then DDG.
-    // Each leg keeps its spawn index (query index + provider): JoinSet returns
-    // legs in completion order, so results reconstruct by index, never by
-    // (query, provider) — duplicate query strings no longer collapse, and a
-    // panicked leg maps back to its slot via JoinError::id.
+    // #64: which engines run this call, in priority order (Startpage first
+    // when enabled, then DuckDuckGo); the hermetic `Governor` always
+    // enables both, so every pre-existing fan-out test keeps its two-leg
+    // shape unchanged.
+    let enabled = governor.enabled_providers();
+    // Legs in deterministic order: per Query in input order, over `enabled`
+    // in priority order. Each leg keeps its spawn index (query index +
+    // provider): JoinSet returns legs in completion order, so results
+    // reconstruct by index, never by (query, provider) — duplicate query
+    // strings no longer collapse, and a panicked leg maps back to its slot
+    // via JoinError::id.
     let mut set = tokio::task::JoinSet::new();
-    let leg_count = queries.len() * 2;
+    let leg_count = queries.len() * enabled.len();
     let mut leg_ids: Vec<tokio::task::Id> = Vec::with_capacity(leg_count);
     let mut leg_slots: Vec<(usize, SearchProvider)> = Vec::with_capacity(leg_count);
     for (query_index, query) in queries.iter().enumerate() {
-        for provider in [SearchProvider::Startpage, SearchProvider::DuckDuckGo] {
+        for provider in enabled.iter().copied() {
             let (client_owned, query_owned) = (client.clone(), query.clone());
             let (ddg, home, search) = (
                 ddg_base.to_string(),
                 sp_home.to_string(),
                 sp_search.to_string(),
             );
+            let governor_owned = governor.clone();
             let cache_root_owned = cache_root.map(Path::to_path_buf);
             let slot = (query_index, provider);
             leg_slots.push(slot);
@@ -126,7 +155,9 @@ pub async fn search_multi_with_bases(
                 set.spawn(async move {
                     // Cache lookup per leg, not per merged output: a hit
                     // here for one provider never blocks the other
-                    // provider's live request for the same Query.
+                    // provider's live request for the same Query. Checked
+                    // before suspension/budget/pacing: a cache hit makes no
+                    // HTTP request, so none of those gates apply.
                     if let Some(mut rows) = cache::lookup(
                         cache_root_owned.as_deref(),
                         provider,
@@ -148,17 +179,91 @@ pub async fn search_multi_with_bases(
                         }
                         return (slot, query_owned, Ok(rows));
                     }
-                    let outcome: Result<Vec<SearchResult>, SearchProviderError> = match provider {
-                        SearchProvider::Startpage => {
-                            startpage_search(&client_owned, &query_owned, recency, &home, &search)
-                                .await
-                        }
-                        SearchProvider::DuckDuckGo => {
-                            ddg_search(&client_owned, &query_owned, recency, &ddg).await
-                        }
-                    };
+                    // #63: cap on Queries dispatched to one engine within
+                    // this call. Checked after the cache lookup (a cache
+                    // hit costs no request and so never counts against
+                    // the cap) and before suspension/budget: capped-out
+                    // queries are a local scheduling decision, not a
+                    // bot-wall signal, so they map to `Throttled`, never
+                    // `Upstream`.
+                    if query_index >= governor_owned.max_queries_per_engine() {
+                        let outcome = Err(SearchProviderError::Throttled {
+                            provider,
+                            detail: format!(
+                                "{} per-call query cap reached ({} queries)",
+                                provider.id(),
+                                governor_owned.max_queries_per_engine()
+                            ),
+                        });
+                        return (slot, query_owned, outcome);
+                    }
+                    // #62: a suspended engine is skipped entirely -- no
+                    // pacing wait, no HTTP request -- before even
+                    // acquiring the serial queue.
+                    let outcome: Result<Vec<SearchResult>, SearchProviderError> =
+                        if let Some((remaining_secs, reason)) =
+                            governor_owned.suspended_remaining(provider)
+                        {
+                            Err(SearchProviderError::Suspended {
+                                provider,
+                                remaining_secs,
+                                reason,
+                            })
+                        } else {
+                            // #63: serialized per engine. `acquire` blocks
+                            // until any other leg for this same engine has
+                            // released the queue; `pace` then rechecks
+                            // suspension/budget (a sibling leg queued ahead
+                            // of this one may have just settled and
+                            // changed either) before waiting the jittered
+                            // gap from the last request to this engine
+                            // (persisted across runs when a cache root is
+                            // set) and reserving the per-run budget.
+                            let permit = governor_owned.acquire(provider).await;
+                            match permit.pace().await {
+                                PaceOutcome::Suspended {
+                                    remaining_secs,
+                                    reason,
+                                } => Err(SearchProviderError::Suspended {
+                                    provider,
+                                    remaining_secs,
+                                    reason,
+                                }),
+                                PaceOutcome::Throttled => Err(SearchProviderError::Throttled {
+                                    provider,
+                                    detail: format!(
+                                        "{} request budget exhausted for this run",
+                                        provider.id()
+                                    ),
+                                }),
+                                PaceOutcome::Proceed => {
+                                    let query_for_leg = query_owned.clone();
+                                    let result = match provider {
+                                        SearchProvider::Startpage => {
+                                            startpage_search(
+                                                &client_owned,
+                                                &query_for_leg,
+                                                recency,
+                                                &home,
+                                                &search,
+                                            )
+                                            .await
+                                        }
+                                        SearchProvider::DuckDuckGo => {
+                                            ddg_search(&client_owned, &query_for_leg, recency, &ddg)
+                                                .await
+                                        }
+                                    };
+                                    match &result {
+                                        Ok(_) => governor_owned.record_success(provider),
+                                        Err(err) => governor_owned.record_failure(provider, err),
+                                    }
+                                    result
+                                }
+                            }
+                        };
                     // Store only a settled `Ok` leg: a Challenge/Timeout/
-                    // Upstream `Err` never reaches `cache::store`.
+                    // Upstream/Suspended `Err` never reaches `cache::store`.
                     if let Ok(rows) = &outcome {
                         cache::store(
                             cache_root_owned.as_deref(),
@@ -224,7 +329,7 @@ pub async fn search_multi_with_bases(
                     .iter()
                     .position(|id| *id == join.id())
                     .map(|spawn_index| leg_slots[spawn_index])
-                    .unwrap_or((0, SearchProvider::DuckDuckGo));
+                    .unwrap_or((0, enabled[0]));
                 let query = queries.get(query_index).cloned().unwrap_or_default();
                 settled.push((
                     query_index,
@@ -233,6 +338,8 @@ pub async fn search_multi_with_bases(
                     Err(SearchProviderError::Upstream {
                         provider,
                         detail: "leg panicked".to_string(),
+                        status: None,
+                        retry_after_secs: None,
                     }),
                 ));
             }
@@ -242,21 +349,20 @@ pub async fn search_multi_with_bases(
     set.abort_all();
     // Legs cut by the deadlines report `Timeout`. Reconstruct leg order by
     // spawn index: settled legs keep results; missing slots (per Query in
-    // input order, SP then DDG) time out. Duplicate query strings keep
-    // separate slots.
+    // input order, over `enabled` in priority order) time out. Duplicate
+    // query strings keep separate slots.
     let mut by_leg: std::collections::HashMap<
         usize,
         Result<Vec<SearchResult>, SearchProviderError>,
     > = std::collections::HashMap::new();
     for (query_index, provider, _query, outcome) in settled {
-        let slot = query_index * 2 + usize::from(provider != SearchProvider::Startpage);
-        by_leg.insert(slot, outcome);
+        by_leg.insert(leg_slot(query_index, provider, &enabled), outcome);
     }
     let mut raw_hits: Vec<SearchResult> = Vec::new();
     let mut errors: Vec<SearchProviderError> = Vec::new();
     for (query_index, query) in queries.iter().enumerate() {
-        for provider in [SearchProvider::Startpage, SearchProvider::DuckDuckGo] {
-            let slot = query_index * 2 + usize::from(provider != SearchProvider::Startpage);
+        for provider in enabled.iter().copied() {
+            let slot = leg_slot(query_index, provider, &enabled);
             match by_leg.remove(&slot) {
                 Some(Ok(rows)) => raw_hits.extend(rows),
                 Some(Err(err)) => errors.push(err),
@@ -268,9 +374,18 @@ pub async fn search_multi_with_bases(
     let mut merged = merge_sources_in_order(raw_hits, &queries);
     let merged_count = merged.len();
     if merged.is_empty() && errors.len() == leg_count && leg_count > 0 {
-        let all_challenged = errors
-            .iter()
-            .all(|err| matches!(err, SearchProviderError::Challenge { .. }));
+        // #62: a `Suspended` counts as a bot-wall signal only when its
+        // `reason` is itself `"challenge"` (a suspension recorded from a
+        // live Challenge) -- a `Suspended` from a 5xx/transport/429/403
+        // failure, or a locally-scheduled `Throttled` skip, must never
+        // force `all_challenged: true` (that would send a plain outage or
+        // a busy-run cap down the exit-7 `SearchBlocked` path, which is
+        // reserved for an actual bot wall).
+        let all_challenged = errors.iter().all(|err| match err {
+            SearchProviderError::Challenge { .. } => true,
+            SearchProviderError::Suspended { reason, .. } => reason == "challenge",
+            _ => false,
+        });
         let failures: Vec<(String, String)> = errors
             .iter()
             .map(|err| {
@@ -308,6 +423,12 @@ fn error_detail(err: &SearchProviderError) -> String {
         SearchProviderError::Challenge { detail, .. } => detail.clone(),
         SearchProviderError::Timeout { query, .. } => format!("timed out: {query}"),
         SearchProviderError::Upstream { detail, .. } => detail.clone(),
+        SearchProviderError::Suspended {
+            remaining_secs,
+            reason,
+            ..
+        } => format!("suspended ({reason}), {remaining_secs}s left"),
+        SearchProviderError::Throttled { detail, .. } => detail.clone(),
         SearchProviderError::AllFailed { failures, .. } => failures.clone(),
     }
 }
@@ -316,6 +437,7 @@ fn error_detail(err: &SearchProviderError) -> String {
 mod tests {
     use super::super::cache::test_support::EnvGuard;
     use super::super::ddg::map_ddg_response;
+    use super::super::governor::Governor;
     use super::super::startpage::map_startpage_response;
     use super::super::test_support::{ddg_rows, sp_home_form, sp_rows, FanoutStub, StubServer};
     use super::*;
@@ -367,6 +489,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             Some(&root),
         )
         .await
@@ -401,6 +524,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             Some(&root),
         )
         .await
@@ -465,6 +589,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             Some(&root),
         )
         .await
@@ -497,6 +622,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             Some(&root),
         )
         .await
@@ -509,6 +635,220 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    #[tokio::test]
+    async fn default_config_sends_zero_requests_to_startpage() {
+        // Acceptance (#64): with the default config (no `SEARCH_ENGINES`
+        // override), the fan-out sends zero requests to Startpage. Uses a
+        // real (non-hermetic) `Governor` -- `enabled_providers()` on the
+        // hermetic seam always returns both, by design (#62/#63/#64 are
+        // production-path concerns, never hermetic-path ones).
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        let shared = "https://example.com/default-engines";
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows(shared, "DDG only", "ddg text"),
+            sp_home_form(),
+            sp_rows(shared, "SP unreachable", "sp text"),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let input =
+            SearchInput::validate(vec!["q one".to_string()], Some(15), None).expect("valid");
+        let governor = Governor::new(None);
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &governor,
+            None,
+        )
+        .await
+        .expect("DDG-only default succeeds");
+        assert_eq!(out.stats.legs, 1, "default enables exactly one engine");
+        assert!(
+            hits.lock()
+                .expect("hits")
+                .get("/html/")
+                .copied()
+                .unwrap_or(0)
+                > 0,
+            "DDG must have been hit"
+        );
+        assert_eq!(
+            hits.lock().expect("hits").get("/").copied().unwrap_or(0),
+            0,
+            "Startpage homepage GET must never be requested by default"
+        );
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/sp/search")
+                .copied()
+                .unwrap_or(0),
+            0,
+            "Startpage search POST must never be requested by default"
+        );
+    }
+
+    #[tokio::test]
+    async fn all_suspended_fanout_yields_all_failed_with_zero_requests() {
+        // Acceptance (#62): if every enabled engine is suspended, the
+        // search fails with a typed `AllFailed { all_challenged: true }`
+        // (the exit-7 `SearchBlocked` path's trigger, `research::run.rs`)
+        // without any HTTP request -- proven by the stub's hit count
+        // staying at 0 for both routes, not merely by the error shape.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        std::env::set_var("SEARCH_ENGINES", "duckduckgo,startpage");
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            "unreachable".to_string(),
+            sp_home_form(),
+            "unreachable".to_string(),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let input =
+            SearchInput::validate(vec!["q one".to_string()], Some(15), None).expect("valid");
+        let governor = Governor::new(None);
+        // Pre-suspend both enabled engines via a live Challenge, exactly
+        // the state #62 persists after a real bot-wall response.
+        for provider in [SearchProvider::DuckDuckGo, SearchProvider::Startpage] {
+            governor.record_failure(
+                provider,
+                &SearchProviderError::Challenge {
+                    provider,
+                    detail: "walled".to_string(),
+                },
+            );
+        }
+        let err = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &governor,
+            None,
+        )
+        .await
+        .expect_err("both engines suspended -> AllFailed");
+        assert_eq!(err.code(), "all_failed");
+        match &err {
+            SearchProviderError::AllFailed {
+                all_challenged,
+                failures,
+            } => {
+                assert!(
+                    all_challenged,
+                    "a Suspended skip counts as a bot-wall signal, same as a live Challenge"
+                );
+                assert!(
+                    failures.contains("duckduckgo") && failures.contains("startpage"),
+                    "failures must name both suspended engines: {failures}"
+                );
+            }
+            other => panic!("expected AllFailed, got {other:?}"),
+        }
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/html/")
+                .copied()
+                .unwrap_or(0),
+            0,
+            "a suspended DDG leg must never hit the stub"
+        );
+        assert_eq!(
+            hits.lock().expect("hits").get("/").copied().unwrap_or(0),
+            0,
+            "a suspended Startpage leg must never hit the stub's homepage"
+        );
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/sp/search")
+                .copied()
+                .unwrap_or(0),
+            0,
+            "a suspended Startpage leg must never hit the stub's search route"
+        );
+    }
+
+    #[tokio::test]
+    async fn per_call_query_cap_limits_requests_to_one_engine() {
+        // #63: "cap on Queries dispatched to one engine within a call".
+        // 3 Queries, cap 2 -> the 3rd Query's leg never reaches the stub
+        // (a `Throttled` error, not a bot-wall signal), while the first
+        // two do. Zero pacing delay: this proves the cap, not the gap, so
+        // it must not add real wall-clock wait to the suite.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        std::env::set_var("SEARCH_ENGINES", "duckduckgo,startpage");
+        std::env::set_var("SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL", "2");
+        std::env::set_var("SEARCH_PACE_MIN_MS", "0");
+        std::env::set_var("SEARCH_PACE_MAX_MS", "0");
+        let shared = "https://example.com/capped";
+        let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows(shared, "DDG", "ddg text"),
+            sp_home_form(),
+            sp_rows(shared, "SP", "sp text"),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let input = SearchInput::validate(
+            vec!["q1".to_string(), "q2".to_string(), "q3".to_string()],
+            Some(15),
+            None,
+        )
+        .expect("valid");
+        let governor = Governor::new(None);
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &governor,
+            None,
+        )
+        .await
+        .expect("partial success: 2 of 3 queries per engine succeed");
+        assert_eq!(
+            out.errors.len(),
+            2,
+            "the 3rd query's leg on each engine (DDG + Startpage) must be capped: {:?}",
+            out.errors
+        );
+        assert!(
+            out.errors
+                .iter()
+                .all(|e| matches!(e, SearchProviderError::Throttled { .. })),
+            "a capped leg is Throttled, not a bot-wall signal: {:?}",
+            out.errors
+        );
+        // Each engine sees exactly 2 requests (q1, q2), never 3.
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/html/")
+                .copied()
+                .unwrap_or(0),
+            2,
+            "DDG must be capped at 2 requests this call"
+        );
+        assert_eq!(
+            hits.lock()
+                .expect("hits")
+                .get("/sp/search")
+                .copied()
+                .unwrap_or(0),
+            2,
+            "Startpage must be capped at 2 requests this call"
+        );
+    }
+
     #[test]
     fn timeout_beats_challenge() {
         let err = map_timeout(SearchProvider::DuckDuckGo, "q");
@@ -518,9 +858,9 @@ mod tests {
 
     #[test]
     fn http_500_maps_503() {
-        let err = map_ddg_response(500, "boom", "q").unwrap_err();
+        let err = map_ddg_response(500, "boom", "q", None).unwrap_err();
         assert_eq!(err.http_status(), 503);
-        let err = map_startpage_response(500, "boom", "https://x/", "q").unwrap_err();
+        let err = map_startpage_response(500, "boom", "https://x/", "q", None).unwrap_err();
         assert_eq!(err.http_status(), 503);
     }
 
@@ -572,6 +912,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             None,
         )
         .await
@@ -616,6 +957,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             None,
         )
         .await
@@ -657,6 +999,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             None,
         )
         .await
@@ -693,6 +1036,7 @@ mod tests {
             &format!("{base}/missing/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             None,
         )
         .await
@@ -733,6 +1077,7 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &Governor::hermetic(),
             None,
         )
         .await

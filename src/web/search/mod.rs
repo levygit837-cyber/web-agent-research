@@ -1,9 +1,9 @@
 //! Fetch-only web search engine: DDG + Startpage over plain HTTP.
 //!
-//! Small Interface (`search_multi`, eleven pure helpers, three `#[doc(hidden)]`
-//! base-URL overrides) over provider legs (`ddg`, `startpage`), merge
-//! (`dedup`), fan-out (`fanout`) and codecs (`decode`). Callers cross only
-//! this root; provider forms and deadlines stay inside.
+//! Small Interface (`search_multi_with_bases`, eleven pure helpers, three
+//! `#[doc(hidden)]` base-URL overrides) over provider legs (`ddg`,
+//! `startpage`), merge (`dedup`), fan-out (`fanout`) and codecs (`decode`).
+//! Callers cross only this root; provider forms and deadlines stay inside.
 //!
 //! `ChainPosition`'s `sec-fetch-site` derivation ports Obscura's
 //! `request_fetch_site` (Apache-2.0, h4ckf0r0day/obscura@542df14); see
@@ -15,6 +15,7 @@ pub mod ddg;
 pub mod decode;
 pub mod dedup;
 pub mod fanout;
+pub(crate) mod governor;
 pub mod startpage;
 pub mod tool;
 pub mod types;
@@ -25,9 +26,11 @@ pub use ddg::{
     DDG_REFERER,
 };
 pub use dedup::{dedup_key, merge_sources};
+pub use fanout::all_failed_message;
 #[doc(hidden)]
 pub use fanout::search_multi_with_bases;
-pub use fanout::{all_failed_message, search_multi};
+#[doc(hidden)]
+pub use governor::Governor;
 #[doc(hidden)]
 pub use startpage::startpage_search_with_base;
 pub use startpage::{

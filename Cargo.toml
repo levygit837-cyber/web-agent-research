@@ -30,6 +30,6 @@ htmd = "=0.5.5"
 rand = "=0.9.5"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "net"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "net", "test-util"] }
 flate2 = "=1.1.10"
 brotli = "=9.0.0"

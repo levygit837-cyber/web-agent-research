@@ -29,7 +29,6 @@ pub(crate) fn cache_root() -> Option<PathBuf> {
 /// a torn file. `fetch_add` gives each call a distinct, monotonically
 /// increasing suffix within this process.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
-
 /// Write via a sibling temp file + rename so readers never see a torn file.
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {

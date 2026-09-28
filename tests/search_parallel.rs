@@ -8,6 +8,7 @@
 
 use web_agent_research::web::search::search_multi_with_bases;
 use web_agent_research::web::search::types::SearchInput;
+use web_agent_research::web::search::Governor;
 
 fn ddg_rows(url: &str, title: &str, snippet: &str) -> String {
     format!(
@@ -130,6 +131,7 @@ async fn fanout_merges_across_queries_and_providers() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &Governor::hermetic(),
         None,
     )
     .await
@@ -167,6 +169,7 @@ async fn fanout_all_fail_returns_all_failed_503() {
         &format!("{base}/missing/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &Governor::hermetic(),
         None,
     )
     .await
