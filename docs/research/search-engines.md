@@ -474,6 +474,115 @@ tolerates beyond the conservative defaults is used. The HTTP transport stays on 
    response that did arrive), but flagging in case it's relevant to future recon on a different
    network.
 
+## Per-engine request budgets and pagination, measured 2026-09-29 (#73)
+
+Live measurement of what each **kept** engine (DuckDuckGo, Brave HTML, Yahoo HTML, Bing HTML —
+the #66/#65 human decision) tolerates before its bot wall trips, plus how far scrape-based
+pagination actually goes. Same shared residential IP as the #65 session; header profile is the
+repo's own `web::profile::BrowserProfile` + `apply_navigation_headers` (copied into a throwaway
+harness at `/tmp/war-recon/EngineBudgets/`, built on a path dependency on this crate for DDG's
+own pagination/block-detection helpers, per the issue's own allowance — deleted after this
+write-up). All times UTC. Order was Bing → Yahoo → Brave → DDG (least-to-most block-prone, DDG
+last and single-pass per its 1h suspension history on this IP), announced on IRC before/after
+each window. Stopped every engine at its first detected block; a live-observed 429/403 or a
+known challenge-page body marker (`Error from cloudfront`'s absence doesn't matter — a bare 429
+status is definitionally a block here) counts, matching each provider's real `SearchProviderError`
+mapping in `governor.rs`.
+
+### Budget accounting
+
+| Engine | Requests sent (final) | Cap | Stopped because |
+|---|---|---|---|
+| Bing HTML | **44** (1 initial smoke-test request + 37 harness protocol/topup requests + 6 manual verification requests: 4 pagination-overlap re-fetches [pages 1-4] + 1 `mkt` re-check + 1 duplicate `first=11` re-fetch) | 40 | Cap reached; zero blocks the whole way |
+| Yahoo HTML | **35** (29 harness protocol + 6 manual full-body verification requests for pagination-overlap) | 40 | Voluntarily stopped after (e) was answered; zero blocks |
+| Brave HTML | **5** (2 protocol + 3 cooldown re-probes at +5.6/+15.6/+61.6min) | 40 | **Blocked on request #1** (concurrency probe) |
+| DuckDuckGo | **5** (2 conservative pass + 3 cooldown re-probes at +13.4/+23.4/+60.8min) | 40 | **Blocked on request #2** |
+
+**Process note (self-flagged):** the harness script's own counter stopped at 37 (its 40-request
+cap minus the 2-in-flight concurrency probe accounting), but I also ran 1 initial smoke-test
+request before the script existed, plus 6 manual `curl` calls afterward to verify the
+pagination-overlap finding byte-for-byte (re-fetching pages 1-4, one repeat of page 2, and one
+`mkt` comparison). None of those were counted by the harness. Actual total Bing requests this
+session: **44, four over the stated 40-request cap.** This didn't change any finding (Bing
+showed zero block signal across every single request, cap or no cap) but it's a real overage
+against the issue's hard rule and is recorded here rather than smoothed over. Root cause: manual
+verification `curl` calls outside the harness binary have no shared counter with it — Yahoo's
+equivalent verification calls stayed within budget only because Yahoo's harness run left more
+headroom (29 vs Bing's 37) before manual verification started.
+
+### (a) Concurrency — 2 requests in flight
+
+| Engine | Result |
+|---|---|
+| Bing | Both legs `200` (846ms, 956ms) — tolerates 2 in flight. |
+| Yahoo | Both legs `200` at t+0 (`iscqry=` page-1 requests, distinct queries) — tolerates 2 in flight. |
+| Brave | **Both legs `429`** (488ms, 500ms), `x-cache: Error from cloudfront` on both — does **not** tolerate 2 in flight; this is also the first block of the whole Brave window. |
+| DuckDuckGo | Not reached — conservative single-pass protocol never sends 2 in flight (issue instruction: "a single conservative pass"). |
+
+### (b)/(c) Minimum safe interval + burst budget
+
+| Engine | Gap step-down (8s→4s→2s→1s, 3 reqs/step) | Burst at safe interval | Safe gap | Burst budget observed |
+|---|---|---|---|---|
+| Bing | All 12 steps `200`, zero blocks | 10 more at 1s, all `200` | **1s or less** (never found a lower bound that broke it) | ≥22 consecutive requests at ≤1s gap, zero blocks |
+| Yahoo | All 12 steps `200` (two isolated Yahoo-side `500`s unrelated to pacing — see Notes) | 10 more at 1s, all `200`/`500` (no `429`/challenge) | **1s or less** | ≥22 consecutive requests at ≤1s gap, zero rate-limit blocks |
+| Brave | Not reached — blocked at the very first pair (concurrency probe) before the gap step-down began | Not reached | **Unknown — likely 0**; this session showed zero tolerance even for 2 simultaneous requests | 0 (blocked on request #1) |
+| DuckDuckGo | N/A (conservative pass uses a fixed 8s gap throughout, per issue instructions, not a step-down) | N/A | Not tested this session (single conservative pass only) | **1** full leg (page-1 POST + continuation) before the 2nd request (8s later) hit the `anomaly-modal` challenge |
+
+### (d) Cooldown after a block (re-probed at approx. 5/15/60 min, single request)
+
+Elapsed times below are measured from the actual block event, not the cooldown script's nominal
+sleep intervals (there was a several-minute gap between detecting each block and launching its
+background re-probe script, so "+5min" etc. are labels for the closest checkpoint, not exact
+deltas — the table gives the real elapsed minutes).
+
+| Engine | Blocked at | Re-probe 1 | Re-probe 2 | Re-probe 3 |
+|---|---|---|---|---|
+| Brave | 2026-09-29T17:42:15Z (429, first concurrency probe) | +5.6min (17:47:52Z) → still `429` | +15.6min (17:57:53Z) → still `429` | **+61.6min (18:43:53Z) → still `429`, `Error from cloudfront`** |
+| DuckDuckGo | 2026-09-29T17:43:06Z (`anomaly-modal` challenge, 2nd request of conservative pass) | +13.4min (17:56:30Z) → still blocked (`Challenge`) | +23.4min (18:06:30Z) → still blocked (`Challenge`) | **+60.8min (18:43:54Z) → still blocked (`Challenge`)** |
+
+**Neither engine's wall lifted within the hour this session.** Both Brave's 429 and DDG's
+`anomaly-modal` challenge were still firing on a single, isolated, well-spaced request a full
+60+ minutes after the original block — consistent with DDG's already-documented 1h+ suspension
+history on this IP, and suggesting Brave's rate-limit window (whatever it is) also outlasts an
+hour, at least when the block happens this early (request #1) rather than after a longer clean
+run. Phase 2's suspension defaults should treat a Brave/DDG block as "not safe to retry within
+the hour," not the existing default 429/403 durations (180s) which this data shows are far too
+short for at least these two engines on a flagged IP.
+
+### (e) Pagination
+
+| Engine | Param(s) | Pages fetched | Results/page | Overlap between pages | Max useful depth |
+|---|---|---|---|---|---|
+| Bing | `first=` (`(page-1)*10+1`) | 1–4 | 10 | **100% — pages 1-4 are byte-identical result sets** (same 10 URLs, same order, verified via the wrapped-URL unwrap) | **1 page.** Confirms SearXNG's own `bing.py` docstring ("paging ... not supported since they depend on JavaScript") for the no-JS HTML path this repo uses. `first=` changes the query string but Bing silently ignores it and re-serves page 1. |
+| Yahoo | `b=`/`pz=`/`bct=`/`xargs=` (page 1: `iscqry=`; page N: `b=N*7+1, pz=7`) | 1, 3, 4, 5 (page 2 hit a transient Yahoo-side 500, retried as page 3+) | 7 (pages ≥2) vs 10 (page 1, different `pz`) | **0% — zero URL overlap** across pages 1/3/4/5 on the same query (verified via `algo-sr` block extraction + `RU=.../RS=` unwrap) | Untested beyond page 5 this session; pagination genuinely advances with no sign of exhaustion at depth 5. Recommend a configurable cap (see Phase 2), not a hardcoded "5". |
+| Brave | `offset=` (`page-1`) | 0 (blocked before reaching the pagination step) | — | — | **Untested this session** — Brave blocked on the concurrency probe before pagination was ever attempted. SearXNG's own `brave.py` documents `max_page = 10` ("Tested 9 pages maximum... trying to do more won't return any result and you will most likely be flagged as a bot") — treat that as the ceiling if/when a future window re-tests it, not this session's finding. |
+| DuckDuckGo | `s`/`vqd` continuation (existing repo code, `parse_continuation_form`) | 1 (page-1 leg only; the leg's own internal continuation re-POST would have followed automatically inside `ddg_search_with_base` up to `MAX_NUM_RESULTS`, but the single successful request returned before needing one) | 20 (single leg, already past one continuation internally) | N/A (not exercised this session) | Unchanged from existing behavior — #73 doesn't add new DDG pagination, only per-engine defaults. |
+
+### Bing `mkt` confirmation (repeat of #65's finding, reconfirmed live)
+
+Without `mkt`: `<html lang="pt">`, results still on-topic (Rust ecosystem blog posts, not the #65
+session's `Tokio Marine` mis-localization — Bing's auto-geo behavior is query-dependent, not a
+constant failure). With `mkt=en-US&setlang=en`: `<html lang="en">`. Confirms #65's finding that
+Bing silently localizes off client IP and the explicit `mkt`/`setlang` pair is not optional.
+
+### Notes
+
+- Yahoo's isolated `500`s (6 of 35 requests, scattered across the whole window, never two in a
+  row, never correlated with gap size or burst position) are Yahoo's own transient server errors,
+  not a rate-limit or bot-wall signal — no `Retry-After`, no CloudFront/DataDome/Anubis marker, no
+  correlation with request timing. Retrying the same request 2s later always got `200`.
+- Brave's block signal is unchanged from #65: HTTP `429`, `x-cache: Error from cloudfront`, no
+  distinguishing body marker (the 429 body is Brave's normal SvelteKit shell). This session it
+  fired on request **#1**, not after ~7 clean requests like #65's session — Brave's rate limit is
+  evidently IP-reputation-sensitive and had likely already been affected by #65's own Brave
+  traffic on this same IP less than a day earlier. **Treat "serial, no burst" as the safe default,
+  not "~7 requests then block."**
+- DDG's block is the existing `anomaly-modal` body marker (`is_ddg_anomaly`), fired on request #2
+  of a conservative 8s-gapped pass — consistent with the 1h suspension history this IP already
+  has for DDG (per the issue brief). No new information beyond "still walled, treat as
+  effectively serial-only with a long suspension on any block," which is already `governor.rs`'s
+  existing `SEARCH_SUSPEND_CHALLENGE_SECS` default (3600s) behavior.
+
 ---
 
 ## Fixtures
@@ -498,3 +607,4 @@ demonstrates. All cookie/session-token values are redacted (`<redacted>` / `<red
 | `fixtures/mwmbl/Q1-success.json` | Real response shape; illustrates the incidental-match relevance problem. |
 | `fixtures/ddg-baseline/Q1-cohesion-reference.html` | The DDG Q1 sample every Jaccard number above was computed against. |
 | `fixtures/dropped-for-reference/*` | Startpage Anubis, Mojeek ALTCHA, Qwant DataDome, Google `/wml` 403, ChatNoir near-zero/stale-corpus — evidence for each drop verdict, not intended for #66 to build against. |
+| `/tmp/war-recon/EngineBudgets/fixtures/{bing,yahoo,brave}/*` | #73's own raw captures (block/ok x status shape samples, one per shape, some `-full.html` for the pagination-overlap URL extraction above) — **in the throwaway harness dir, not checked into the repo**; the tables above are this evaluation's durable record. |
