@@ -94,7 +94,7 @@ End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by 
 
 ## Browser profile bump (#59)
 
-`src/web/profile.rs` pins Chrome stable and its two previous majors (`STABLE_MAJORS`), across macOS/Windows/Linux, so `web/search`'s DDG and Startpage legs, and `web/fetch`'s static fetch path, never send a UA family/version DDG, Startpage, or a fetched host can flag as stale. One profile is drawn at random per request chain (one engine leg plus its follow-ups for DDG/Startpage, one per fetch call for the static fetch path: DDG's `s`/`vqd` pagination re-POSTs and the Startpage homepage → search POST both reuse the same profile, because DDG's `vqd` token is bound to the UA).
+`src/web/profile.rs` pins Chrome stable and its two previous majors (`STABLE_MAJORS`), across macOS/Windows/Linux, so `web/search`'s DDG and Startpage legs, and `web/fetch`'s static fetch path, never send a UA family/version that DDG, Startpage, or a fetched host can flag as stale. One profile is drawn at random per request chain (one engine leg plus its follow-ups for DDG/Startpage, one per fetch call for the static fetch path: DDG's `s`/`vqd` pagination re-POSTs and the Startpage homepage → search POST both reuse the same profile, because DDG's `vqd` token is bound to the UA).
 
 To bump when Chrome ships a new stable major:
 
