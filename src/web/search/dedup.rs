@@ -43,12 +43,13 @@ pub fn dedup_key(raw: &str) -> String {
 
 /// Fold raw hits into deduped groups. Port of Omp `mergeSources` + consensus
 /// sort, with the Query dimension added for multi-query fan-out: iterate rows
-/// grouped by leg in engine priority order (Startpage legs first in Query
-/// order, then DDG legs in Query order), never arrival order. Per group the
-/// best rank adopts title + display URL, longest snippet wins, published date
-/// is first-win. Sort: provider count desc, best rank asc, display URL asc.
-/// `queries` is the validated fan-out input order: legs key by
-/// `(priority, query_index)` so duplicate query strings never collapse.
+/// grouped by leg in engine priority order (#66: Startpage, Brave, Yahoo,
+/// DuckDuckGo, Bing -- see `SearchProvider::priority`), each in Query order,
+/// never arrival order. Per group the best rank adopts title + display URL,
+/// longest snippet wins, published date is first-win. Sort: provider count
+/// desc, best rank asc, display URL asc. `queries` is the validated fan-out
+/// input order: legs key by `(priority, query_index)` so duplicate query
+/// strings never collapse.
 pub fn merge_sources(results: Vec<SearchResult>) -> Vec<MergedResult> {
     merge_sources_in_order(results, &[])
 }
@@ -275,6 +276,67 @@ mod tests {
         assert_eq!(
             merged[0].queries,
             vec!["apple".to_string(), "zebra".to_string()]
+        );
+    }
+
+    #[test]
+    fn merge_engine_priority_order_startpage_brave_yahoo_ddg_bing() {
+        // #66: five legs for the same query and URL, each providing a
+        // distinct title -- the adopted title/URL must come from whichever
+        // provider has the lowest `priority()` value among ties (equal
+        // rank), proving the concrete order documented on
+        // `SearchProvider::priority`: Startpage < Brave < Yahoo <
+        // DuckDuckGo < Bing.
+        let rows = vec![
+            hit(
+                SearchProvider::Bing,
+                "q",
+                0,
+                "https://example.com/shared",
+                "Bing title",
+                "s",
+            ),
+            hit(
+                SearchProvider::DuckDuckGo,
+                "q",
+                0,
+                "https://example.com/shared",
+                "DDG title",
+                "s",
+            ),
+            hit(
+                SearchProvider::Yahoo,
+                "q",
+                0,
+                "https://example.com/shared",
+                "Yahoo title",
+                "s",
+            ),
+            hit(
+                SearchProvider::Brave,
+                "q",
+                0,
+                "https://example.com/shared",
+                "Brave title",
+                "s",
+            ),
+        ];
+        let merged = merge_sources(rows);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(
+            merged[0].title, "Brave title",
+            "equal ranks: the lowest-priority (Startpage-then-Brave) leg processed first wins the tie"
+        );
+        assert_eq!(merged[0].providers.len(), 4);
+        assert_eq!(
+            merged[0].providers,
+            vec![
+                SearchProvider::Brave,
+                SearchProvider::Yahoo,
+                SearchProvider::DuckDuckGo,
+                SearchProvider::Bing,
+            ],
+            "providers list stays sorted by priority regardless of input order"
         );
     }
 }

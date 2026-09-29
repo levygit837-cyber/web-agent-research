@@ -121,6 +121,36 @@ pub(crate) fn percent_decode(raw: &str) -> String {
     String::from_utf8_lossy(&bytes_out).into_owned()
 }
 
+/// Base64url decode (RFC 4648 §5, alphabet `A-Za-z0-9-_`), tolerating
+/// missing padding (Bing's `u=a1<base64url>` wrapper never pads) and any
+/// stray trailing `=`. `None` on an invalid character or non-UTF-8
+/// decoded bytes, never panics.
+pub(crate) fn base64url_decode(input: &str) -> Option<String> {
+    fn value(byte: u8) -> Option<u8> {
+        match byte {
+            b'A'..=b'Z' => Some(byte - b'A'),
+            b'a'..=b'z' => Some(byte - b'a' + 26),
+            b'0'..=b'9' => Some(byte - b'0' + 52),
+            b'-' => Some(62),
+            b'_' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(input.len() * 3 / 4 + 3);
+    let mut buffer: u32 = 0;
+    let mut bits: u32 = 0;
+    for byte in input.bytes().filter(|b| *b != b'=') {
+        let v = value(byte)? as u32;
+        buffer = (buffer << 6) | v;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buffer >> bits) as u8);
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 pub(crate) fn hex_val(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

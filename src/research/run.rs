@@ -654,6 +654,9 @@ mod tests {
             &format!("{search_base}/html/"),
             &format!("{search_base}/"),
             &format!("{search_base}/sp/search"),
+            &format!("{search_base}/search"),
+            &format!("{search_base}/search"),
+            &format!("{search_base}/search"),
         );
         let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
             "/nonexistent/obscura".into(),
@@ -665,9 +668,16 @@ mod tests {
     /// A search stub where every leg on every provider is bot-wall
     /// Challenge-walled (#53): `searcher.search` always returns
     /// `SearchProviderError::AllFailed { all_challenged: true, .. }`. No
-    /// page server: a walled search never reaches fetch.
+    /// page server: a walled search never reaches fetch. #66: `Searcher`'s
+    /// hermetic `Governor` always enables all five providers with no
+    /// `SEARCH_ENGINES` override available through this constructor, so
+    /// Brave/Yahoo/Bing each get their own tiny stub tuned to their real
+    /// Challenge marker (Brave/Bing: HTTP 429; Yahoo: a redirect to a
+    /// `guce.yahoo.com` host) rather than sharing the DDG/Startpage stub,
+    /// whose unrecognized routes would 404 into a plain `Upstream` and
+    /// break the "every enabled engine was Challenge-walled" acceptance.
     async fn walled_web() -> ToolRegistry {
-        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubServer};
+        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubReply, StubServer};
         let (search_base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
             r#"<div id="anomaly-modal"></div>"#.to_string(),
             sp_home_form(),
@@ -675,10 +685,20 @@ mod tests {
             false,
         ))
         .await;
+        let brave_stub =
+            StubServer::serve(|_: &str, _: &str| StubReply::text(429, "rate limited")).await;
+        let yahoo_stub = StubServer::serve(|_: &str, _: &str| {
+            StubReply::redirect(302, "https://guce.yahoo.com/consent")
+        })
+        .await;
+        let bing_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(429, "blocked")).await;
         let searcher = Searcher::with_bases(
             &format!("{search_base}/html/"),
             &format!("{search_base}/"),
             &format!("{search_base}/sp/search"),
+            &brave_stub.base(),
+            &yahoo_stub.base(),
+            &bing_stub.base(),
         );
         let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
             "/nonexistent/obscura".into(),

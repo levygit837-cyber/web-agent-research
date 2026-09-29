@@ -184,7 +184,7 @@ impl ToolRegistry {
     pub(crate) fn offline() -> Self {
         let dead = "http://127.0.0.1:9/";
         Self::new(
-            Searcher::with_bases(dead, dead, dead),
+            Searcher::with_bases(dead, dead, dead, dead, dead, dead),
             Fetcher::with_obscura(crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),
                 std::time::Duration::from_secs(1),
@@ -674,6 +674,9 @@ mod tests {
                 &format!("{search_base}/html/"),
                 &format!("{search_base}/"),
                 &format!("{search_base}/sp/search"),
+                &format!("{search_base}/search"),
+                &format!("{search_base}/search"),
+                &format!("{search_base}/search"),
             ),
             Fetcher::with_obscura(crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),
@@ -815,6 +818,9 @@ mod tests {
                 "http://127.0.0.1:9/",
                 "http://127.0.0.1:9/",
                 "http://127.0.0.1:9/",
+                "http://127.0.0.1:9/",
+                "http://127.0.0.1:9/",
+                "http://127.0.0.1:9/",
             ),
             Fetcher::with_obscura(crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),
@@ -863,9 +869,13 @@ mod tests {
     /// `SearchProviderError::AllFailed { all_challenged: true, .. }`, and
     /// `execute` must turn that into `ToolResult::SearchBlocked`, not the
     /// generic `Failed`, so the runner can remember it for the whole run.
+    /// #66: `Searcher`'s hermetic `Governor` always enables all five
+    /// providers, so Brave/Yahoo/Bing each get their own tiny stub tuned to
+    /// their real Challenge marker (Brave/Bing: HTTP 429; Yahoo: a redirect
+    /// to a `guce.yahoo.com` host) so every enabled engine stays walled.
     #[tokio::test]
     async fn all_challenged_search_becomes_search_blocked() {
-        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubServer};
+        use crate::web::search::test_support::{sp_home_form, FanoutStub, StubReply, StubServer};
         let (search_base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
             r#"<div id="anomaly-modal"></div>"#.to_string(),
             sp_home_form(),
@@ -873,11 +883,21 @@ mod tests {
             false,
         ))
         .await;
+        let brave_stub =
+            StubServer::serve(|_: &str, _: &str| StubReply::text(429, "rate limited")).await;
+        let yahoo_stub = StubServer::serve(|_: &str, _: &str| {
+            StubReply::redirect(302, "https://guce.yahoo.com/consent")
+        })
+        .await;
+        let bing_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(429, "blocked")).await;
         let registry = ToolRegistry::new(
             Searcher::with_bases(
                 &format!("{search_base}/html/"),
                 &format!("{search_base}/"),
                 &format!("{search_base}/sp/search"),
+                &brave_stub.base(),
+                &yahoo_stub.base(),
+                &bing_stub.base(),
             ),
             Fetcher::with_obscura(crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),

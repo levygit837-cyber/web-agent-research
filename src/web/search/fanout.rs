@@ -11,6 +11,8 @@
 use std::path::Path;
 use std::time::Duration;
 
+use crate::web::search::bing::bing_search;
+use crate::web::search::brave::brave_search;
 use crate::web::search::cache;
 use crate::web::search::ddg::ddg_search;
 use crate::web::search::dedup::merge_sources_in_order;
@@ -20,6 +22,7 @@ use crate::web::search::types::{
     SearchInput, SearchOutput, SearchProvider, SearchProviderError, SearchResult, SearchStats,
     HARD_DEADLINE_SECS, SOFT_DEADLINE_SECS,
 };
+use crate::web::search::yahoo::yahoo_search;
 
 /// Build the typed leg-timeout error. Timeout beats Challenge: callers map
 /// transport timeouts (or fan-out deadline cuts) here before inspecting any
@@ -104,30 +107,36 @@ type SettledLeg = (
 /// `#[doc(hidden)]` since only the base-URL override makes this a test
 /// seam, not the function's purpose), creates nothing. Leg order is
 /// deterministic: per Query in input order, over
-/// `governor.enabled_providers()` in priority order (Startpage first when
-/// enabled, then DuckDuckGo; #64). Never fails a whole batch on one leg:
-/// leg errors collect into `output.errors`; only total-leg failure
-/// (`AllFailed`: merged empty AND every leg failed) returns `Err`.
-/// Otherwise `Ok` -- including partial success and empty results (zero
-/// results with no challenge marker is not an error). Leg panics surface as
-/// `Upstream { detail: "leg panicked" }`.
+/// `governor.enabled_providers()` in priority order (#66: Startpage,
+/// Brave, Yahoo, DuckDuckGo, Bing -- Startpage opt-in only). Never fails a
+/// whole batch on one leg: leg errors collect into `output.errors`; only
+/// total-leg failure (`AllFailed`: merged empty AND every leg failed)
+/// returns `Err`. Otherwise `Ok` -- including partial success and empty
+/// results (zero results with no challenge marker is not an error). Leg
+/// panics surface as `Upstream { detail: "leg panicked" }`.
 #[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
 pub async fn search_multi_with_bases(
     client: &reqwest::Client,
     input: SearchInput,
     ddg_base: &str,
     sp_home: &str,
     sp_search: &str,
+    brave_base: &str,
+    yahoo_base: &str,
+    bing_base: &str,
     governor: &Governor,
     cache_root: Option<&Path>,
 ) -> Result<SearchOutput, SearchProviderError> {
     let queries = input.queries.clone();
     let recency = input.recency;
     let top_k = input.top_k;
-    // #64: which engines run this call, in priority order (Startpage first
-    // when enabled, then DuckDuckGo); the hermetic `Governor` always
-    // enables both, so every pre-existing fan-out test keeps its two-leg
-    // shape unchanged.
+    // #64/#66: which engines run this call, in priority order (Startpage
+    // first when enabled, then Brave, Yahoo, DuckDuckGo, Bing); the
+    // hermetic `Governor` always enables all five, so every pre-existing
+    // fan-out test that predates #66 keeps its original two-leg shape by
+    // constructing `SEARCH_ENGINES`-filtered expectations explicitly where
+    // it cares, and new tests cover the full five-leg shape directly.
     let enabled = governor.enabled_providers();
     // Legs in deterministic order: per Query in input order, over `enabled`
     // in priority order. Each leg keeps its spawn index (query index +
@@ -142,10 +151,13 @@ pub async fn search_multi_with_bases(
     for (query_index, query) in queries.iter().enumerate() {
         for provider in enabled.iter().copied() {
             let (client_owned, query_owned) = (client.clone(), query.clone());
-            let (ddg, home, search) = (
+            let (ddg, home, search, brave, yahoo, bing) = (
                 ddg_base.to_string(),
                 sp_home.to_string(),
                 sp_search.to_string(),
+                brave_base.to_string(),
+                yahoo_base.to_string(),
+                bing_base.to_string(),
             );
             let governor_owned = governor.clone();
             let cache_root_owned = cache_root.map(Path::to_path_buf);
@@ -252,6 +264,16 @@ pub async fn search_multi_with_bases(
                                         SearchProvider::DuckDuckGo => {
                                             ddg_search(&client_owned, &query_for_leg, recency, &ddg)
                                                 .await
+                                        }
+                                        SearchProvider::Brave => {
+                                            brave_search(&client_owned, &query_for_leg, &brave)
+                                                .await
+                                        }
+                                        SearchProvider::Yahoo => {
+                                            yahoo_search(&query_for_leg, &yahoo).await
+                                        }
+                                        SearchProvider::Bing => {
+                                            bing_search(&client_owned, &query_for_leg, &bing).await
                                         }
                                     };
                                     match &result {
@@ -489,6 +511,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             Some(&root),
         )
@@ -524,6 +549,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             Some(&root),
         )
@@ -589,6 +617,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             Some(&root),
         )
@@ -622,6 +653,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             Some(&root),
         )
@@ -661,12 +695,27 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &governor,
             None,
         )
         .await
-        .expect("DDG-only default succeeds");
-        assert_eq!(out.stats.legs, 1, "default enables exactly one engine");
+        .expect("DDG-only success plus three unreachable-route Brave/Yahoo/Bing legs is still Ok");
+        // #66: the default set is now `duckduckgo,brave,yahoo,bing` (4
+        // engines), Startpage still opt-in only. Brave/Yahoo/Bing hit this
+        // stub's unrecognized `/search` route (404 -> `Upstream`).
+        assert_eq!(
+            out.stats.legs, 4,
+            "default enables DuckDuckGo + Brave + Yahoo + Bing"
+        );
+        assert_eq!(
+            out.errors.len(),
+            3,
+            "Brave/Yahoo/Bing all hit the unrecognized /search route: {:?}",
+            out.errors
+        );
         assert!(
             hits.lock()
                 .expect("hits")
@@ -729,6 +778,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
             &governor,
             None,
         )
@@ -810,6 +862,9 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
             &governor,
             None,
         )
@@ -912,14 +967,26 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             None,
         )
         .await
         .expect("partial overlap still merges");
-        assert_eq!(out.stats.legs, 6);
+        // Hermetic `Governor` enables all five providers (#66): DDG +
+        // Startpage still merge the shared URL; Brave/Yahoo/Bing each hit
+        // this stub's unrecognized `/search` route (404 -> `Upstream`) on
+        // every query, adding 9 errors atop the original merge.
+        assert_eq!(out.stats.legs, 15);
         assert_eq!(out.stats.queries, 3);
-        assert!(out.errors.is_empty(), "unexpected errors: {:?}", out.errors);
+        assert_eq!(
+            out.errors.len(),
+            9,
+            "3 queries x 3 unreachable engines (Brave/Yahoo/Bing): {:?}",
+            out.errors
+        );
         let top = out
             .results
             .iter()
@@ -957,14 +1024,25 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             None,
         )
         .await
         .expect("duplicate queries still merge");
-        assert_eq!(out.stats.legs, 4);
+        // 2 duplicate queries x 5 hermetic engines: DDG+Startpage succeed
+        // (4 legs, 4 raw hits); Brave/Yahoo/Bing each 404 on the
+        // unrecognized `/search` route for both queries (6 errors).
+        assert_eq!(out.stats.legs, 10);
         assert_eq!(out.stats.raw_hits, 4);
-        assert!(out.errors.is_empty(), "unexpected errors: {:?}", out.errors);
+        assert_eq!(
+            out.errors.len(),
+            6,
+            "2 queries x 3 unreachable engines (Brave/Yahoo/Bing): {:?}",
+            out.errors
+        );
         let top = out
             .results
             .iter()
@@ -999,16 +1077,22 @@ mod tests {
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             None,
         )
         .await
         .expect("partial success is Ok");
-        assert_eq!(out.stats.legs, 4);
+        // 2 queries x 5 hermetic engines: Startpage fails (500) both times;
+        // Brave/Yahoo/Bing each 404 on the unrecognized `/search` route
+        // both times; DDG succeeds both times.
+        assert_eq!(out.stats.legs, 10);
         assert_eq!(
             out.errors.len(),
-            2,
-            "one SP error per query: {:?}",
+            8,
+            "one SP error per query plus 3 unreachable engines per query: {:?}",
             out.errors
         );
         assert!(out.errors.iter().all(|e| e.http_status() == 503));
@@ -1036,6 +1120,9 @@ mod tests {
             &format!("{base}/missing/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
             &Governor::hermetic(),
             None,
         )
@@ -1060,7 +1147,19 @@ mod tests {
         // Anubis PoW body via the search POST) AND nothing merges -> Err
         // (AllFailed) with `all_challenged: true` (#53): the signal
         // `research::agent_loop` uses to surface `SearchBlocked` to the
-        // Harness instead of a silent empty Synthesis.
+        // Harness instead of a silent empty Synthesis. Scoped to
+        // `duckduckgo,startpage` via a non-hermetic `Governor` (#66): the
+        // hermetic seam's `enabled_providers()` always returns all five
+        // regardless of `SEARCH_ENGINES` (by design, #64), and Brave/
+        // Yahoo/Bing legs against this stub's unrecognized `/search` route
+        // would be plain `Upstream` 404s, not Challenge -- diluting this
+        // test's specific "every enabled engine was Challenge-walled"
+        // acceptance. A plain (non-hermetic) `Governor::new(None)` reads
+        // `SEARCH_ENGINES` for real, narrowing which legs actually run,
+        // while still never persisting (no cache root) or pacing (zero
+        // real requests before this call sets any last-request time).
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        std::env::set_var("SEARCH_ENGINES", "duckduckgo,startpage");
         let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
             r#"<div id="anomaly-modal"></div>"#.to_string(),
             sp_home_form(),
@@ -1071,13 +1170,17 @@ mod tests {
         let client = reqwest::Client::new();
         let input =
             SearchInput::validate(vec!["q one".to_string()], Some(15), None).expect("valid");
+        let governor = Governor::new(None);
         let err = search_multi_with_bases(
             &client,
             input,
             &format!("{base}/html/"),
             &format!("{base}/"),
             &format!("{base}/sp/search"),
-            &Governor::hermetic(),
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            &governor,
             None,
         )
         .await

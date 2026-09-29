@@ -30,6 +30,12 @@ pub const SOFT_DEADLINE_SECS: u64 = 5;
 pub const HARD_DEADLINE_SECS: u64 = 30;
 /// DDG locale default (Omp `localeToKl` default; full KL table is a follow-up).
 pub const DDG_KL_DEFAULT: &str = "us-en";
+/// Bing `mkt` default (#66: unconditional -- Bing silently geo/language-
+/// localizes on client IP with zero explicit signal otherwise, confirmed
+/// live in the #65 evaluation: 0/10 relevant results from a Brazilian IP
+/// with no `mkt`, 5/5 after adding it). `SEARCH_BING_MARKET` overrides;
+/// `setlang` is always derived from this value's language subtag.
+pub const BING_MARKET_DEFAULT: &str = "en-US";
 
 /// One fetch-only provider. No second adapter is planned; this is an enum,
 /// not a seam (ADR-0006: concrete by default, `trait` only on real variation).
@@ -37,30 +43,48 @@ pub const DDG_KL_DEFAULT: &str = "us-en";
 pub enum SearchProvider {
     DuckDuckGo,
     Startpage,
+    Brave,
+    Yahoo,
+    Bing,
 }
 
 impl SearchProvider {
-    /// Both ported providers are credential-free: unconditionally `true`
+    /// Every ported provider is credential-free: unconditionally `true`
     /// (Omp `DuckDuckGoProvider::isAvailable` / `StartpageProvider::isAvailable`).
     pub fn is_available(self) -> bool {
         true
     }
 
-    /// Engine priority for deterministic merge iteration: Google-index
-    /// sources lead (Omp `PUBLIC_ENGINE_IDS` order restricted to the ported
-    /// engines). Lower value iterates first.
+    /// Engine priority for deterministic merge iteration (#66: from the
+    /// #65 evaluation's measured relevance/breadth data, `docs/research/
+    /// search-engines.md` "Verdicts and priority order"). Startpage leads
+    /// (opt-in only, but ranked highest per the pre-existing Omp
+    /// `PUBLIC_ENGINE_IDS` order); Brave next (P@5 0.80, real breadth over
+    /// DDG: 14 unique URLs, Jaccard 0.167); then Yahoo (P@5 0.76, but the
+    /// highest DDG overlap of any kept engine, Jaccard 0.70 -- reliable,
+    /// low incremental breadth); then DuckDuckGo (P@5 0.76 baseline, the
+    /// long-standing default); Bing last (P@5 1.00 with `mkt` but only a
+    /// single live sample this session, fastest transport but the
+    /// heaviest wrapper to unwrap). Lower value iterates first.
     pub fn priority(self) -> usize {
         match self {
             SearchProvider::Startpage => 0,
-            SearchProvider::DuckDuckGo => 1,
+            SearchProvider::Brave => 1,
+            SearchProvider::Yahoo => 2,
+            SearchProvider::DuckDuckGo => 3,
+            SearchProvider::Bing => 4,
         }
     }
 
-    /// Stable lowercase id used in logs and the all-failed message.
+    /// Stable lowercase id used in logs, `SEARCH_ENGINES`/`SEARCH_PACE_*`
+    /// tokens, the cache key, and the all-failed message.
     pub fn id(self) -> &'static str {
         match self {
             SearchProvider::DuckDuckGo => "duckduckgo",
             SearchProvider::Startpage => "startpage",
+            SearchProvider::Brave => "brave",
+            SearchProvider::Yahoo => "yahoo",
+            SearchProvider::Bing => "bing",
         }
     }
 }

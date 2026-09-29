@@ -287,3 +287,17 @@ Apache License
   shaped this repo's own #58/#59 header-order and profile-coherence work.
   Per-error-type engine suspension (also inspired by SearXNG's engine
   scoring) is not implemented in this repo yet.
+- #66 (Brave, Yahoo, Bing legs): SearXNG's own `searx/engines/brave.py`,
+  `yahoo.py`, and `bing.py` were read as prior art -- for the request
+  shape (endpoint, query params, Brave's default cookie set), the fact
+  that Yahoo gates results behind a `YBV` cookie chain, and Bing's
+  `ck/a?...&u=a1<base64url>` redirect-wrapper shape -- but no SearXNG code
+  is copied. `src/web/search/brave.rs`, `src/web/search/yahoo.rs`, and
+  `src/web/search/bing.rs` are independent implementations: different
+  parse approach (DOM selectors via `scraper` and this repo's own
+  `SearchResult` type, not SearXNG's XPath/`EngineResults`), different
+  cookie-jar mechanics (a per-leg jar built on this repo's own
+  `reqwest::redirect::Policy::none()` manual hop loop, not SearXNG's
+  `EngineCache`), and different typed error mapping
+  (`SearchProviderError::Challenge`/`Upstream`, this repo's own #62/#63
+  suspension/pacing machinery).
