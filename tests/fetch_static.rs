@@ -435,3 +435,110 @@ async fn fetch_tool_rejects_non_http_urls_before_io() {
         .unwrap_err();
     assert!(matches!(err, FetchError::InvalidUrl { .. }), "{err}");
 }
+
+/// Captures raw request header *lines* (verbatim, wire order) for the one
+/// request it serves, then replies 200 with a short HTML body.
+async fn serve_capturing_headers() -> (String, std::sync::Arc<parking_lot::Mutex<Vec<String>>>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let captured: std::sync::Arc<parking_lot::Mutex<Vec<String>>> = Default::default();
+    let captured_task = captured.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let captured = captured_task.clone();
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 65536];
+                let n = stream.read(&mut buf).await.unwrap_or(0);
+                let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+                let mut lines = raw.split("\r\n");
+                let _request_line = lines.next().unwrap_or("");
+                let header_lines: Vec<String> = lines
+                    .take_while(|line| !line.is_empty())
+                    .map(|line| line.to_string())
+                    .collect();
+                *captured.lock() = header_lines;
+                let body = "<html><body><h1>Hi</h1><p>Hello there, this is a long enough paragraph of static article content so the markdown produced clears the JS-shell threshold and the static path is used without a browser fallback being triggered here.</p></body></html>";
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n{body}",
+                    body.len(),
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    (format!("http://{addr}"), captured)
+}
+
+#[tokio::test]
+async fn static_fetch_sends_coherent_chrome_navigation_headers() {
+    // #74: the static fetch draws one browser profile per fetch and sends
+    // it as a direct navigation (`sec-fetch-site: none`, no Referer) in
+    // Chrome's real navigation header order.
+    let (base, captured) = serve_capturing_headers().await;
+    let (_, path) = fetcher().fetch(&base).await.unwrap();
+    assert_eq!(path, FetchPath::Static);
+
+    let lines = captured.lock().clone();
+    let header_value = |name: &str| -> Option<String> {
+        lines.iter().find_map(|line| {
+            let (n, v) = line.split_once(':')?;
+            n.trim()
+                .eq_ignore_ascii_case(name)
+                .then(|| v.trim().to_string())
+        })
+    };
+    let header_names: Vec<String> = lines
+        .iter()
+        .filter_map(|line| line.split_once(':'))
+        .map(|(n, _)| n.trim().to_ascii_lowercase())
+        .collect();
+
+    // Chrome navigation order (#58/#74): sec-ch-ua*, upgrade-insecure-requests,
+    // user-agent, accept, sec-fetch-*, accept-encoding, accept-language. No
+    // Referer: this is a direct navigation.
+    let expected_prefix = [
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+        "upgrade-insecure-requests",
+        "user-agent",
+        "accept",
+        "sec-fetch-site",
+        "sec-fetch-mode",
+        "sec-fetch-user",
+        "sec-fetch-dest",
+        "accept-encoding",
+        "accept-language",
+    ];
+    assert_eq!(
+        &header_names[..expected_prefix.len()],
+        &expected_prefix[..],
+        "header order mismatch: {header_names:?}"
+    );
+    assert!(
+        !header_names.contains(&"referer".to_string()),
+        "direct navigation must not send Referer: {header_names:?}"
+    );
+
+    let sec_fetch_site = header_value("sec-fetch-site").expect("sec-fetch-site present");
+    assert_eq!(sec_fetch_site, "none");
+
+    let user_agent = header_value("user-agent").expect("user-agent present");
+    let sec_ch_ua = header_value("sec-ch-ua").expect("sec-ch-ua present");
+    let ua_major = user_agent
+        .split("Chrome/")
+        .nth(1)
+        .and_then(|rest| rest.split('.').next())
+        .expect("UA carries a Chrome/<major> token");
+    assert!(
+        sec_ch_ua.contains(&format!("\"Chromium\";v=\"{ua_major}\"")),
+        "UA major {ua_major} not reflected in sec-ch-ua: {sec_ch_ua}"
+    );
+    assert!(
+        sec_ch_ua.contains(&format!("\"Google Chrome\";v=\"{ua_major}\"")),
+        "UA major {ua_major} not reflected in sec-ch-ua: {sec_ch_ua}"
+    );
+}
