@@ -442,6 +442,13 @@ would have meant spending probe budget on a metric (paging depth) below reachabi
 the task's own priority, given the tight per-engine caps. Recommend #66 test paging live, on a
 fresh window, before shipping anything beyond page 1.
 
+**Human decision (2026-09-29)**: #66 ships Brave HTML, Yahoo HTML, and Bing HTML only. Yandex,
+Wikipedia REST, Marginalia, and Mwmbl stay documented here as "maybe", not wired in. Before
+per-engine budgets are set, each kept engine gets measured request validation (concurrency,
+minimum safe interval, burst budget, cooldown) and live pagination tests; whatever an engine
+tolerates beyond the conservative defaults is used. The HTTP transport stays on `reqwest`
+(#56); HTTP/2 (#60) stays open, waiting.
+
 ---
 
 ## Open questions for the human

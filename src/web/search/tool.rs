@@ -111,6 +111,11 @@ pub struct Searcher {
     ddg: String,
     sp_home: String,
     sp_search: String,
+    /// Engine suspension (#62) + pacing (#63) + allowlist (#64) state.
+    /// [`super::governor::Governor::hermetic`] under `with_bases`/every
+    /// test constructor: no persisted state, zero pacing delay, both
+    /// providers always enabled (the hermetic rule).
+    governor: super::governor::Governor,
     /// Disk cache root for search legs (`web::search::cache`); `None` under
     /// `with_bases` and every test constructor -- the hermetic rule: tests
     /// never touch the real user cache.
@@ -118,16 +123,22 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Production endpoints (DuckDuckGo HTML, Startpage), disk cache
-    /// resolved from `SEARCH_CACHE_DIR`/`XDG_CACHE_HOME`/`HOME`
+    /// Production endpoints (DuckDuckGo HTML, Startpage), production
+    /// `Governor` (persists to `<cache_root>/engines.json`) and disk cache
+    /// (`web::search::cache`, under `<cache_root>/search/`), both resolved
+    /// from `SEARCH_CACHE_DIR`/`XDG_CACHE_HOME`/`HOME`
     /// (`web::cache_dir::cache_root`).
     pub fn new() -> Self {
         let mut searcher = Self::with_bases(DDG_HTML_URL, STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL);
-        searcher.cache_root = crate::web::cache_dir::cache_root();
+        let cache_root = crate::web::cache_dir::cache_root();
+        searcher.governor = super::governor::Governor::new(cache_root.clone());
+        searcher.cache_root = cache_root;
         searcher
     }
 
-    /// Test seam: point every leg at local servers, no disk cache.
+    /// Test seam: point every leg at local servers, hermetic `Governor`
+    /// (no persisted state, no pacing delay, both providers enabled), no
+    /// disk cache.
     #[doc(hidden)]
     pub fn with_bases(ddg: &str, sp_home: &str, sp_search: &str) -> Self {
         Self {
@@ -135,6 +146,7 @@ impl Searcher {
             ddg: ddg.to_owned(),
             sp_home: sp_home.to_owned(),
             sp_search: sp_search.to_owned(),
+            governor: super::governor::Governor::hermetic(),
             cache_root: None,
         }
     }
@@ -147,6 +159,7 @@ impl Searcher {
             &self.ddg,
             &self.sp_home,
             &self.sp_search,
+            &self.governor,
             self.cache_root.as_deref(),
         )
         .await

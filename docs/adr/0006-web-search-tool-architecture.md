@@ -38,3 +38,11 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
 - New dependency: `htmd` (HTML→markdown). `scraper` stays for search parsing.
 - The ADR-0002 on-disk fetch cache stays unbuilt; decide after real tools are wired and repeat fetches are measured.
 - `trait` is still banned until a second adapter exists; Obscura is a fallback branch inside `web::fetch`, not an adapter behind a seam.
+- SearXNG (AGPL-3.0-or-later, `searxng/searxng`) is prior art, not a code
+  source: no SearXNG code is copied into this repo. It informed the
+  observation that DuckDuckGo's bot detector is sensitive to header order
+  and identity (`searx/engines/duckduckgo.py`, issue
+  [searxng#6596](https://github.com/searxng/searxng/issues/6596)), which
+  shaped the #58 Chrome navigation header order and #59 profile-coherence
+  work in `web::profile`/`web::search::apply_navigation_headers`. See
+  `THIRD-PARTY-NOTICES.md`.

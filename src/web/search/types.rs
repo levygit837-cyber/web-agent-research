@@ -4,6 +4,9 @@
 //! (both fetch-only HTML, no credentials), dedups hits by URL key and returns
 //! consensus-ranked merged results. Provider text inside hits is an ungrounded
 //! candidate: only fetched page content with URL + time becomes Evidence.
+//!
+//! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
+//! `THIRD-PARTY-NOTICES.md`.
 
 use serde::{Deserialize, Serialize};
 
@@ -227,8 +230,37 @@ pub enum SearchProviderError {
         provider: SearchProvider,
         query: String,
     },
-    /// Network error or non-2xx without challenge markers -> 503.
+    /// Network error or non-2xx without challenge markers -> 503. `status`
+    /// is the real HTTP status when a response was received (`None` for a
+    /// transport-level failure: DNS, connect, TLS, or body-read error).
+    /// `retry_after_secs` is the parsed `Retry-After` header (seconds form
+    /// only), when the response carried one (#62: wins over the default
+    /// suspension duration for 429).
     Upstream {
+        provider: SearchProvider,
+        detail: String,
+        status: Option<u16>,
+        retry_after_secs: Option<u64>,
+    },
+    /// Engine skipped: still under an active suspension recorded from a
+    /// prior Challenge/403/429/5xx/transport failure, or from a real
+    /// `Retry-After`, on this or an earlier run (#62). No HTTP request was
+    /// attempted for this leg. `remaining_secs` is the time left on the
+    /// suspension at the moment it was checked.
+    Suspended {
+        provider: SearchProvider,
+        remaining_secs: u64,
+        reason: String,
+    },
+    /// Engine skipped by a local scheduling decision, not a bot-wall
+    /// signal: the cap on Queries dispatched to one engine within a call
+    /// (`SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`) or the per-run request
+    /// cap (`SEARCH_MAX_REQUESTS_PER_ENGINE`) was already reached for this
+    /// engine (#63). No HTTP request was attempted for this leg. Distinct
+    /// from `Suspended`/`Challenge` so it never counts toward
+    /// `AllFailed.all_challenged` -- a busy run hitting its own cap says
+    /// nothing about the engine's health.
+    Throttled {
         provider: SearchProvider,
         detail: String,
     },
@@ -236,10 +268,13 @@ pub enum SearchProviderError {
     /// (Omp "All public engines failed: ...").
     AllFailed {
         failures: String,
-        /// Whether every one of those failed legs was itself a
-        /// `Challenge` (bot wall), never a `Timeout`/`Upstream` mix (#53):
-        /// the signal `research::agent_loop` uses to surface a typed
-        /// `SearchBlocked` failure instead of a silent empty Synthesis.
+        /// Whether every one of those failed legs was itself a bot-wall
+        /// signal -- a live `Challenge` or an active `Suspended` skip
+        /// whose `reason` is itself `"challenge"` (#53, extended #62) --
+        /// never a `Timeout`/`Upstream`/`Throttled`/non-challenge
+        /// `Suspended` mix: the signal `research::agent_loop` uses to
+        /// surface a typed `SearchBlocked` failure instead of a silent
+        /// empty Synthesis.
         all_challenged: bool,
     },
 }
@@ -253,6 +288,12 @@ impl SearchProviderError {
             SearchProviderError::Challenge { .. } => 429,
             SearchProviderError::Timeout { .. } => 504,
             SearchProviderError::Upstream { .. } => 503,
+            // A skip, not a live response, but the bot-wall condition it
+            // reflects is the same class as `Challenge` (#62).
+            SearchProviderError::Suspended { .. } => 429,
+            // A local scheduling decision, not a bot-wall signal: same
+            // numeric class as `Upstream` (#63).
+            SearchProviderError::Throttled { .. } => 503,
             SearchProviderError::AllFailed { .. } => 503,
         }
     }
@@ -265,6 +306,8 @@ impl SearchProviderError {
             SearchProviderError::Challenge { .. } => "challenge",
             SearchProviderError::Timeout { .. } => "timeout",
             SearchProviderError::Upstream { .. } => "upstream",
+            SearchProviderError::Suspended { .. } => "suspended",
+            SearchProviderError::Throttled { .. } => "throttled",
             SearchProviderError::AllFailed { .. } => "all_failed",
         }
     }
@@ -277,6 +320,8 @@ impl SearchProviderError {
             SearchProviderError::Challenge { provider, .. } => Some(*provider),
             SearchProviderError::Timeout { provider, .. } => Some(*provider),
             SearchProviderError::Upstream { provider, .. } => Some(*provider),
+            SearchProviderError::Suspended { provider, .. } => Some(*provider),
+            SearchProviderError::Throttled { provider, .. } => Some(*provider),
             SearchProviderError::AllFailed { .. } => None,
         }
     }
