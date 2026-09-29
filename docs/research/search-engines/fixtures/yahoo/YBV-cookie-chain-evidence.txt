@@ -1,0 +1,19 @@
+# Yahoo YBV cookie-chain evidence (captured 2026-09-28T15:58:11Z, this session)
+
+Hop 1: GET /search?p=... -> HTTP 307 -> Location: /_bv/v.gif?orig=...&_bvc=...
+  Set-Cookie: YBV=v0.1.<unix_ts>.<redacted_64hex_hash>
+              Domain=search.yahoo.com; Path=/; Secure; SameSite=Lax; Max-Age=60
+
+Hop 2: GET /_bv/v.gif?... -> HTTP 307 -> Location: /search?p=... (original URL again)
+  Set-Cookie: YBV=v0.2.<unix_ts>.<redacted_64hex_hash>
+              (the real 24h-cache cookie; supersedes the v0.1 pixel cookie)
+
+Hop 3 (final): GET /search?p=... (replaying the v0.2 YBV) -> HTTP 200, real SERP body.
+
+Q2 through Q10 in the same session (same cookie jar, ~10s apart): all num_redirects=0,
+straight to 200 -- the persisted v0.2 YBV cookie is sufficient for the rest of the 24h
+window, matching SearXNG yahoo.py's documented behavior (CACHE.set("YBV", ybv, expire=86400)
+only when the value starts with "v0.2").
+
+(cookie VALUES redacted above -- only the v0.1/v0.2 prefix + hop structure + Max-Age/expiry
+behavior are evidence; the actual hash entropy is a live session token, not analysis.)

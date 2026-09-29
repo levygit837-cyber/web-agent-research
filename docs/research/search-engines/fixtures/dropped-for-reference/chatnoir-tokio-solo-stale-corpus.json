@@ -1,0 +1,98 @@
+{
+  "_fixture_note": "Same endpoint, query='tokio' (single word, to isolate the AND-matching effect seen on the 4-word Q1). total_results: 2689 -- plenty of matches exist for the bare token, but ALL of the top 5 by BM25-ish score are 'Tokio Hotel' (the German band) / Tokyo-adjacent pages, not the Rust crate -- this crawl (an academic IR benchmark corpus, not a live web index) has essentially no representation of the tokio Rust crate specifically. This is a corpus-coverage/freshness limitation, not a query-syntax one: even 'rust' alone (tested separately) returned PlayStation-game hits before any programming-language hit.",
+  "meta": {
+    "indices": [
+      "wows-owi-2025"
+    ],
+    "query_time": 137,
+    "total_results": 2689,
+    "search_method": "default"
+  },
+  "results": [
+    {
+      "index": "wows-owi-2025",
+      "uuid": "Nt4_R68CWQClIWFxpVbzYQ",
+      "warc_id": "no warc_id available",
+      "trec_id": "14b6bc2bfbca13b294bb546f24cb180366778fbc19921d8f7a105a3151061836",
+      "score": 1667.5914,
+      "target_uri": "https://www.mytokiohotel.net/impressum/",
+      "cache_uri": "https://chatnoir-webcontent.chatnoir.eu/?index=wows-owi-2025&uuid=Nt4_R68CWQClIWFxpVbzYQ&apikey=sig%3AeyJrZXlfaWQiOiJ3UVJpTk9jYkZQd0V5QW1DIiwibm9uY2UiOiJuaUtPcFVFWVlsU1NPenBVdmVCZnJ3Iiwic2lnbmF0dXJlIjoiRGE5YjJiY3JMWUpOZFNHVWN2djFmV3JFdzk0SlU2anFaSXl5ZS0xUTJXaGZrRGlCQTB1U2p1cmVxcGlUb2J2TS1yOVJHdktMN1BPQks1dzc0N2dIQXciLCJ2YWxpZF9mcm9tIjoiMjAyNi0wOS0yOFQxNTo1Njo0MVoiLCJ2YWxpZF91bnRpbCI6IjIwMjYtMDktMjhUMTc6NTY6NDFaIn0",
+      "target_hostname": "www.mytokiohotel.net",
+      "crawl_date": null,
+      "page_rank": null,
+      "spam_rank": null,
+      "title": "Impressum - <em>Tokio</em> Hotel",
+      "snippet": "Impressum - <em>Tokio</em> Hotel <em>Tokio</em> Hotel\nDie #1 unter den <em>Tokio</em> Hotel Communities im Internet\nImpressum\nComments",
+      "content_type": null,
+      "lang": "en"
+    },
+    {
+      "index": "wows-owi-2025",
+      "uuid": "1BW5rfonWmiBROXDdGYkPA",
+      "warc_id": "no warc_id available",
+      "trec_id": "e857982a41987fb76f40e3f5427fa93b9ff1aba9c13d96381d4de13f915dc880",
+      "score": 1638.4362,
+      "target_uri": "https://www.crystalacids.com/database/person/9390/tokio-inoue/",
+      "cache_uri": "https://chatnoir-webcontent.chatnoir.eu/?index=wows-owi-2025&uuid=1BW5rfonWmiBROXDdGYkPA&apikey=sig%3AeyJrZXlfaWQiOiJ3UVJpTk9jYkZQd0V5QW1DIiwibm9uY2UiOiJ0WWMyVXdjZGo3V1BHZW1Md3FQSmhnIiwic2lnbmF0dXJlIjoiVWFuWTExT3BNVElPdk5TYUZ6MlVod09lVGhrOHp6MUR0dVZ3ZkZxLXdMZTdaRHRUSWNSRU9ValMwQTdXOC1QTG9nRE9IczZURWNqUXVQNXkzSlVxQXciLCJ2YWxpZF9mcm9tIjoiMjAyNi0wOS0yOFQxNTo1Njo0MVoiLCJ2YWxpZF91bnRpbCI6IjIwMjYtMDktMjhUMTc6NTY6NDFaIn0",
+      "target_hostname": "www.crystalacids.com",
+      "crawl_date": null,
+      "page_rank": null,
+      "spam_rank": null,
+      "title": "<em>Tokio</em> Inoue | CrystalAcids.com",
+      "snippet": "<em>Tokio</em> Inoue | CrystalAcids.com CrystalAcids.com\n<em>Tokio</em> Inoue\nCrew Positions\n2008\n2009\n2010\nKekkaishi (",
+      "content_type": null,
+      "lang": "en"
+    },
+    {
+      "index": "wows-owi-2025",
+      "uuid": "KPkAX0NAVtSXdxgML4QvlA",
+      "warc_id": "no warc_id available",
+      "trec_id": "1db300edcb0177a5345c3bd98b860edd65484a684f41aa63f560cb0607ca6ae0",
+      "score": 1606.2487,
+      "target_uri": "https://www.muziekweb.nl/en/Link/M00000263034/CLASSICAL/Tokio-Opera-Zangers?FilterMedia=LP&NoScroll=1&SortField=RATING",
+      "cache_uri": "https://chatnoir-webcontent.chatnoir.eu/?index=wows-owi-2025&uuid=KPkAX0NAVtSXdxgML4QvlA&apikey=sig%3AeyJrZXlfaWQiOiJ3UVJpTk9jYkZQd0V5QW1DIiwibm9uY2UiOiJFajNSSnlIdEF5VjBYSkhUMUhJdi1BIiwic2lnbmF0dXJlIjoiV0JRYXd1T05TdHhjQ1UtZnhDemVOblJVbEVmSzlhQjN1NkV4akF2THY2dTFtUUFaM1hxdVdoSTQ2Q0xtWXloTXNRZ0NFNmZWUmkwU1FOTFMyY2N0RFEiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wOS0yOFQxNTo1Njo0MVoiLCJ2YWxpZF91bnRpbCI6IjIwMjYtMDktMjhUMTc6NTY6NDFaIn0",
+      "target_hostname": "www.muziekweb.nl",
+      "crawl_date": null,
+      "page_rank": null,
+      "spam_rank": null,
+      "title": "<em>Tokio</em> Opera Zangers - Muziekweb",
+      "snippet": "<em>Tokio</em> Opera Zangers - Muziekweb Back to top\n<em>Tokio</em> Opera Zangers\nexternal links\n<em>Tokio</em> Opera Zangers\nexternal",
+      "content_type": null,
+      "lang": "en"
+    },
+    {
+      "index": "wows-owi-2025",
+      "uuid": "N5aND-yjXSCOMOXm5l6IGA",
+      "warc_id": "no warc_id available",
+      "trec_id": "a0b55e9a1c2a038bbadd65129ece806a40d8b491cb9b321230d5c293c28efcef",
+      "score": 1576.4745,
+      "target_uri": "https://www.muziekweb.nl/en/Link/M00000262540/CLASSICAL/Tokio-Filharmonisch-Orkest",
+      "cache_uri": "https://chatnoir-webcontent.chatnoir.eu/?index=wows-owi-2025&uuid=N5aND-yjXSCOMOXm5l6IGA&apikey=sig%3AeyJrZXlfaWQiOiJ3UVJpTk9jYkZQd0V5QW1DIiwibm9uY2UiOiJNZ0JzQTZodm9uNjVxVGNfendyaGtBIiwic2lnbmF0dXJlIjoiS0RVdGFweG5xZXRyZGgteWpSZ2Z2ZHlfUFlEcWhMRVcxT0NhTXpvTGpJS3ZOSFZkQ01LTldyQjU2eHozUndta052TVYwblJOUkszZXdad0kweld5Q2ciLCJ2YWxpZF9mcm9tIjoiMjAyNi0wOS0yOFQxNTo1Njo0MVoiLCJ2YWxpZF91bnRpbCI6IjIwMjYtMDktMjhUMTc6NTY6NDFaIn0",
+      "target_hostname": "www.muziekweb.nl",
+      "crawl_date": null,
+      "page_rank": null,
+      "spam_rank": null,
+      "title": "<em>Tokio</em> Filharmonisch Orkest - Muziekweb",
+      "snippet": "<em>Tokio</em> Filharmonisch Orkest - Muziekweb Back to top\n<em>Tokio</em> Filharmonisch Orkest\nexternal links\n<em>Tokio</em> Filharmonisch",
+      "content_type": null,
+      "lang": "en"
+    },
+    {
+      "index": "wows-owi-2025",
+      "uuid": "7E_t7K_SUzCJuCbsez2T4w",
+      "warc_id": "no warc_id available",
+      "trec_id": "7bbc9e0ccec2cf9c07df9ffc5abaeecef9f369d5488b2d695b59c1b0fea5c576",
+      "score": 1564.8059,
+      "target_uri": "https://www.photolit.de/tags/view/Stadtansichten,_Tokyo,_Tokio",
+      "cache_uri": "https://chatnoir-webcontent.chatnoir.eu/?index=wows-owi-2025&uuid=7E_t7K_SUzCJuCbsez2T4w&apikey=sig%3AeyJrZXlfaWQiOiJ3UVJpTk9jYkZQd0V5QW1DIiwibm9uY2UiOiJCeVkwdTB0eWVGZ0dUMVppaVNfVldRIiwic2lnbmF0dXJlIjoiZkdVRzdsSWpCSWJKeFpuMXlHTTllNUpkRGIyc0NxTkFrb1ZlUzZYQzNoZHlvSklXNTgxb05MMEJfNDlfczBLQzZxMFpfTDFtMV9meThQcFVtYnJIQUEiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wOS0yOFQxNTo1Njo0MVoiLCJ2YWxpZF91bnRpbCI6IjIwMjYtMDktMjhUMTc6NTY6NDFaIn0",
+      "target_hostname": "www.photolit.de",
+      "crawl_date": null,
+      "page_rank": null,
+      "spam_rank": null,
+      "title": "PhotoLit - Stadtansichten, Tokyo, <em>Tokio</em>",
+      "snippet": "PhotoLit - Stadtansichten, Tokyo, <em>Tokio</em>     Stadtansichten, Tokyo, <em>Tokio</em>\nPage 1 of 1, showing 2 record",
+      "content_type": null,
+      "lang": "en"
+    }
+  ]
+}

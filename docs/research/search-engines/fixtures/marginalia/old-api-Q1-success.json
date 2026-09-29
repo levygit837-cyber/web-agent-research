@@ -1,0 +1,64 @@
+{
+  "_fixture_note": "Trimmed to 5 results. api.marginalia.nu/public/search/<query>?count=10 (DEPRECATED endpoint). Captured 2026-09-28T15:58:19Z, HTTP 200. This deprecated endpoint answered when the CURRENT api2.marginalia-search.com endpoint (same 'public' key) was rate-limited (see marginalia-NEW-API-429.json) -- they appear to have SEPARATE rate-limit pools this session.",
+  "license": "CC-BY-NC-SA 4.0",
+  "page": 1,
+  "pages": 11,
+  "query": "tokio rust crate documentation",
+  "results": [
+    {
+      "url": "https://readrust.net/crates",
+      "title": "Crates \u2013 Read Rust",
+      "description": "zbus is a Rust crate for D-Bus. In short, zbus allows you to communicate from one program to another, using the D-Bus protocol // Tokio is a runtime for asynchronous Rust applications. It allows writing code using async, await syntax",
+      "quality": 3.752044623992874,
+      "format": "html",
+      "resultsFromDomain": 11,
+      "details": [
+        []
+      ]
+    },
+    {
+      "url": "https://readrust.net/language",
+      "title": "Language \u2013 Read Rust",
+      "description": "About a year ago, I published a Rust crate called inline-python, which allows you to easily mix some Python into your // Tokio, and so I went looking through the Tokio documentation for these things. Actually, all of the fundamental objects to...",
+      "quality": 3.9260541893592387,
+      "format": "html",
+      "resultsFromDomain": 11,
+      "details": [
+        []
+      ]
+    },
+    {
+      "url": "https://www.rubdos.be/corona/qt/rust/tokio/actix/2020/05/23/actix-qt.html",
+      "title": "Integrating Qt events into Actix and Rust",
+      "description": "Rust, Tokio and Actix for Sailors. I dont think Rust needs a lot of introduction, given its recent enormous rise in popularity. Either way: Rust is a language that // while the Sailfish specific code should become a SailfishOS Rust support crate",
+      "quality": 3.9371545666868215,
+      "format": "html",
+      "resultsFromDomain": 2,
+      "details": [
+        []
+      ]
+    },
+    {
+      "url": "https://tokio.rs/tokio/glossary",
+      "title": "Glossary | Tokio - An asynchronous Rust runtime",
+      "description": "Tokio's documentation will always use the second meaning of, blocking. To run blocking code within Tokio, please see the section from the Tokio API reference. Stream // Tokio's stream utilities are currently provided by the crate. Once the. Stream",
+      "quality": 3.957497992586303,
+      "format": "html",
+      "resultsFromDomain": 6,
+      "details": [
+        []
+      ]
+    },
+    {
+      "url": "https://tokio.rs/blog/2017-09-tokio-reform",
+      "title": "An RFC for a Tokio revamp | Tokio - An asynchronous Rust runtime",
+      "description": "tokio. crate, which is a slimmed down version of today's. tokio-core. and may eventually re-export the contents of. tokio-io. The. tokio-core. crate is deprecated, but will remain available for backward compatibility. In the long run, most users...",
+      "quality": 3.9604746699931246,
+      "format": "html",
+      "resultsFromDomain": 6,
+      "details": [
+        []
+      ]
+    }
+  ]
+}

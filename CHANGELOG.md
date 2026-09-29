@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `web::cache_dir`: shared cache-root resolution (`SEARCH_CACHE_DIR`, else `XDG_CACHE_HOME/web-agent-research`, else `HOME/.cache/web-agent-research`, else disabled) and the atomic-write helper, used by `web::search::governor` (#62/#63) and `web::search::cache` (#67).
 - `src/web/profile.rs`: a Chrome-family browser profile table (stable + 2 previous majors, macOS/Windows/Linux) with UA, coherent GREASE `sec-ch-ua`/`sec-ch-ua-mobile`/`sec-ch-ua-platform`, `accept`, `accept-encoding`, `accept-language`; one profile drawn at random per request chain (DDG pagination and Startpage homepage → search POST reuse the same profile, since DDG's `vqd` is bound to the UA) (#59).
 - `THIRD-PARTY-NOTICES.md`: attribution and license text for code ported from oh-my-pi (MIT) and Obscura (Apache-2.0); SearXNG credited as prior art only, no code copied (#61).
+- `docs/research/search-engines.md`: measured evaluation of 12 candidate free search engines (Brave, Bing, Yahoo, Yandex, Mojeek, Qwant, Marginalia, Wikipedia REST, Google `/wml`, Chatnoir, Mwmbl, Startpage-as-counter-example) against a fixed 10-query set, with keep/maybe/drop verdicts, a priority order for #66, and trimmed raw fixtures under `docs/research/search-engines/fixtures/` (#65). No engine code added; research and measurement only.
 
 ### Changed
 

@@ -1,0 +1,13 @@
+<!-- Trimmed fixture: yandex.com/search/site/?text=tokio+rust+crate+documentation&web=1 -->
+<!-- Captured 2026-09-28T15:55:45Z (this session), via helper Tier2Probes. HTTP 200 but
+     ZERO results -- this is Yandex's SITE-search widget shape (missing
+     tmpl_version=releases&frame=1&searchid=3131712), which structurally cannot return
+     general web results. Kept as a NEGATIVE fixture: a hermetic test should assert this
+     shape parses to zero rows without being misclassified as a captcha/block (no
+     x-yandex-captcha header is present either -- this is an endpoint-shape bug, not a
+     bot-wall). See yandex-Q1-success-corrected-endpoint-20260928.html for the working
+     shape with the 3 extra params. -->
+<title>There are no search results for tokio rust crate documentation&nbsp;&mdash; on Yandex</title>
+<!-- Full body was 6536 bytes of Yandex's standard chrome (header, footer,
+     no-results message) with no li.serp-item present anywhere; not reproduced in full
+     here since none of it is result markup. -->

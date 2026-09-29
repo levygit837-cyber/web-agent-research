@@ -1,0 +1,35 @@
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, max-age=0
+expires: Mon, 28 Sep 2026 16:51:37 GMT
+vary: User-Agent
+x-eventid: 6aba9b556b774654ab4557f6baf89c69
+x-as-setsessionmarket: en-US
+x-as-setsessionuilang: en-us
+useragentreductionoptout: <redacted>
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+permissions-policy: unload=()
+link: <https://r.bing.com>; rel="preconnect",<https://r.bing.com>; rel="preconnect"; crossorigin,<https://th.bing.com>; rel="preconnect",<https://th.bing.com>; rel="preconnect"; crossorigin
+content-security-policy: script-src https: 'strict-dynamic' 'report-sample' 'wasm-unsafe-eval' 'nonce-jMyrUOFXwovDjXOeUGQnbLSGw/ZDCesC6IisjTxMvWs='; base-uri 'self';report-to csp-endpoint
+report-to: {"group":"csp-endpoint","max_age":86400,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingcsp"}]}
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingserp&ndcParam=QWthbWFp"}]}
+report-to: {"group":"crossorigin-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingserp"}]}
+p3p: CP="NON UNI COM NAV STA LOC CURa DEVa PSAa PSDa OUR IND"
+x-display-context: full
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.01,"failure_fraction":1.0,"include_subdomains":true}
+cross-origin-embedder-policy-report-only: 'require-corp; report-to=\"crossorigin-errors\"'
+cross-origin-opener-policy-report-only: 'same-origin; report-to=\"crossorigin-errors\"'
+date: Mon, 28 Sep 2026 16:52:37 GMT
+set-cookie: MUID=<redacted>; domain=.bing.com; expires=Sat, 23-Oct-2027 16:52:37 GMT; path=/; secure; SameSite=None
+set-cookie: MUIDB=<redacted>; expires=Sat, 23-Oct-2027 16:52:37 GMT; path=/; HttpOnly
+set-cookie: _EDGE_S=<redacted>; domain=.bing.com; path=/; HttpOnly
+set-cookie: _EDGE_V=<redacted>; domain=.bing.com; expires=Sat, 23-Oct-2027 16:52:37 GMT; path=/; HttpOnly
+set-cookie: __Host-XY=<redacted>; expires=Tue, 29-Sep-2026 23:52:37 GMT; path=/; secure; HttpOnly; SameSite=Lax
+set-cookie: SRCHHPGUSR=<redacted>; domain=.bing.com; expires=Thu, 28-Sep-2028 16:52:37 GMT; path=/; secure; SameSite=None
+set-cookie: SRCHD=<redacted>; domain=.bing.com; expires=Thu, 28-Sep-2028 16:52:37 GMT; path=/; secure; SameSite=None
+set-cookie: SRCHUID=<redacted>; domain=.bing.com; expires=Thu, 28-Sep-2028 16:52:37 GMT; path=/; secure; SameSite=None
+set-cookie: SRCHUSR=<redacted>; domain=.bing.com; expires=Thu, 28-Sep-2028 16:52:37 GMT; path=/; secure; SameSite=None
+set-cookie: _SS=<redacted>; domain=.bing.com; path=/; secure; SameSite=None
+alt-svc: h3=":443"; ma=93600
+x-cdn-traceid: 0.c7290c17.1790614357.1ea12ac6
+
