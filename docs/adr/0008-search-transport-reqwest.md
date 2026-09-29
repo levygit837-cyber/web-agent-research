@@ -1,0 +1,39 @@
+# Transport stays `reqwest`; no own build, no `wreq`, no `primp` for now
+
+Answers issue #56. Amends nothing; confirms ADR-0006 §3 ("Fetch is reqwest-first") and its "new dependency needs a stated reason and a measurement, not speculatively" standard.
+
+Issue #56 asked whether to keep `reqwest` (generic rustls/`h2` fingerprint, no GREASE, wrong H2 pseudo-header order) or move to a Chrome-impersonating transport (`wreq`, `primp`) or build the equivalent ourselves on top of `reqwest`'s own stack. A research session (`local://transport-decision.md`) measured all three paths directly instead of estimating from docs.
+
+## Decision
+
+1. **Stay on `reqwest`.** No new HTTP client dependency lands from this issue.
+2. **Do not build our own Chrome-impersonating transport.** Reaching parity with what `wreq`/`primp` already ship costs an estimated **31-51 engineer-days one-time, plus 4-9 hours per Chrome release ongoing** (TLS ClientHello control: 18-30 days, no supported rustls API exists — [rustls/rustls#1932](https://github.com/rustls/rustls/issues/1932), closed, maintainers reconfirmed the refusal 2026-01-16; H2 frame/pseudo-header order: 10-16 days; header insertion order: 3-5 days; profile capture-and-encode upkeep: 3-6 hours/release folded into the ongoing figure). There is no third, non-forked path: it means forking rustls (primp's route) or binding BoringSSL (wreq's route), either way owning a security-sensitive surface with no upstream Rust maintainer backing it.
+3. **Do not adopt `wreq` or `primp` right now.** Project-health data on both (`local://transport-decision.md` §2, GitHub/crates.io API, queried live):
+   - Both have a bus factor of 1 (wreq's maintainer holds 91.8% of `wreq`'s last-12-months commits, 82.4% of `wreq-util`'s; primp's holds 100%). The "wreq = community-driven" impression does not hold up: its 284 all-time contributors are overwhelmingly one-off drive-by PRs.
+   - Release cadence is statistically similar (median 14.5 vs 17 days); wreq responds to issues far faster (2.18h vs 8.67-day median first response).
+   - wreq depends on `btls`, a BoringSSL binding authored by the same single maintainer whose prior, architecturally identical bet (`rquest`) is **100% yanked** (152/152 versions, confirmed from crates.io) — a repeat-fork risk. primp forks rustls itself (self-contained, MIT).
+   - wreq's `ClientBuilder` does not follow redirects by default (`redirect::Policy::none()`); `reqwest` and `primp` both do. Every other operation this repo calls (form POST, cookie jar, per-request headers, timeouts) has an identical method signature across all three crates.
+   - Fingerprint measurements against `tls.peet.ws` and published references (`North-web-dev/fingerprint-db`, FoxIO's JA4 README): `reqwest` misses on every axis (generic JA4, wrong Akamai H2 fingerprint order); `wreq` (`Chrome149`) and `primp` (`ChromeV153`) both hit the published Chrome reference exactly, including an identical Akamai hash between each other.
+   - The one live wall this project actually scrapes was tested directly: a same-minute, repeated (2/2) DuckDuckGo A/B with only the transport varying. **This repo's current `reqwest` config passed cleanly both times; `primp` passed both times; `wreq` was hard-blocked both times** (identical 202+anomaly body, a deterministic rule, not noise). The transport with the objectively closer TLS fingerprint lost the one real test that exists.
+4. **#60 (HTTP/2 pseudo-header order) stays open, blocked on this decision, not urgent.** `reqwest` in this repo's current feature set (`default-features = false, features = ["json", "rustls-tls"]`) does not enable `http2`, so no request negotiates H2 today — the pseudo-header-order defect `h2` carries (`m,s,a,p` instead of Chrome's `m,a,s,p`) is prospective, not a live production bug.
+5. **If a Chrome-impersonating transport is ever adopted, prefer `primp` over `wreq`.** `primp` passed the one live test that exists; `wreq` did not. `primp`'s redirect-follows-by-default matches `reqwest`'s, so a swap costs close to zero at the call sites (`ddg.rs`/`startpage.rs`/`fanout.rs`/`tool.rs`/`fetcher.rs`); `wreq`'s redirect default is a footgun that must be caught. `primp`'s single-maintainer risk is lower than wreq's BoringSSL-binding repeat-fork risk.
+
+## Considered options
+
+- Build our own Chrome-impersonation layer on `reqwest`'s rustls/`h2` stack: rejected. 31-51 engineer-days plus 4-9 hours/release for a security-sensitive surface with no upstream backing, undertaken only to fix a wall (DDG) that the current `reqwest` config already passes.
+- Adopt `wreq` now: rejected. Failed the one live A/B this session ran against the wall this repo actually scrapes, despite a closer TLS fingerprint on paper; carries a BoringSSL-binding repeat-fork risk (`rquest` precedent, 100% yanked) and a silent redirect-default footgun.
+- Adopt `primp` now: rejected for now, not because of any measured defect — it passed the live test and matches `reqwest`'s ergonomics closely — but because no wall currently fails that it would fix. Revisit under the conditions below.
+
+## Conditions that would reopen this decision
+
+- A priority engine sits behind Cloudflare/DataDome (Startpage is `docs/research/search-engines.md`'s own counter-example: its Anubis-plus-DataDome edge required a *named* Chrome profile to clear an edge check) **and** a controlled probe (the same-minute, only-transport-varying methodology used here) confirms Chrome fingerprint fidelity is the actual blocker for that specific wall → adopt `primp`, behind a `web/transport.rs` newtype seam (not a `trait`; ADR-0006's "no `trait` until a second real adapter exists" rule stays in force).
+- DDG's current `reqwest`-based pass rate degrades over time → re-run the same A/B before concluding fingerprint is now the cause; DDG's wall is documented as IP-reputation/behavioral, not purely fingerprint-keyed, and can tighten independent of any client change.
+- `primp`'s single maintainer goes inactive for an extended period (watch commit cadence and issue response time) → re-evaluate toward `wreq` despite its redirect footgun and repeat-fork history, since primp's main advantage over wreq at that point would have evaporated.
+- Chrome's release cadence (observed ~2 weeks starting with Chrome 153, versus the ~4-week cadence this issue originally assumed) makes both `wreq`/`primp`'s profile-ship lag chronically worse relative to whatever wall this project actually faces → that pressure argues for a *minimal*, single-profile-only internal fork scoped to exactly the fields the wall checks, a smaller task than replicating either project's full multi-browser breadth, worth re-costing against §1 of `local://transport-decision.md` if it comes up.
+
+## Consequences
+
+- No new HTTP client dependency; `Cargo.toml`'s `reqwest` feature set is unchanged by this decision.
+- #60 (HTTP/2 pseudo-header order) stays open and blocked: it has nothing to build on top of until a transport change lands, and no transport change is happening now.
+- #74's fetch static path (`web::fetch::fetcher`) draws a browser profile per request and sends Chrome's navigation header set through the existing `web::search::apply_navigation_headers` helper, independent of this ADR: header-order and profile fidelity on the current transport is a `web/` concern, not a transport-choice one.
+- A future adopter of `wreq` or `primp` should isolate the swap behind a `web/transport.rs` newtype wrapping the subset of the builder/request API this repo actually calls (`.header()`, `.form()`, `.body()`, `.send()`, cookie jar, timeout) — cheap because all three candidate crates expose near-identical method signatures for every operation this repo uses today (confirmed directly, `local://transport-decision.md` §3.3). This is a seam to build if and when adoption happens, not scope for this ADR.
