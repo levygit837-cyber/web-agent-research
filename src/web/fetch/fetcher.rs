@@ -8,10 +8,14 @@
 //! `FetchError::Http` without spawning the browser: Obscura would see the
 //! same status (or the same absence of one).
 //!
-//! `reqwest`'s `gzip`/`brotli`/`zstd`/`deflate` features (#57) decode the
-//! response body transparently; `Accept-Encoding` is sent explicitly so the
-//! wire value matches a real Chrome navigation rather than tower-http's
-//! insertion-order default. Decompression removes `Content-Length` before
+//! Each static-path request draws one Chrome browser profile
+//! (`web::profile::pick_profile`, #74) and sends it through
+//! `web::search::apply_navigation_headers` as a direct navigation
+//! (`ChainPosition::First`, no Referer): `sec-fetch-site: none`, the
+//! profile's coherent UA/`sec-ch-ua`/client-hint set, and its
+//! `Accept-Encoding` (#57), all in Chrome's real navigation header order.
+//! `reqwest`'s `gzip`/`brotli`/`zstd`/`deflate` features decode the response
+//! body transparently. Decompression removes `Content-Length` before
 //! `read_capped_body` sees the response, so the cap always applies to
 //! decoded bytes, streamed chunk-by-chunk, never to the compressed size.
 
@@ -21,7 +25,8 @@ use serde::{Deserialize, Serialize};
 
 use super::error::{normalize_url, FetchError};
 use super::obscura::{FetchedMarkdown, Obscura};
-use crate::web::{ACCEPT_LANGUAGE, BROWSER_USER_AGENT};
+use crate::web::profile::pick_profile;
+use crate::web::search::{apply_navigation_headers, ChainPosition};
 
 /// Which engine produced the markdown. Recorded on
 /// [`super::evidence::Evidence::fetch_path`] for debugging; not part of the
@@ -98,7 +103,6 @@ impl Fetcher {
     /// Same defaults with an injected Obscura handle (tests use the fixture double).
     pub fn with_obscura(obscura: Obscura) -> Self {
         let client = reqwest::Client::builder()
-            .user_agent(BROWSER_USER_AGENT)
             .timeout(STATIC_TIMEOUT)
             .build()
             .expect("static reqwest client config is valid");
@@ -130,30 +134,22 @@ impl Fetcher {
     }
 
     async fn fetch_static(&self, url: &str) -> Result<StaticOutcome, FetchError> {
-        let mut response = self
-            .client
-            .get(url)
-            .header(
-                "Accept",
-                "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
-            )
-            .header("Accept-Encoding", "gzip, deflate, br, zstd")
-            .header("Accept-Language", ACCEPT_LANGUAGE)
-            .send()
-            .await
-            .map_err(|err| {
-                if err.is_timeout() {
-                    FetchError::Timeout {
-                        url: url.to_owned(),
-                        after: STATIC_TIMEOUT,
-                    }
-                } else {
-                    FetchError::Http {
-                        url: url.to_owned(),
-                        detail: err.to_string(),
-                    }
+        let profile = pick_profile();
+        let builder =
+            apply_navigation_headers(self.client.get(url), &profile, ChainPosition::First, None);
+        let mut response = builder.send().await.map_err(|err| {
+            if err.is_timeout() {
+                FetchError::Timeout {
+                    url: url.to_owned(),
+                    after: STATIC_TIMEOUT,
                 }
-            })?;
+            } else {
+                FetchError::Http {
+                    url: url.to_owned(),
+                    detail: err.to_string(),
+                }
+            }
+        })?;
 
         let status = response.status().as_u16();
         if matches!(status, 403 | 429 | 503) {

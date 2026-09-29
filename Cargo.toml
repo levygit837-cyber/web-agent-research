@@ -33,3 +33,4 @@ rand = "=0.9.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "net", "test-util"] }
 flate2 = "=1.1.10"
 brotli = "=9.0.0"
+parking_lot = "=0.12.5"
