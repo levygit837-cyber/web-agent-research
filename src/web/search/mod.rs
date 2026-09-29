@@ -1,15 +1,19 @@
-//! Fetch-only web search engine: DDG + Startpage over plain HTTP.
+//! Fetch-only web search engine: DuckDuckGo, Startpage, Brave, Yahoo, Bing
+//! over plain HTTP (#66).
 //!
-//! Small Interface (`search_multi_with_bases`, eleven pure helpers, three
+//! Small Interface (`search_multi_with_bases`, pure helpers, per-engine
 //! `#[doc(hidden)]` base-URL overrides) over provider legs (`ddg`,
-//! `startpage`), merge (`dedup`), fan-out (`fanout`) and codecs (`decode`).
-//! Callers cross only this root; provider forms and deadlines stay inside.
+//! `startpage`, `brave`, `yahoo`, `bing`), merge (`dedup`), fan-out
+//! (`fanout`) and codecs (`decode`). Callers cross only this root; provider
+//! forms and deadlines stay inside.
 //!
 //! `ChainPosition`'s `sec-fetch-site` derivation ports Obscura's
 //! `request_fetch_site` (Apache-2.0, h4ckf0r0day/obscura@542df14); see
 //! `THIRD-PARTY-NOTICES.md`. `apply_navigation_headers`'s own header order
 //! is independently verified against live Chrome, not ported (see its doc).
 
+pub mod bing;
+pub mod brave;
 pub(crate) mod cache;
 pub mod ddg;
 pub mod decode;
@@ -19,6 +23,13 @@ pub(crate) mod governor;
 pub mod startpage;
 pub mod tool;
 pub mod types;
+pub mod yahoo;
+#[doc(hidden)]
+pub use bing::bing_search_with_base;
+pub use bing::{is_bing_challenge, parse_bing_html, unwrap_bing_url, BING_SEARCH_URL};
+#[doc(hidden)]
+pub use brave::brave_search_with_base;
+pub use brave::{parse_brave_html, BRAVE_SEARCH_URL};
 #[doc(hidden)]
 pub use ddg::ddg_search_with_base;
 pub use ddg::{
@@ -37,6 +48,9 @@ pub use startpage::{
     is_startpage_challenge, parse_search_form_inputs, parse_startpage_html, sanitize_startpage_url,
     STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL,
 };
+#[doc(hidden)]
+pub use yahoo::yahoo_search_with_base;
+pub use yahoo::{is_yahoo_challenge, parse_yahoo_html, unwrap_yahoo_url, YAHOO_SEARCH_URL};
 
 /// Position of one HTTP call inside a request chain (#59: "one engine leg
 /// plus its follow-ups"). Chrome's `sec-fetch-site` is `none` only for the
@@ -542,7 +556,9 @@ pub(crate) mod test_support {
 
     pub(crate) fn path_key(path: &str) -> String {
         // Count by route prefix so query strings do not split counters.
-        for known in ["/html/", "/sp/search", "/sp/", "/"] {
+        // `/search` covers Brave/Yahoo/Bing's single-GET shape (#66); the
+        // other three predate it.
+        for known in ["/html/", "/sp/search", "/sp/", "/search", "/"] {
             if path == known || path.starts_with(known) {
                 return known.to_string();
             }

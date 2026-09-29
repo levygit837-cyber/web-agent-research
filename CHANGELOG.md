@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/web/profile.rs`: a Chrome-family browser profile table (stable + 2 previous majors, macOS/Windows/Linux) with UA, coherent GREASE `sec-ch-ua`/`sec-ch-ua-mobile`/`sec-ch-ua-platform`, `accept`, `accept-encoding`, `accept-language`; one profile drawn at random per request chain (DDG pagination and Startpage homepage → search POST reuse the same profile, since DDG's `vqd` is bound to the UA) (#59).
 - `THIRD-PARTY-NOTICES.md`: attribution and license text for code ported from oh-my-pi (MIT) and Obscura (Apache-2.0); SearXNG credited as prior art only, no code copied (#61).
 - `docs/research/search-engines.md`: measured evaluation of 12 candidate free search engines (Brave, Bing, Yahoo, Yandex, Mojeek, Qwant, Marginalia, Wikipedia REST, Google `/wml`, Chatnoir, Mwmbl, Startpage-as-counter-example) against a fixed 10-query set, with keep/maybe/drop verdicts, a priority order for #66, and trimmed raw fixtures under `docs/research/search-engines/fixtures/` (#65). No engine code added; research and measurement only.
+- Brave HTML, Yahoo HTML, and Bing HTML search legs (#66), page 1 only (pagination is #73's job): `src/web/search/{brave,yahoo,bing}.rs`.
+  - Brave: `search.brave.com/search?q=&source=web` with Brave's own default cookies (`safesearch=off; useLocation=0; summarizer=0; country=us; ui_lang=en-us`); direct unwrapped URLs; HTTP `429` (CloudFront edge, no body marker) maps `Challenge`.
+  - Yahoo: `search.yahoo.com/search?p=`, replaying the `YBV` cookie chain across a per-leg cookie jar (a dedicated no-auto-redirect `reqwest::Client`, up to 4 manual hops); `r.search.yahoo.com/.../RU=<url>/RS=` redirect wrapper unwrapped; a redirect to `guce.yahoo.com`/`consent.yahoo.com` maps `Challenge`.
+  - Bing: `www.bing.com/search?q=&mkt=&setlang=`, `mkt` always sent (`SEARCH_BING_MARKET`, default `en-US`; `setlang` derived from its language subtag) — Bing silently geo/language-localizes on client IP otherwise, measured 0/10 relevant results from a non-US IP with no `mkt`, 5/5 after adding it; `bing.com/ck/a?...&u=a1<base64url>` redirect wrapper unwrapped; a `challenge/verify` JS marker or HTTP `429` maps `Challenge`.
+  - All three send Chrome navigation headers via the existing `apply_navigation_headers`, one browser profile per leg (#59).
+  - `SearchProvider` gains `Brave`, `Yahoo`, `Bing` variants; merge/dispatch priority order (from the #65 evaluation's measured relevance/breadth): Startpage, Brave, Yahoo, DuckDuckGo, Bing.
+  - Default `SEARCH_ENGINES` becomes `duckduckgo,brave,yahoo,bing`; Startpage stays opt-in only.
+  - `Searcher::with_bases`/`search_multi_with_bases` extended with `brave`/`yahoo`/`bing` base-URL parameters (test seam only, `#[doc(hidden)]`).
 
 ### Changed
 

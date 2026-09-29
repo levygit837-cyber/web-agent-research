@@ -3,8 +3,9 @@
 //! One entry per (provider, normalized query, recency, page) under
 //! `<cache_root>/search/`, keyed by a content hash so filenames never leak
 //! the raw query. Cached per leg, not per merged fan-out output: a cached
-//! DuckDuckGo leg and a live Startpage leg for the same Query still merge
-//! normally, and a future engine (#66) slots in without touching this file.
+//! leg for one engine and a live leg for another still merge normally.
+//! Every provider slots in via `provider.id()` alone (#66: Brave/Yahoo/Bing
+//! joined DuckDuckGo/Startpage without touching this file).
 //!
 //! `lookup`/`store` take `cache_root: Option<&Path>` directly and no-op on
 //! `None` (the hermetic seam: `Searcher::with_bases` and every test

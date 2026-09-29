@@ -63,9 +63,15 @@ use crate::web::search::types::{SearchProvider, SearchProviderError};
 /// `search/` cache entries, which live in a sibling directory).
 const ENGINES_FILE: &str = "engines.json";
 
-/// Both ported providers, in a fixed order used to pre-populate per-engine
+/// Every ported provider, in a fixed order used to pre-populate per-engine
 /// maps regardless of which are enabled.
-const ALL_PROVIDERS: [SearchProvider; 2] = [SearchProvider::Startpage, SearchProvider::DuckDuckGo];
+const ALL_PROVIDERS: [SearchProvider; 5] = [
+    SearchProvider::Startpage,
+    SearchProvider::Brave,
+    SearchProvider::Yahoo,
+    SearchProvider::DuckDuckGo,
+    SearchProvider::Bing,
+];
 
 /// On-disk shape of `engines.json`. Corrupt JSON (or a missing file) loads
 /// as `Default` -- an empty map -- never an error (#62 acceptance).
@@ -144,13 +150,15 @@ fn env_u64(key: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
-/// `SEARCH_ENGINES` (comma list, case-insensitive, `duckduckgo`/`ddg` and
-/// `startpage`/`sp` tokens; unknown tokens ignored; duplicates collapsed;
-/// unset or resolving empty defaults to `duckduckgo` only) -- #64: Startpage
-/// is off by default. Pure and env-only, so it is unit-tested directly
-/// without any HTTP.
+/// `SEARCH_ENGINES` (comma list, case-insensitive; `duckduckgo`/`ddg`,
+/// `startpage`/`sp`, `brave`, `yahoo`, `bing` tokens; unknown tokens
+/// ignored; duplicates collapsed; unset or resolving empty defaults to
+/// `duckduckgo,brave,yahoo,bing` -- #64/#66: Startpage stays opt-in only
+/// (it serves an Anubis proof-of-work challenge to bot-detected clients).
+/// Pure and env-only, so it is unit-tested directly without any HTTP.
 pub(crate) fn enabled_providers() -> Vec<SearchProvider> {
-    let raw = std::env::var("SEARCH_ENGINES").unwrap_or_else(|_| "duckduckgo".to_string());
+    let raw = std::env::var("SEARCH_ENGINES")
+        .unwrap_or_else(|_| "duckduckgo,brave,yahoo,bing".to_string());
     let mut providers: Vec<SearchProvider> = raw
         .split(',')
         .map(|tok| tok.trim().to_lowercase())
@@ -158,14 +166,30 @@ pub(crate) fn enabled_providers() -> Vec<SearchProvider> {
         .filter_map(|tok| match tok.as_str() {
             "duckduckgo" | "ddg" => Some(SearchProvider::DuckDuckGo),
             "startpage" | "sp" => Some(SearchProvider::Startpage),
+            "brave" => Some(SearchProvider::Brave),
+            "yahoo" => Some(SearchProvider::Yahoo),
+            "bing" => Some(SearchProvider::Bing),
             _ => None,
         })
         .collect();
     let mut seen = std::collections::HashSet::new();
     providers.retain(|p| seen.insert(*p));
     if providers.is_empty() {
-        return vec![SearchProvider::DuckDuckGo];
+        return default_providers();
     }
+    providers.sort_by_key(|p| p.priority());
+    providers
+}
+
+/// The default `SEARCH_ENGINES` set, pre-sorted by priority: unset or an
+/// all-unknown-tokens `SEARCH_ENGINES` both resolve here.
+fn default_providers() -> Vec<SearchProvider> {
+    let mut providers = vec![
+        SearchProvider::DuckDuckGo,
+        SearchProvider::Brave,
+        SearchProvider::Yahoo,
+        SearchProvider::Bing,
+    ];
     providers.sort_by_key(|p| p.priority());
     providers
 }
@@ -774,10 +798,33 @@ mod tests {
     use test_support::EnvGuard;
 
     #[test]
-    fn enabled_providers_defaults_to_duckduckgo_only() {
+    fn enabled_providers_defaults_to_ddg_brave_yahoo_bing() {
         let _guard = EnvGuard::set(&[]);
         std::env::remove_var("SEARCH_ENGINES");
-        assert_eq!(enabled_providers(), vec![SearchProvider::DuckDuckGo]);
+        let providers = enabled_providers();
+        assert_eq!(providers.len(), 4, "startpage stays opt-in: {providers:?}");
+        assert!(!providers.contains(&SearchProvider::Startpage));
+        for expected in [
+            SearchProvider::DuckDuckGo,
+            SearchProvider::Brave,
+            SearchProvider::Yahoo,
+            SearchProvider::Bing,
+        ] {
+            assert!(
+                providers.contains(&expected),
+                "missing {expected:?}: {providers:?}"
+            );
+        }
+        // Priority order, not input/declaration order.
+        assert_eq!(
+            providers,
+            vec![
+                SearchProvider::Brave,
+                SearchProvider::Yahoo,
+                SearchProvider::DuckDuckGo,
+                SearchProvider::Bing,
+            ]
+        );
     }
 
     #[test]
@@ -791,10 +838,10 @@ mod tests {
 
     #[test]
     fn enabled_providers_ignores_unknown_tokens_and_dedupes() {
-        let _guard = EnvGuard::set(&[("SEARCH_ENGINES", " STARTPAGE , bing, startpage ,ddg")]);
+        let _guard = EnvGuard::set(&[("SEARCH_ENGINES", " STARTPAGE , yandex, startpage ,ddg")]);
         let providers = enabled_providers();
-        // "bing" ignored; "STARTPAGE"/"startpage" collapse to one entry;
-        // "ddg" alias resolves to DuckDuckGo.
+        // "yandex" ignored (not a #66-kept engine); "STARTPAGE"/"startpage"
+        // collapse to one entry; "ddg" alias resolves to DuckDuckGo.
         assert_eq!(providers.len(), 2);
         assert!(providers.contains(&SearchProvider::Startpage));
         assert!(providers.contains(&SearchProvider::DuckDuckGo));
@@ -802,8 +849,8 @@ mod tests {
 
     #[test]
     fn enabled_providers_empty_after_filtering_falls_back_to_default() {
-        let _guard = EnvGuard::set(&[("SEARCH_ENGINES", "bing, , yandex")]);
-        assert_eq!(enabled_providers(), vec![SearchProvider::DuckDuckGo]);
+        let _guard = EnvGuard::set(&[("SEARCH_ENGINES", "yandex, , marginalia")]);
+        assert_eq!(enabled_providers(), default_providers());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1174,7 +1221,13 @@ mod tests {
             .is_none());
         assert_eq!(
             governor.enabled_providers(),
-            vec![SearchProvider::Startpage, SearchProvider::DuckDuckGo]
+            vec![
+                SearchProvider::Startpage,
+                SearchProvider::Brave,
+                SearchProvider::Yahoo,
+                SearchProvider::DuckDuckGo,
+                SearchProvider::Bing,
+            ]
         );
     }
 }

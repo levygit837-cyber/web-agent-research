@@ -131,15 +131,27 @@ async fn fanout_merges_across_queries_and_providers() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &format!("{base}/search"),
+        &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
     .await
     .expect("overlap merges");
-    assert_eq!(out.stats.legs, 6);
+    // Hermetic `Governor` enables all five providers (#66): DDG + Startpage
+    // still merge the shared URL as before, while Brave/Yahoo/Bing each hit
+    // this stub's unrecognized `/search` route (404 -> `Upstream`) on every
+    // query, adding 9 errors atop the original 6-leg, error-free shape.
+    assert_eq!(out.stats.legs, 15);
     assert_eq!(out.stats.queries, 3);
     assert_eq!(out.stats.raw_hits, 6);
-    assert!(out.errors.is_empty(), "unexpected errors: {:?}", out.errors);
+    assert_eq!(
+        out.errors.len(),
+        9,
+        "3 queries x 3 unreachable engines (Brave/Yahoo/Bing): {:?}",
+        out.errors
+    );
     let top = out
         .results
         .iter()
@@ -169,6 +181,9 @@ async fn fanout_all_fail_returns_all_failed_503() {
         &format!("{base}/missing/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &format!("{base}/search"),
+        &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
