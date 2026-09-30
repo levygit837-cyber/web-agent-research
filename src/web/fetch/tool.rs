@@ -9,7 +9,7 @@ use serde_json::Value;
 pub const FETCH_TOOL_NAME: &str = "fetch";
 /// One-line purpose for the system-prompt roster.
 pub const FETCH_TOOL_PURPOSE: &str =
-    "Fetch a URL from search results and return its content as markdown Evidence.";
+    "Read one page. Returns its final URL and its content as markdown: Evidence you can cite.";
 
 /// Caller-supplied tool input: exactly what `fetch_tool_schema` advertises.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,14 +49,14 @@ impl FetchInput {
 pub fn fetch_tool_schema() -> Value {
     serde_json::json!({
         "name": FETCH_TOOL_NAME,
-        "description": "Fetch a URL and return its content as markdown Evidence for synthesis.",
+        "description": "Download one web page and return its final URL (after redirects) and the page converted to markdown, with scripts, styles, navigation and footer blocks, and forms removed. This is the only way to get Evidence: a page counts as a source only after you fetch it, and citations must use the URL this tool returns. Use it on the most promising search Hits, on URLs given in the research goal, or on links inside a page you already fetched; never on a guessed URL. Pages that need JavaScript are rendered in a headless browser, which takes a few seconds longer. Long pages are cut, so the end of a very long reference page may be missing. If the page cannot be read (HTTP error, bot wall, timeout), the result starts with FAILED: pick a different Hit instead of retrying the same URL.",
         "parameters": {
             "type": "object",
             "properties": {
                 "url": {
                     "type": "string",
                     "format": "uri",
-                    "description": "Absolute http(s) URL to fetch markdown from."
+                    "description": "Absolute http(s) URL of the page to read, copied exactly from a search Hit, the research goal, or a link inside a page you already fetched."
                 }
             },
             "required": ["url"],

@@ -1,7 +1,9 @@
 //! Answer parsing: plain-text FINAL replies become typed Synthesis.
 //!
 //! Loop behavior lives here (next to its caller); the output types are
-//! catalog data in `research::synthesis`. The only hard gate is
+//! catalog data in `research::synthesis`. When a reply carries an
+//! `<answer>` block, only that block is parsed, so the model's remarks about
+//! its own progress never reach the caller (#72). The only hard gate is
 //! non-emptiness: markdown pedantry never fails a good answer.
 
 use crate::research::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
@@ -129,7 +131,43 @@ fn bullet_text(line: &str) -> Option<String> {
     let text = line[digits + 2..].trim();
     (!text.is_empty()).then(|| text.to_owned())
 }
+
+/// Opening tag of the final-answer block the system prompt asks for (#72).
+pub(crate) const ANSWER_OPEN: &str = "<answer>";
+/// Closing tag of the final-answer block.
+pub(crate) const ANSWER_CLOSE: &str = "</answer>";
+
+/// The part of a FINAL reply that is the answer. A tag counts only on a
+/// line of its own (surrounding whitespace and letter case ignored), so a
+/// tag the model mentions in a remark or shows in inline code stays text.
+/// The answer is the last block: the text between an opening line and the
+/// next closing line. With no closed block, it is the text after the last
+/// opening line (a reply cut at the output-token limit); with no opening
+/// line either, it is the whole reply.
+fn answer_block(body: &str) -> &str {
+    let mut open = None;
+    let mut block = None;
+    let mut offset = 0;
+    for line in body.split_inclusive('\n') {
+        let tag = line.trim();
+        if tag.eq_ignore_ascii_case(ANSWER_OPEN) {
+            open = Some(offset + line.len());
+        } else if tag.eq_ignore_ascii_case(ANSWER_CLOSE) {
+            if let Some(start) = open.take() {
+                block = Some(start..offset);
+            }
+        }
+        offset += line.len();
+    }
+    match (block, open) {
+        (Some(block), _) => &body[block],
+        (None, Some(start)) => &body[start..],
+        (None, None) => body,
+    }
+}
+
 pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis, AnswerError> {
+    let body = answer_block(body);
     if body.trim().is_empty() {
         return Err(AnswerError::EmptyAnswer);
     }
@@ -347,5 +385,104 @@ mod tests {
         let synthesis = parse_answer("## Steps\n\n1. First\n2. Second", SynthesisSize::Medium)
             .expect("numbered list parses");
         assert_eq!(synthesis.themes[0].points, vec!["First", "Second"]);
+    }
+
+    /// Models narrate before their final answer ("I have enough information
+    /// to provide a comprehensive answer.", measured in 4 of 7 runs in #72);
+    /// only the `<answer>` block may reach the caller's Synthesis.
+    #[test]
+    fn remarks_outside_the_answer_block_never_reach_the_synthesis() {
+        let reply = "I have enough information to provide a comprehensive answer.\n\n<answer>\nTokio is an asynchronous runtime for Rust ([Tokio](https://tokio.rs/)).\n\n## Features\n\n- Async I/O and timers ([tokio docs](https://docs.rs/tokio/latest/tokio/)).\n</answer>\n\nLet me know if you need more.";
+        let synthesis = parse_answer(reply, SynthesisSize::Small).expect("tagged answer parses");
+        assert_eq!(
+            synthesis.summary,
+            "Tokio is an asynchronous runtime for Rust ([Tokio](https://tokio.rs/))."
+        );
+        assert_eq!(synthesis.themes.len(), 1);
+        assert_eq!(
+            synthesis.themes[0].points,
+            vec!["Async I/O and timers ([tokio docs](https://docs.rs/tokio/latest/tokio/))."]
+        );
+        let urls: Vec<&str> = synthesis
+            .citations
+            .iter()
+            .map(|citation| citation.url.as_str())
+            .collect();
+        assert_eq!(
+            urls,
+            vec!["https://tokio.rs/", "https://docs.rs/tokio/latest/tokio/"]
+        );
+    }
+
+    /// A reply cut at the output-token limit loses its closing tag: the text
+    /// after the opening tag line is still the answer, even when a remark
+    /// before it mentions the tags.
+    #[test]
+    fn unclosed_answer_block_runs_to_the_end() {
+        let synthesis = parse_answer(
+            "Checking the pages, then I reply inside <answer></answer> tags.\n<answer>\nTokio is a runtime.\n\n## Use\n\n- Spawn tasks.",
+            SynthesisSize::Small,
+        )
+        .expect("unclosed block parses");
+        assert_eq!(synthesis.summary, "Tokio is a runtime.");
+        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+    }
+
+    /// An explicitly empty answer block is an empty answer, which the loop
+    /// repairs, never a reason to publish the narration around it.
+    #[test]
+    fn empty_answer_block_is_an_empty_answer() {
+        let err = parse_answer(
+            "I have enough information.\n<answer>\n</answer>",
+            SynthesisSize::Small,
+        )
+        .expect_err("empty block must not parse");
+        assert_eq!(err, AnswerError::EmptyAnswer);
+    }
+
+    /// A remark after the answer may mention the tags; only a tag alone on
+    /// its line opens or closes the block, so the mention never empties it.
+    #[test]
+    fn tags_mentioned_in_a_remark_never_empty_the_answer() {
+        let synthesis = parse_answer(
+            "<answer>\nTokio is a runtime ([Tokio](https://tokio.rs/)).\n\n## Use\n\n- Spawn tasks.\n</answer>\n\nI put the answer inside the <answer></answer> tags.",
+            SynthesisSize::Small,
+        )
+        .expect("the block before the remark parses");
+        assert_eq!(
+            synthesis.summary,
+            "Tokio is a runtime ([Tokio](https://tokio.rs/))."
+        );
+        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+    }
+
+    /// Inline code in the answer can show the tags themselves (a goal about
+    /// prompt templates): they are content, not the edges of the block.
+    #[test]
+    fn tags_inside_inline_code_stay_content() {
+        let synthesis = parse_answer(
+            "<answer>\nWrap the final reply in answer tags.\n\n## Template\n\n- Write `<answer>42</answer>` in the template ([Guide](https://example.com/guide)).\n</answer>",
+            SynthesisSize::Small,
+        )
+        .expect("a block with inline tags parses");
+        assert_eq!(synthesis.summary, "Wrap the final reply in answer tags.");
+        assert_eq!(
+            synthesis.themes[0].points,
+            vec![
+                "Write `<answer>42</answer>` in the template ([Guide](https://example.com/guide))."
+            ]
+        );
+        assert_eq!(synthesis.citations.len(), 1);
+    }
+
+    /// The model may write the tags in any letter case.
+    #[test]
+    fn answer_tags_match_in_any_case() {
+        let synthesis = parse_answer(
+            "Done reading.\n<Answer>\nTokio is a runtime.\n</ANSWER>",
+            SynthesisSize::Small,
+        )
+        .expect("a mixed-case block parses");
+        assert_eq!(synthesis.summary, "Tokio is a runtime.");
     }
 }

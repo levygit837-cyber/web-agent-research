@@ -14,7 +14,7 @@ use crate::web::search::types::{Recency, SearchInput, SearchOutput, SearchProvid
 pub const SEARCH_TOOL_NAME: &str = "search";
 /// One-line purpose for the system-prompt roster.
 pub const SEARCH_TOOL_PURPOSE: &str =
-    "Search the web; returns Hits (title, URL, snippet) to fetch, never cite directly.";
+    "Find candidate pages. Returns Hits (title, URL, snippet): leads to read, not Evidence.";
 
 pub fn search_tool_schema() -> Value {
     json!({
@@ -22,27 +22,27 @@ pub fn search_tool_schema() -> Value {
         "type": "object",
         "additionalProperties": false,
         "name": SEARCH_TOOL_NAME,
-        "description": "Fetch-only web search over DuckDuckGo and Startpage. Takes 1-8 queries, fans out to both providers in parallel, dedups by URL key and returns consensus-ranked merged results. Returned snippets are ungrounded candidates, not Evidence: fetch a result URL before citing it.",
+        "description": "Search the web across the enabled search engines and return up to `top_k` Hits, deduplicated by URL and ranked by how many engines returned them, then by engine rank. Each Hit has a title, a URL and the engine's snippet. Hits are candidates to read, not Evidence: snippets are short, often outdated or cut mid-sentence, so fetch a Hit's URL with `fetch` before stating or citing anything from it. Send 2-4 queries in one call that approach the goal from different angles, such as the exact error text, the crate or project name, and the question in plain words; the queries run in parallel and their Hits are merged. Search again only with new wording, to fill a specific gap.",
         "parameters": {
             "type": "object",
             "properties": {
                 "queries": {
                     "type": "array",
-                    "description": "Research queries for this Turn. 1-8 items, each 1-500 chars.",
+                    "description": "1-8 search queries, each 1-500 characters. Use 2-4 that differ in wording (exact error text, crate or project name, a plain-language question) rather than near-duplicates.",
                     "minItems": 1,
                     "maxItems": 8,
                     "items": { "type": "string", "minLength": 1, "maxLength": 500 }
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Max merged results to return. Defaults to 15.",
+                    "description": "Maximum number of merged Hits to return (1-30, default 15).",
                     "minimum": 1,
                     "maximum": 30,
                     "default": 15
                 },
                 "recency": {
                     "type": "string",
-                    "description": "Optional freshness window, mapped per provider (DDG df / Startpage with_date). Omit for no time filter.",
+                    "description": "Optional freshness window: day, week, month or year. Only some engines apply it, so still check the dates on fetched pages. Omit it for no time filter.",
                     "enum": ["day", "week", "month", "year"]
                 }
             },

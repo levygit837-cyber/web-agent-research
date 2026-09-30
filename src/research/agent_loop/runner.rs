@@ -12,7 +12,9 @@
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
-use crate::research::agent_loop::answer::{parse_answer, retain_fetched_citations};
+use crate::research::agent_loop::answer::{
+    parse_answer, retain_fetched_citations, ANSWER_CLOSE, ANSWER_OPEN,
+};
 use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
@@ -176,11 +178,38 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
         .join("\n")
 }
 
-fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
+/// Repair observation after a reply with no tool call and no answer text.
+/// It keeps the turns-left countdown (#72); when only the last turn is left
+/// it asks for the answer alone, since a tool call on the last turn ends the
+/// run with no answer.
+fn empty_answer_observation(
+    tools: &ToolRegistry,
+    allowed: &[String],
+    turn: u32,
+    budget: &LoopBudget,
+) -> String {
+    let note = turns_left_note(turn, budget);
+    if budget.max_turns.saturating_sub(turn) <= 1 {
+        return format!("Your last reply had no tool call and no answer text.{note}");
+    }
     format!(
-        "Empty answer — use the offered tools to gather evidence, or answer directly when evidence suffices.\nAvailable tools:\n{}",
+        "Your last reply had no tool call and no answer text. Continue the research with a tool call, or reply with the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags.\nAvailable tools:\n{}{note}",
         roster_footer(tools, allowed)
     )
+}
+
+/// Turn-budget note appended to the newest tool result of each tool turn
+/// (#72). The system prompt must stay byte-identical across turns for
+/// prompt caching, so per-turn state rides in the transcript tail; the note
+/// is stored in history, so the transcript stays append-only.
+fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
+    match budget.max_turns.saturating_sub(turn) {
+        0 => String::new(),
+        1 => format!(
+            "\n\n[1 turn left: your next reply must be the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, with no tool call.]"
+        ),
+        left => format!("\n\n[{left} turns left, counting the final answer.]"),
+    }
 }
 
 fn cap_excerpt(rendered: &str, budget: &LoopBudget) -> String {
@@ -285,7 +314,15 @@ async fn dispatch_turn(
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
-                let content = cap_excerpt(&format!("FAILED: {reason}"), budget);
+                // Same text as an executor failure, so a timed-out fetch
+                // carries the failed-fetch next step (#72).
+                let rendered = ToolResult::Failed {
+                    tool: call.name.clone(),
+                    reason: reason.clone(),
+                    kind: FailureKind::Execution,
+                }
+                .render();
+                let content = cap_excerpt(&rendered, budget);
                 results.push(ToolMessage {
                     id: call.id.clone(),
                     content: content.clone(),
@@ -390,7 +427,7 @@ pub async fn run_loop(
     }
 
     let roster: Vec<(&str, &str)> = allowed_roster(tools, &input.allowed_tools);
-    let system_prompt = build_system_prompt(&roster, input.size);
+    let system_prompt = build_system_prompt(&roster, input.size, budget);
     let defs = tools.tool_defs(&input.allowed_tools);
 
     let mut history: Vec<HistoryEntry> = Vec::new();
@@ -449,7 +486,8 @@ pub async fn run_loop(
                             reason: "empty answer".to_owned(),
                         });
                     }
-                    let observation = empty_answer_observation(tools, &input.allowed_tools);
+                    let observation =
+                        empty_answer_observation(tools, &input.allowed_tools, turn, budget);
                     history.push(HistoryEntry::TextTurn {
                         assistant: reply.output.clone(),
                         observation,
@@ -462,13 +500,16 @@ pub async fn run_loop(
             }
         }
 
-        let outcome =
+        let mut outcome =
             dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
         evidence.extend(outcome.evidence);
         if outcome.search_blocked.is_some() {
             search_blocked = outcome.search_blocked;
         }
         had_search_hits = had_search_hits || outcome.had_search_hits;
+        if let Some(newest) = outcome.results.last_mut() {
+            newest.content.push_str(&turns_left_note(turn, budget));
+        }
         history.push(HistoryEntry::ToolTurn {
             text: reply.output.clone(),
             calls: outcome.calls,
@@ -1258,6 +1299,62 @@ mod tests {
         assert!(report.evidence.iter().any(|item| item.tool == "search"));
     }
 
+    /// A fetch the loop times out is a failed fetch like any other (#72):
+    /// its observation carries the same next step, so the model picks a
+    /// different Hit instead of retrying the slow URL.
+    #[tokio::test]
+    async fn timed_out_fetch_points_to_another_hit() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c1",
+                        "fetch",
+                        r#"{"url": "https://example.com/slow"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![ToolResult::Hang]),
+            &loop_input(&["search", "fetch"]),
+            &LoopBudget {
+                tool_timeout: Duration::from_millis(50),
+                ..LoopBudget::default()
+            },
+        )
+        .await
+        .expect("a timed-out fetch is a repairable observation");
+
+        let bodies = recorded_wire_bodies(&double);
+        let observation = bodies[1]["messages"]
+            .as_array()
+            .expect("messages array")
+            .iter()
+            .rev()
+            .find(|message| message["role"] == "tool")
+            .and_then(|message| message["content"].as_str())
+            .expect("the timed-out call is paired with a tool result")
+            .to_owned();
+        let reason = observation
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("FAILED: "))
+            .expect("a failed call starts with FAILED:");
+        assert!(reason.starts_with("timeout"), "{observation}");
+        let failed_fetch = ToolResult::Failed {
+            tool: "fetch".to_owned(),
+            reason: reason.to_owned(),
+            kind: FailureKind::Execution,
+        }
+        .render();
+        assert!(observation.starts_with(&failed_fetch), "{observation}");
+    }
+
     #[tokio::test]
     async fn repeated_timeout_aborts_as_tool_failed() {
         let hanging = tools_body(vec![tool_call("c1", "search", r#"{"query": "a"}"#)], "");
@@ -1315,6 +1412,45 @@ mod tests {
         assert_eq!(report.failures_used, 1);
     }
 
+    /// An empty reply gets a repair turn that keeps the countdown (#72):
+    /// with turns to spare it lists the tools and the turns left; when only
+    /// the last turn is left it asks for the answer now and lists no tools,
+    /// since a tool call on the last turn ends the run with no answer.
+    #[tokio::test]
+    async fn empty_answer_repair_keeps_the_countdown() {
+        for (max_turns, note, lists_tools) in
+            [(8, "[7 turns left", true), (2, "[1 turn left", false)]
+        {
+            let double = spawn_double(vec![(200, empty_body()), (200, text_body(&final_answer()))]);
+            let report = run_loop(
+                &gateway_at(&double.base_url),
+                &stub_tools(vec![]),
+                &loop_input(&["search", "fetch"]),
+                &LoopBudget {
+                    max_turns,
+                    ..LoopBudget::default()
+                },
+            )
+            .await
+            .expect("an empty reply is repaired, then the answer finalizes");
+            assert_eq!(report.turns_used, 2);
+            let bodies = recorded_wire_bodies(&double);
+            let repair = bodies[1]["messages"]
+                .as_array()
+                .expect("messages array")
+                .last()
+                .and_then(|message| message["content"].as_str())
+                .expect("the repair observation is the newest message")
+                .to_owned();
+            assert!(repair.contains(note), "max_turns {max_turns}: {repair}");
+            assert_eq!(
+                repair.contains(crate::web::search::tool::SEARCH_TOOL_PURPOSE),
+                lists_tools,
+                "max_turns {max_turns}: {repair}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn budget_exhausted_aborts() {
         let tool_turn = tools_body(vec![tool_call("c1", "search", r#"{"query": "a"}"#)], "");
@@ -1357,7 +1493,7 @@ mod tests {
         let input = loop_input(&["search"]);
         let budget = LoopBudget::default();
         let roster: Vec<(&str, &str)> = tools.tool_purposes();
-        let system_prompt = build_system_prompt(&roster, input.size);
+        let system_prompt = build_system_prompt(&roster, input.size, &budget);
         let defs = tools.tool_defs(&input.allowed_tools);
         let mut history: Vec<crate::research::agent_loop::context::HistoryEntry> = Vec::new();
         let mut lengths = Vec::new();
@@ -1812,6 +1948,73 @@ mod tests {
             &messages[2][..len1],
             messages[1].as_slice(),
             "turn 2's messages must be a strict prefix of turn 3's"
+        );
+    }
+
+    /// The model plans against the turns it has left (#72): after each tool
+    /// turn the newest tool result states the turns remaining, counting the
+    /// answer, so the last-turn warning lands on the request for the final
+    /// turn. The note is loop text, never part of the recorded Evidence.
+    #[tokio::test]
+    async fn newest_tool_result_counts_down_the_turns_left() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call("c1", "search", r#"{"query": "obscura"}"#)],
+                    "",
+                ),
+            ),
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c2",
+                        "fetch",
+                        r#"{"url": "https://example.com/t"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        let budget = LoopBudget {
+            max_turns: 3,
+            ..LoopBudget::default()
+        };
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_search(), canned_fetch()]),
+            &loop_input(&["search", "fetch"]),
+            &budget,
+        )
+        .await
+        .expect("a run that answers on its last turn must finalize");
+        assert_eq!(report.turns_used, 3);
+
+        let newest_tool_result = |body: &serde_json::Value| -> String {
+            body["messages"]
+                .as_array()
+                .expect("messages array")
+                .iter()
+                .rev()
+                .find(|message| message["role"] == "tool")
+                .and_then(|message| message["content"].as_str())
+                .expect("a request after a tool turn carries a tool result")
+                .to_owned()
+        };
+        let bodies = recorded_wire_bodies(&double);
+        let second = newest_tool_result(&bodies[1]);
+        assert!(second.contains("[2 turns left"), "turn 2 of 3: {second}");
+        let last = newest_tool_result(&bodies[2]);
+        assert!(last.contains("[1 turn left"), "turn 3 of 3: {last}");
+        assert!(
+            report
+                .evidence
+                .iter()
+                .all(|item| !item.excerpt.contains("turns left")
+                    && !item.excerpt.contains("turn left")),
+            "the turns-left note must not leak into recorded Evidence"
         );
     }
 

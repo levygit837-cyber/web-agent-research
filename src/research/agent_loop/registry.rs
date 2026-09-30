@@ -85,23 +85,46 @@ impl ToolResult {
         match self {
             Self::Search { hits } => {
                 if hits.is_empty() {
-                    return "no results".to_owned();
+                    return "No Hits for these queries. Rephrase once with different words; if that still finds nothing, answer from the pages you already fetched and say what is missing.".to_owned();
                 }
-                hits.iter()
-                    .map(|hit| format!("- [{}]({})\n  {}", hit.title, hit.display_url, hit.snippet))
-                    .collect::<Vec<_>>()
-                    .join("\n")
+                let noun = if hits.len() == 1 { "Hit" } else { "Hits" };
+                let mut text = format!(
+                    "{} {noun}. Candidates only, not Evidence: fetch a URL before stating or citing anything from its snippet.",
+                    hits.len()
+                );
+                for (index, hit) in hits.iter().enumerate() {
+                    text.push_str(&format!(
+                        "\n{}. {}\n   {}",
+                        index + 1,
+                        hit.title,
+                        hit.display_url
+                    ));
+                    if !hit.snippet.is_empty() {
+                        text.push_str(&format!("\n   {}", hit.snippet));
+                    }
+                }
+                text
             }
+            // Source first: the runner caps this text at
+            // `max_evidence_chars`, and the model needs the final URL to cite.
             Self::Fetch { evidence } => {
-                format!("{}\n\nSource: {}", evidence.markdown, evidence.source_url)
+                format!("Source: {}\n\n{}", evidence.source_url, evidence.markdown)
             }
             Self::AlreadyFetched { url, first_url } => format!(
                 "ALREADY FETCHED: {url} was already fetched earlier in this Research (as {first_url}). Use that earlier content, or fetch a different Hit."
             ),
-            Self::SearchBlocked { detail } => format!("FAILED: search blocked: {detail}"),
+            Self::SearchBlocked { detail } => format!(
+                "FAILED: search blocked: {detail}\nEvery enabled search engine answered with a bot-detection wall, so searching again in this run fails the same way. Answer from pages you already fetched, or fetch URLs named in the research goal."
+            ),
             #[cfg(test)]
             Self::Hang => "hanging".to_owned(),
-            Self::Failed { reason, .. } => format!("FAILED: {reason}"),
+            Self::Failed { tool, reason, kind } => {
+                if tool == FETCH_TOOL_NAME && *kind == FailureKind::Execution {
+                    format!("FAILED: {reason}\nThis page could not be read, so it is not Evidence: fetch a different Hit instead of retrying this URL.")
+                } else {
+                    format!("FAILED: {reason}")
+                }
+            }
         }
     }
 
@@ -474,14 +497,37 @@ mod tests {
         let search = ToolResult::Search {
             hits: vec![test_hit("T", "https://example.com/t")],
         };
-        assert!(search.render().contains("[T](https://example.com/t)"));
         assert_eq!(search.url(), None);
         let fetch = ToolResult::Fetch {
             evidence: Evidence::new("https://example.com/p".to_owned(), "Body".to_owned()),
         };
         assert_eq!(fetch.url().as_deref(), Some("https://example.com/p"));
-        assert!(fetch.render().ends_with("Source: https://example.com/p"));
-        assert_eq!(ToolResult::Search { hits: vec![] }.render(), "no results");
+    }
+
+    /// The answer parser turns inline `[title](url)` links into citations,
+    /// so a Hit rendered in that syntax invites the model to copy it as a
+    /// citation for a page it never read (#72): Hits list plain URLs.
+    #[test]
+    fn hits_never_render_as_citation_links() {
+        let rendered = ToolResult::Search {
+            hits: vec![test_hit("T", "https://example.com/t")],
+        }
+        .render();
+        assert!(rendered.contains("https://example.com/t"), "{rendered}");
+        assert!(!rendered.contains("]("), "{rendered}");
+    }
+
+    /// Citations survive only when they match the fetched page's final URL,
+    /// so that URL must reach the model even when the page body is cut at
+    /// `max_evidence_chars` (#72: it used to trail the body, and the cap cut
+    /// it from 17 of 18 fetched pages in the before measurement).
+    #[test]
+    fn source_url_survives_the_evidence_cap() {
+        let fetch = ToolResult::Fetch {
+            evidence: Evidence::new("https://example.com/final".to_owned(), "x".repeat(10_000)),
+        };
+        let capped = crate::research::agent_loop::context::cap_evidence(&fetch.render(), 4_000);
+        assert!(capped.contains("https://example.com/final"), "{capped}");
     }
 
     fn page_html() -> String {

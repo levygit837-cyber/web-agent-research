@@ -9,7 +9,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 ```
 
 - `--size` (default `medium`): answer length.
-- `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`.
+- `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`. The agent is told this budget up front and, after each tool turn or empty-reply repair, how many turns are left (#72).
 - `--session-id`, `--session-out`: optional. By default the Session is written to `sessions/<unix-secs>-<pid>.jsonl`.
 
 ## Environment
@@ -135,6 +135,8 @@ Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls 
 
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
+- `synthesis` comes from the agent's final reply (its first reply with no tool call). The agent is asked to put its answer inside an `<answer>` … `</answer>` block, each tag on a line of its own, and only the text inside the last such block is parsed, so remarks about its own progress never reach `summary` (#72). A tag counts only when it is alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line is parsed whole. `summary` is the text before the first `## ` heading, each `## ` section is one theme, and its `- `/`* `/`N. ` bullets are its `points`.
+- The agent is told to fetch pages before answering and to cite only pages it fetched, but the loop enforces neither. In the #72 measurement every run after the prompt change fetched at least 2 pages (`docs/research/agent-prompt.md`), so no guard was added. An exit-0 run with empty `evidence_urls` read no page, so treat its Synthesis as unverified. A citation means the page was fetched, not that every claim beside it is in the part the agent read: each fetched page reaches the agent cut to its first 4,000 characters.
 - Without `--json`, stdout is human-readable markdown: summary, `##` themes, and a numbered `Sources:` list.
 
 ## Exit codes
