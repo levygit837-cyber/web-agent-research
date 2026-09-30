@@ -92,7 +92,7 @@ fn answer_format(size: SynthesisSize, reads_pages: bool) -> String {
     let mut text = String::from(
         "<answer_format>
 The caller does not read your answer as free text: a parser splits it into a summary, themes, bullet points and citations, and drops anything outside that shape. Write it like this:
-- First, a summary that answers the goal directly, before any heading. Open with the answer itself, never with preamble such as \"Based on the search results\" or \"Here is the final answer\".
+- Start with the summary, the text before the first heading. Its first words must already answer the goal, for example \"`serde` is a Rust framework for serializing and deserializing data ...\". Never open with a remark about your own progress, such as \"I have enough information\", \"Let me write the final answer\" or \"Based on the search results\": the caller would read that remark as the summary.
 - Then one `## ` heading per theme, each followed by `- ` bullets. Make every bullet a self-contained point: in a section that has bullets, lines that are not bullets are dropped. Use no other heading levels.
 - Code blocks do not survive the parser: put short code inline in backticks inside a bullet.
 ",
