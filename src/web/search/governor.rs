@@ -44,6 +44,13 @@
 //! the new value immediately. State persists to
 //! `<cache_root>/engines.json` when a cache root is given, in-memory-only
 //! otherwise.
+//!
+//! #73 adds per-engine concurrency: each engine's serial queue becomes a
+//! `Semaphore` sized by [`resolve_concurrency`] (1 permit = the original
+//! "never overlap" behavior; Bing/Yahoo default to 2, per live
+//! measurement). A hermetic `Governor` always uses 1 permit per engine
+//! regardless of the production default, since the hermetic seam tests
+//! merge/fan-out logic, not pacing/concurrency.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -53,7 +60,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::Instant;
 
 use crate::web::cache_dir::write_atomic;
@@ -143,11 +149,16 @@ fn mono_to_wall(instant: Instant, base_wall_ms: i64, base_mono: Instant) -> i64 
     }
 }
 
+/// `key` parsed as `u64` if set and valid; `None` if unset or unparseable.
+/// Shared by every 3-tier resolver below (engine-env > global-env >
+/// per-engine hardcoded default): each tier is itself an `Option`, so the
+/// resolver can chain `.or(...)` down to its final hardcoded fallback.
+fn env_u64_opt(key: &str) -> Option<u64> {
+    std::env::var(key).ok().and_then(|v| v.trim().parse::<u64>().ok())
+}
+
 fn env_u64(key: &str, default: u64) -> u64 {
-    std::env::var(key)
-        .ok()
-        .and_then(|v| v.trim().parse::<u64>().ok())
-        .unwrap_or(default)
+    env_u64_opt(key).unwrap_or(default)
 }
 
 /// `SEARCH_ENGINES` (comma list, case-insensitive; `duckduckgo`/`ddg`,
@@ -280,16 +291,39 @@ fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
     }
 }
 
+/// Per-engine hardcoded pacing-gap default `[min, max]` ms (#73, live-
+/// measured 2026-09-29, `docs/research/search-engines.md`). Bing and
+/// Yahoo cleared every step of an 8s->4s->2s->1s gap step-down plus a 20+
+/// request burst at 1s with zero blocks, so their default tightens to
+/// 1000..2000 ms -- a conservative margin below the measured "safe at
+/// <=1s" floor, not the floor itself. Brave and DuckDuckGo never reached
+/// a genuine gap-tolerance measurement (Brave blocked on the very first
+/// concurrency probe, before the step-down began; DuckDuckGo's
+/// conservative pass used a fixed 8s gap throughout, per the issue's own
+/// instruction, never stepped down) -- their default stays the original
+/// pre-#73 1500..4000 ms rather than inventing a number from no evidence.
+/// Startpage is untouched (out of #73's scope; unmeasured this round).
+fn engine_gap_default_ms(provider: SearchProvider) -> (u64, u64) {
+    match provider {
+        SearchProvider::Bing | SearchProvider::Yahoo => (1000, 2000),
+        SearchProvider::Brave | SearchProvider::DuckDuckGo | SearchProvider::Startpage => {
+            (1500, 4000)
+        }
+    }
+}
+
 /// Per-engine pacing gap `[min, max]` (#63: "random gap between requests").
 /// `SEARCH_PACE_<ENGINE>_MIN_MS`/`_MAX_MS` (engine = `provider.id()`
 /// upper-cased, e.g. `SEARCH_PACE_DUCKDUCKGO_MIN_MS`) override the engine,
-/// else `SEARCH_PACE_MIN_MS`/`_MAX_MS` override the global default, else
-/// 1500..=4000 ms. A max at or below min degenerates to that fixed gap (no
-/// jitter, never a panic).
+/// else `SEARCH_PACE_MIN_MS`/`_MAX_MS` override every engine uniformly
+/// when set, else [`engine_gap_default_ms`]'s per-engine hardcoded
+/// default (#73). A max at or below min degenerates to that fixed gap
+/// (no jitter, never a panic).
 fn resolve_gap(provider: SearchProvider) -> (Duration, Duration) {
     let engine = provider.id().to_uppercase();
-    let global_min = env_u64("SEARCH_PACE_MIN_MS", 1500);
-    let global_max = env_u64("SEARCH_PACE_MAX_MS", 4000);
+    let (hardcoded_min, hardcoded_max) = engine_gap_default_ms(provider);
+    let global_min = env_u64("SEARCH_PACE_MIN_MS", hardcoded_min);
+    let global_max = env_u64("SEARCH_PACE_MAX_MS", hardcoded_max);
     let min = env_u64(&format!("SEARCH_PACE_{engine}_MIN_MS"), global_min);
     let max = env_u64(&format!("SEARCH_PACE_{engine}_MAX_MS"), global_max).max(min);
     (Duration::from_millis(min), Duration::from_millis(max))
@@ -302,6 +336,98 @@ fn pick_gap(min: Duration, max: Duration) -> Duration {
     let mut rng = rand::rng();
     let ms = rng.random_range(min.as_millis() as u64..=max.as_millis() as u64);
     Duration::from_millis(ms)
+}
+
+/// Per-engine default concurrency (#73, live-measured 2026-09-29): how
+/// many requests to one engine may be genuinely in flight at once. Bing
+/// and Yahoo tolerated 2 simultaneous requests with zero blocks (the
+/// concurrency probe); Brave showed zero burst tolerance (blocked on
+/// that very probe) and DuckDuckGo's known suspension history on this IP
+/// argues for the same conservative posture even though its single pass
+/// never tested concurrency directly. Startpage is untouched (out of
+/// #73's scope; unmeasured this round).
+fn engine_concurrency_default(provider: SearchProvider) -> u64 {
+    match provider {
+        SearchProvider::Bing | SearchProvider::Yahoo => 2,
+        SearchProvider::Brave | SearchProvider::DuckDuckGo | SearchProvider::Startpage => 1,
+    }
+}
+
+/// Resolve one engine's concurrency limit: `SEARCH_CONCURRENCY_<ENGINE>`
+/// overrides the engine; `SEARCH_CONCURRENCY` overrides every engine
+/// uniformly when set; else [`engine_concurrency_default`]. Read once, at
+/// [`Governor::new`] construction (sizes each engine's `Semaphore`), not
+/// re-read per call -- unlike the gap/suspension resolvers, a live
+/// `Governor`'s concurrency limit cannot change after its queues are
+/// built without adding/removing `Semaphore` permits at runtime, which no
+/// caller needs.
+fn resolve_concurrency(provider: SearchProvider) -> usize {
+    let engine = provider.id().to_uppercase();
+    let hardcoded = engine_concurrency_default(provider);
+    let global = env_u64("SEARCH_CONCURRENCY", hardcoded);
+    env_u64(&format!("SEARCH_CONCURRENCY_{engine}"), global).max(1) as usize
+}
+
+/// Per-engine hardcoded per-run request-cap default (#73, live-measured
+/// 2026-09-29). Bing and Yahoo measured a clean 20+ request burst with
+/// zero blocks, keeping the original generous 200 default. Brave
+/// (blocked on request #1, zero measured burst tolerance) and DuckDuckGo
+/// (blocked on request #2 of a conservative single pass, consistent with
+/// its documented 1h+ suspension history on this IP) both tighten to a
+/// low circuit-breaker default of 10: a conservative margin far below any
+/// measured tolerance (neither has one), so a run that somehow keeps
+/// queueing legs for an already-flaky engine stops well short of
+/// hammering it, on top of (not instead of) the existing suspension that
+/// already skips a Challenged engine outright. Startpage is untouched
+/// (out of #73's scope; unmeasured this round).
+fn engine_cap_default(provider: SearchProvider) -> u32 {
+    match provider {
+        SearchProvider::Bing | SearchProvider::Yahoo | SearchProvider::Startpage => 200,
+        SearchProvider::Brave | SearchProvider::DuckDuckGo => 10,
+    }
+}
+
+/// Resolve every provider's per-run request cap once, at construction
+/// (the module doc: unlike suspension/gap, both request caps are read
+/// once, not re-read per call). `SEARCH_MAX_REQUESTS_PER_ENGINE_<ENGINE>`
+/// overrides the engine; `SEARCH_MAX_REQUESTS_PER_ENGINE` (global,
+/// pre-#73) overrides every engine uniformly when set; else
+/// [`engine_cap_default`].
+fn resolve_caps_per_engine() -> HashMap<SearchProvider, u32> {
+    ALL_PROVIDERS
+        .into_iter()
+        .map(|provider| {
+            let engine = provider.id().to_uppercase();
+            let hardcoded = engine_cap_default(provider);
+            let global = env_u64("SEARCH_MAX_REQUESTS_PER_ENGINE", hardcoded as u64);
+            let cap = env_u64(&format!("SEARCH_MAX_REQUESTS_PER_ENGINE_{engine}"), global)
+                .min(u32::MAX as u64) as u32;
+            (provider, cap)
+        })
+        .collect()
+}
+
+/// Resolve every provider's per-call query cap once, at construction
+/// (same "read once" reasoning as [`resolve_caps_per_engine`]). No #73
+/// measurement argues for a different default per engine (this caps
+/// Queries per fan-out *call*, not requests per run), so every engine
+/// keeps the pre-#73 default of 4;
+/// `SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL_<ENGINE>` overrides the
+/// engine, `SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL` (global, pre-#73)
+/// overrides every engine uniformly when set.
+fn resolve_max_queries_per_engine() -> HashMap<SearchProvider, usize> {
+    ALL_PROVIDERS
+        .into_iter()
+        .map(|provider| {
+            let engine = provider.id().to_uppercase();
+            let global = env_u64("SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL", 4);
+            let cap = env_u64(
+                &format!("SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL_{engine}"),
+                global,
+            ) as usize;
+            (provider, cap)
+        })
+        .collect()
 }
 
 /// In-memory, monotonic-clock view of one engine's governed state.
@@ -327,33 +453,56 @@ struct GovernorInner {
     /// suspension check or paced call.
     loaded: AtomicBool,
     views: Mutex<HashMap<SearchProvider, EngineView>>,
-    /// One serial queue per engine: concurrent legs for the *same* engine
-    /// queue up here and each wait their turn (an [`EnginePermit`] holds
-    /// this lock for its entire leg, however many wire requests that leg
-    /// turns out to need, so same-engine wire requests never overlap);
-    /// different engines have independent queues and therefore run in
-    /// parallel with each other (#63).
-    queues: HashMap<SearchProvider, AsyncMutex<()>>,
+    /// One concurrency-limited queue per engine (#73: a `Semaphore` sized
+    /// by [`resolve_concurrency`] per engine -- 1 permit degenerates to
+    /// the pre-#73 "serial per engine" behavior; 2+ permits let that many
+    /// requests to the *same* engine be genuinely in flight at once,
+    /// matching what #73's live measurement found each engine tolerates.
+    /// An [`EnginePermit`] holds one permit for its entire leg, however
+    /// many wire requests that leg turns out to need; different engines
+    /// have independent semaphores and therefore always run in parallel
+    /// with each other (#63) regardless of any one engine's limit. A
+    /// hermetic `Governor` sizes every engine's semaphore to exactly 1
+    /// permit (the pre-#73 behavior), since the hermetic seam tests
+    /// merge/fan-out logic, not pacing/concurrency (see the module doc).
+    queues: HashMap<SearchProvider, tokio::sync::Semaphore>,
     /// Serializes `persist`'s snapshot-then-write so two engines'
     /// concurrent persists cannot race: without this, engine A could
     /// snapshot, engine B could snapshot and rename first, then A's
     /// (older) snapshot renames last and silently drops B's update.
     persist_lock: Mutex<()>,
-    max_requests_per_engine: u32,
-    /// Cap on Queries dispatched to one engine within a single
-    /// `search_multi_with_bases` call (#63); see
+    /// Per-engine per-run request cap (#73: [`resolve_caps_per_engine`]);
+    /// `u32::MAX` for every provider on a hermetic `Governor` (no cap).
+    max_requests_per_engine: HashMap<SearchProvider, u32>,
+    /// Per-engine cap on Queries dispatched to that engine within a
+    /// single `search_multi_with_bases` call (#63, #73:
+    /// [`resolve_max_queries_per_engine`]); `usize::MAX` for every
+    /// provider on a hermetic `Governor` (no cap). See
     /// [`Governor::max_queries_per_engine`] for the deadline math behind
     /// the default.
-    max_queries_per_engine: usize,
+    max_queries_per_engine: HashMap<SearchProvider, usize>,
     base_wall_ms: i64,
     base_mono: Instant,
 }
 
-fn fresh_queues() -> HashMap<SearchProvider, AsyncMutex<()>> {
+/// Build every provider's concurrency semaphore. `hermetic = true` gives
+/// every engine exactly 1 permit (the pre-#73 "serial per engine"
+/// behavior the hermetic seam has always had); `hermetic = false` sizes
+/// each engine from [`resolve_concurrency`] (#73).
+fn build_queues(hermetic: bool) -> HashMap<SearchProvider, tokio::sync::Semaphore> {
     ALL_PROVIDERS
         .into_iter()
-        .map(|p| (p, AsyncMutex::new(())))
+        .map(|p| {
+            let permits = if hermetic { 1 } else { resolve_concurrency(p) };
+            (p, tokio::sync::Semaphore::new(permits))
+        })
         .collect()
+}
+
+/// Every provider mapped to the same `value` -- used by
+/// [`Governor::hermetic`] to give every engine an unbounded cap.
+fn all_providers_with<T: Copy>(value: T) -> HashMap<SearchProvider, T> {
+    ALL_PROVIDERS.into_iter().map(|p| (p, value)).collect()
 }
 
 /// Cheap-to-clone handle (`Arc` inside) shared across every spawned leg of
@@ -378,10 +527,10 @@ impl Governor {
             hermetic: true,
             loaded: AtomicBool::new(true),
             views: Mutex::new(HashMap::new()),
-            queues: fresh_queues(),
+            queues: build_queues(true),
             persist_lock: Mutex::new(()),
-            max_requests_per_engine: u32::MAX,
-            max_queries_per_engine: usize::MAX,
+            max_requests_per_engine: all_providers_with(u32::MAX),
+            max_queries_per_engine: all_providers_with(usize::MAX),
             base_wall_ms: now_wall_ms(),
             base_mono: Instant::now(),
         }))
@@ -394,8 +543,7 @@ impl Governor {
     /// not here: construction never touches disk. A corrupt or missing
     /// `engines.json` loads as empty state, never an error.
     pub(crate) fn new(cache_root: Option<PathBuf>) -> Self {
-        let max_requests_per_engine =
-            env_u64("SEARCH_MAX_REQUESTS_PER_ENGINE", 200).min(u32::MAX as u64) as u32;
+        let max_requests_per_engine = resolve_caps_per_engine();
         // #63: cap on Queries dispatched to one engine within a single
         // `search_multi_with_bases` call, accounting for the pacing gap so
         // the soft/hard fan-out deadlines (5 s / 30 s,
@@ -411,14 +559,15 @@ impl Governor {
         // landing on one engine (e.g. `SEARCH_ENGINES=duckduckgo` and 8
         // input Queries) would otherwise let the 8th wait up to 7 * 4000 ms
         // = 28 s before starting -- past the soft deadline and eating
-        // nearly the whole hard one.
-        let max_queries_per_engine = env_u64("SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL", 4) as usize;
+        // nearly the whole hard one. Bing/Yahoo's tighter #73 gap default
+        // (1000..2000 ms) leaves even more headroom for those two.
+        let max_queries_per_engine = resolve_max_queries_per_engine();
         Governor(std::sync::Arc::new(GovernorInner {
             cache_root,
             hermetic: false,
             loaded: AtomicBool::new(false),
             views: Mutex::new(HashMap::new()),
-            queues: fresh_queues(),
+            queues: build_queues(false),
             persist_lock: Mutex::new(()),
             max_requests_per_engine,
             max_queries_per_engine,
@@ -465,11 +614,15 @@ impl Governor {
         }
     }
 
-    /// Cap on Queries dispatched to one engine within a single fan-out call
-    /// (#63, `SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`, default 4);
-    /// `usize::MAX` for a hermetic `Governor` (no cap).
-    pub(crate) fn max_queries_per_engine(&self) -> usize {
-        self.0.max_queries_per_engine
+    /// Cap on Queries dispatched to `provider` within a single fan-out
+    /// call (#63, `SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL[_<ENGINE>]`,
+    /// default 4); `usize::MAX` for a hermetic `Governor` (no cap).
+    pub(crate) fn max_queries_per_engine(&self, provider: SearchProvider) -> usize {
+        self.0
+            .max_queries_per_engine
+            .get(&provider)
+            .copied()
+            .unwrap_or(usize::MAX)
     }
 
     /// `Some((remaining_secs, reason))` if `provider` is currently under an
@@ -491,46 +644,57 @@ impl Governor {
         Some((remaining, view.suspend_reason.clone()))
     }
 
-    /// `true` once `provider` has reached the per-run request cap
-    /// (`SEARCH_MAX_REQUESTS_PER_ENGINE`, default 200); always `false` for
-    /// a hermetic `Governor`. A cheap up-front check so a leg that is
+    /// `true` once `provider` has reached its per-run request cap (#73:
+    /// [`resolve_caps_per_engine`],
+    /// `SEARCH_MAX_REQUESTS_PER_ENGINE[_<ENGINE>]`); always `false` for a
+    /// hermetic `Governor`. A cheap up-front check so a leg that is
     /// already over budget skips queueing on this engine entirely; the
     /// actual enforcement (closing the race a plain check-then-later-
     /// increment would leave open under concurrent legs) is
     /// [`EnginePermit::pace`]'s check-and-reserve, which runs while this
-    /// engine's serial queue is held and so can never race with itself.
+    /// engine's queue permit is held and so can never race with a sibling
+    /// leg for the same engine beyond this engine's own concurrency
+    /// limit.
     pub(crate) fn over_budget(&self, provider: SearchProvider) -> bool {
         if self.0.hermetic {
             return false;
         }
+        let cap = self
+            .0
+            .max_requests_per_engine
+            .get(&provider)
+            .copied()
+            .unwrap_or(u32::MAX);
         let views = self.0.views.lock().expect("governor views lock");
         views
             .get(&provider)
-            .map(|v| v.request_count >= self.0.max_requests_per_engine)
+            .map(|v| v.request_count >= cap)
             .unwrap_or(false)
     }
 
-    /// Acquire `provider`'s serial queue for the whole leg that follows,
-    /// however many wire requests it turns out to need. Holding the
-    /// returned [`EnginePermit`] blocks every other leg for the *same*
-    /// engine (including a leg on a different query, or a concurrent
-    /// fan-out call sharing this `Governor`) until it is dropped; legs for
-    /// a *different* engine are never blocked by this (#63: "engines still
-    /// run in parallel with each other"). Acquiring does not itself wait
-    /// or make any HTTP request -- call [`EnginePermit::pace`] before each
-    /// actual wire request.
+    /// Acquire one of `provider`'s concurrency-limited permits for the
+    /// whole leg that follows, however many wire requests it turns out to
+    /// need. Holding the returned [`EnginePermit`] blocks any *other* leg
+    /// for the *same* engine beyond that engine's own concurrency limit
+    /// (#73: [`resolve_concurrency`], 1 permit = the pre-#73 "engines
+    /// never overlap themselves" behavior) from acquiring until this
+    /// permit is dropped; legs for a *different* engine are never blocked
+    /// by this (#63: "engines still run in parallel with each other").
+    /// Acquiring does not itself wait or make any HTTP request -- call
+    /// [`EnginePermit::pace`] before each actual wire request.
     pub(crate) async fn acquire(&self, provider: SearchProvider) -> EnginePermit<'_> {
-        let serial = self
+        let permit = self
             .0
             .queues
             .get(&provider)
             .expect("every provider has a pre-populated queue")
-            .lock()
-            .await;
+            .acquire()
+            .await
+            .expect("engine semaphore is never closed");
         EnginePermit {
             governor: self,
             provider,
-            _serial: serial,
+            _permit: permit,
         }
     }
 
@@ -638,14 +802,15 @@ impl Governor {
     }
 }
 
-/// A held per-engine serial-queue lock spanning one entire leg, however
-/// many wire requests it turns out to need (DDG pagination, Startpage's
-/// homepage-then-search). Returned by [`Governor::acquire`]; dropping it
-/// releases the queue for the next queued leg on the same engine.
+/// A held per-engine concurrency permit spanning one entire leg, however
+/// many wire requests it turns out to need (DDG pagination, Yahoo's
+/// paginated pages). Returned by [`Governor::acquire`]; dropping it frees
+/// the permit for the next queued leg on the same engine, once that
+/// engine's own concurrency limit (#73) allows it.
 pub(crate) struct EnginePermit<'g> {
     governor: &'g Governor,
     provider: SearchProvider,
-    _serial: tokio::sync::MutexGuard<'g, ()>,
+    _permit: tokio::sync::SemaphorePermit<'g>,
 }
 
 /// Result of [`EnginePermit::pace`]: whether the leg may proceed to its
@@ -735,7 +900,7 @@ pub(crate) mod test_support {
     /// Every key this module's env-reading functions consult, so
     /// `set`/`Drop` can clear exactly the keys a test might have touched
     /// without hard-coding the same list at every call site.
-    const GOVERNOR_KEYS: [&str; 14] = [
+    const GOVERNOR_KEYS: [&str; 24] = [
         "SEARCH_ENGINES",
         "SEARCH_SUSPEND_CHALLENGE_SECS",
         "SEARCH_SUSPEND_403_SECS",
@@ -748,8 +913,18 @@ pub(crate) mod test_support {
         "SEARCH_PACE_DUCKDUCKGO_MAX_MS",
         "SEARCH_PACE_STARTPAGE_MIN_MS",
         "SEARCH_PACE_STARTPAGE_MAX_MS",
+        "SEARCH_PACE_BRAVE_MIN_MS",
+        "SEARCH_PACE_BRAVE_MAX_MS",
+        "SEARCH_PACE_YAHOO_MIN_MS",
+        "SEARCH_PACE_YAHOO_MAX_MS",
+        "SEARCH_PACE_BING_MIN_MS",
+        "SEARCH_PACE_BING_MAX_MS",
         "SEARCH_MAX_REQUESTS_PER_ENGINE",
+        "SEARCH_MAX_REQUESTS_PER_ENGINE_BRAVE",
+        "SEARCH_MAX_REQUESTS_PER_ENGINE_DUCKDUCKGO",
         "SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL",
+        "SEARCH_CONCURRENCY",
+        "SEARCH_CONCURRENCY_BRAVE",
     ];
 
     /// Serializes tests that mutate any governor env var and clears every

@@ -198,13 +198,13 @@ pub async fn search_multi_with_bases(
                     // queries are a local scheduling decision, not a
                     // bot-wall signal, so they map to `Throttled`, never
                     // `Upstream`.
-                    if query_index >= governor_owned.max_queries_per_engine() {
+                    if query_index >= governor_owned.max_queries_per_engine(provider) {
                         let outcome = Err(SearchProviderError::Throttled {
                             provider,
                             detail: format!(
                                 "{} per-call query cap reached ({} queries)",
                                 provider.id(),
-                                governor_owned.max_queries_per_engine()
+                                governor_owned.max_queries_per_engine(provider)
                             ),
                         });
                         return (slot, query_owned, outcome);
