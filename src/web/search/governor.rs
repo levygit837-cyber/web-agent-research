@@ -1235,6 +1235,105 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn two_engines_with_different_gaps_pace_differently() {
+        // #73 acceptance: "two engines with different gaps pace
+        // differently". Bing's #73 default (1000..2000ms) is tighter than
+        // Brave's (1500..4000ms, unchanged); a second leg to each engine
+        // must wait its own engine's minimum, not the other's -- proven by
+        // advancing just past Bing's floor while Brave's second leg is
+        // still provably blocked, then advancing the rest of the way.
+        let _guard = EnvGuard::set(&[]);
+        let governor = Governor::new(None);
+        {
+            let permit = governor.acquire(SearchProvider::Bing).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
+        {
+            let permit = governor.acquire(SearchProvider::Brave).await;
+            assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+        }
+
+        let bing_second = tokio::spawn({
+            let governor = governor.clone();
+            async move {
+                let permit = governor.acquire(SearchProvider::Bing).await;
+                assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+            }
+        });
+        let brave_second = tokio::spawn({
+            let governor = governor.clone();
+            async move {
+                let permit = governor.acquire(SearchProvider::Brave).await;
+                assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+            }
+        });
+
+        // Just past Bing's max gap (2000ms): Bing's second leg must have
+        // resolved by now, but Brave's (max gap 4000ms) must not have.
+        tokio::time::advance(Duration::from_millis(2100)).await;
+        assert!(
+            bing_second.is_finished(),
+            "Bing's tighter #73 gap (<=2000ms) must have already elapsed"
+        );
+        assert!(
+            !brave_second.is_finished(),
+            "Brave's wider gap (<=4000ms) must not have elapsed yet -- \
+             if both paced identically this would already be finished"
+        );
+
+        tokio::time::advance(Duration::from_millis(2000)).await;
+        brave_second.await.expect("brave second leg completes");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn engine_allowed_2_in_flight_overlaps_engine_allowed_1_never_does() {
+        // #73 acceptance: "an engine allowed 2 in flight overlaps, while
+        // an engine allowed 1 never does". Bing defaults to concurrency 2
+        // (measured: zero blocks on the live 2-in-flight probe); Brave
+        // defaults to 1 (measured: blocked on that exact probe). Three
+        // legs to each engine, holding their permit for an overlapping
+        // window, prove the difference via a live in-flight counter --
+        // not just "all three eventually finish".
+        let _guard = EnvGuard::set(&[("SEARCH_PACE_MIN_MS", "0"), ("SEARCH_PACE_MAX_MS", "0")]);
+        let governor = Governor::new(None);
+
+        async fn max_in_flight(governor: &Governor, provider: SearchProvider, legs: usize) -> usize {
+            let in_flight = std::sync::Arc::new(AtomicUsize::new(0));
+            let max_seen = std::sync::Arc::new(AtomicUsize::new(0));
+            let mut handles = Vec::new();
+            for _ in 0..legs {
+                let governor = governor.clone();
+                let in_flight = in_flight.clone();
+                let max_seen = max_seen.clone();
+                handles.push(tokio::spawn(async move {
+                    let permit = governor.acquire(provider).await;
+                    assert!(matches!(permit.pace().await, PaceOutcome::Proceed));
+                    let now = in_flight.fetch_add(1, AtomicOrdering::SeqCst) + 1;
+                    max_seen.fetch_max(now, AtomicOrdering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    in_flight.fetch_sub(1, AtomicOrdering::SeqCst);
+                }));
+            }
+            tokio::time::advance(Duration::from_millis(50)).await;
+            for h in handles {
+                h.await.expect("leg completes");
+            }
+            max_seen.load(AtomicOrdering::SeqCst)
+        }
+
+        let bing_max = max_in_flight(&governor, SearchProvider::Bing, 3).await;
+        let brave_max = max_in_flight(&governor, SearchProvider::Brave, 3).await;
+        assert_eq!(
+            bing_max, 2,
+            "Bing's #73 default concurrency is 2: 2 of the 3 legs must overlap"
+        );
+        assert_eq!(
+            brave_max, 1,
+            "Brave's #73 default concurrency is 1: legs must never overlap"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_suspension_recorded_while_a_leg_waits_is_visible_after_acquire() {
         // The suspension check before acquiring the queue is not the only
         // one that matters: a leg already queued behind another same-
