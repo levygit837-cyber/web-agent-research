@@ -88,11 +88,24 @@ fn budget_rules(budget: &LoopBudget, reads_pages: bool) -> String {
     text
 }
 
+/// One worked answer, shown only to runs that can cite fetched pages. Its
+/// topic differs from any goal on purpose: it demonstrates the parsed shape
+/// (summary first, `## ` themes, `- ` bullets, inline links), not content.
+const ANSWER_EXAMPLE: &str = "<example>
+The shape of a final reply (topic and URLs are only an illustration; the size above sets how many themes and bullets to write):
+`serde` is a framework for serializing and deserializing Rust data structures; each data format, such as JSON, lives in its own crate ([Overview · Serde](https://serde.rs/)).
+
+## Deriving the traits
+- `#[derive(Serialize, Deserialize)]` generates both implementations at compile time ([Using derive · Serde](https://serde.rs/derive.html)).
+- The derive macros need the `derive` feature of the `serde` crate ([Using derive · Serde](https://serde.rs/derive.html)).
+</example>
+";
+
 fn answer_format(size: SynthesisSize, reads_pages: bool) -> String {
     let mut text = String::from(
         "<answer_format>
-The caller does not read your answer as free text: a parser splits it into a summary, themes, bullet points and citations, and drops anything outside that shape. Write it like this:
-- Start with the summary, the text before the first heading. Its first words must already answer the goal, for example \"`serde` is a Rust framework for serializing and deserializing data ...\". Never open with a remark about your own progress, such as \"I have enough information\", \"Let me write the final answer\" or \"Based on the search results\": the caller would read that remark as the summary.
+Your final reply goes to the caller verbatim, so it holds only the answer: no remark about your research before or after it. When you are ready to answer, do not announce it; start the reply with the summary. A parser splits the reply into a summary, themes, bullet points and citations, and drops anything outside that shape:
+- The summary is the text before the first heading. Its first words already answer the goal: a remark such as \"I have enough information\" or \"Based on the fetched pages\" would become the summary the caller reads.
 - Then one `## ` heading per theme, each followed by `- ` bullets. Make every bullet a self-contained point: in a section that has bullets, lines that are not bullets are dropped. Use no other heading levels.
 - Code blocks do not survive the parser: put short code inline in backticks inside a bullet.
 ",
@@ -108,6 +121,10 @@ The caller does not read your answer as free text: a parser splits it into a sum
         size = size.as_str(),
         shape = size_shape(size),
     ));
+    if reads_pages {
+        text.push('\n');
+        text.push_str(ANSWER_EXAMPLE);
+    }
     text
 }
 
