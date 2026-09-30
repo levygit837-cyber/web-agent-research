@@ -198,20 +198,20 @@ pub async fn search_multi_with_bases(
                     // queries are a local scheduling decision, not a
                     // bot-wall signal, so they map to `Throttled`, never
                     // `Upstream`.
-                    if query_index >= governor_owned.max_queries_per_engine() {
+                    if query_index >= governor_owned.max_queries_per_engine(provider) {
                         let outcome = Err(SearchProviderError::Throttled {
                             provider,
                             detail: format!(
                                 "{} per-call query cap reached ({} queries)",
                                 provider.id(),
-                                governor_owned.max_queries_per_engine()
+                                governor_owned.max_queries_per_engine(provider)
                             ),
                         });
                         return (slot, query_owned, outcome);
                     }
                     // #62: a suspended engine is skipped entirely -- no
                     // pacing wait, no HTTP request -- before even
-                    // acquiring the serial queue.
+                    // acquiring a permit.
                     let outcome: Result<Vec<SearchResult>, SearchProviderError> =
                         if let Some((remaining_secs, reason)) =
                             governor_owned.suspended_remaining(provider)
@@ -222,15 +222,17 @@ pub async fn search_multi_with_bases(
                                 reason,
                             })
                         } else {
-                            // #63: serialized per engine. `acquire` blocks
-                            // until any other leg for this same engine has
-                            // released the queue; `pace` then rechecks
-                            // suspension/budget (a sibling leg queued ahead
-                            // of this one may have just settled and
-                            // changed either) before waiting the jittered
-                            // gap from the last request to this engine
-                            // (persisted across runs when a cache root is
-                            // set) and reserving the per-run budget.
+                            // #63/#73: `acquire` blocks until this engine
+                            // has a free concurrency-limited permit (1 per
+                            // engine pre-#73, up to `resolve_concurrency`
+                            // per engine since); `pace` then rechecks
+                            // suspension/budget (a sibling leg that
+                            // acquired a permit ahead of this one may have
+                            // just settled and changed either) before
+                            // waiting the jittered gap from the last leg
+                            // dispatched to this engine (persisted across
+                            // runs when a cache root is set) and reserving
+                            // the per-run budget.
                             let permit = governor_owned.acquire(provider).await;
                             match permit.pace().await {
                                 PaceOutcome::Suspended {

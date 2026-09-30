@@ -155,8 +155,12 @@ async fn ddg_post(
 }
 
 /// DDG leg: page-1 POST + `s`+`vqd` continuation re-POSTs (verbatim input
-/// set) until `MAX_NUM_RESULTS` rows, no continuation form, or `s` stops
-/// advancing. Exact-URL seen dedup across pages; global rank order.
+/// set) until `MAX_NUM_RESULTS` rows, no continuation form, `s` stops
+/// advancing, or [`resolve_max_pages`]'s depth cap is reached (#73,
+/// `SEARCH_MAX_PAGES`/`SEARCH_MAX_PAGES_DUCKDUCKGO`, default 5 -- a
+/// generous safety cap against a pathological continuation cycle, not a
+/// behavior change for any query this repo has measured paginating).
+/// Exact-URL seen dedup across pages; global rank order.
 pub(crate) async fn ddg_search(
     client: &reqwest::Client,
     query: &str,
@@ -166,14 +170,16 @@ pub(crate) async fn ddg_search(
     // One profile per chain (#59): DDG's `vqd` is bound to the UA, so every
     // page of this same query re-POSTs with the same profile.
     let profile = pick_profile();
+    let max_pages = super::governor::resolve_max_pages(SearchProvider::DuckDuckGo);
     let mut rows: Vec<SearchResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut form = create_ddg_form(query, recency);
     let mut last_s: Option<String> = None;
+    let mut page = 0usize;
     loop {
         let (status, body, retry_after) = ddg_post(client, base, &form, query, &profile).await?;
-        let page = map_ddg_response(status, &body, query, retry_after)?;
-        for mut row in page {
+        let page_rows = map_ddg_response(status, &body, query, retry_after)?;
+        for mut row in page_rows {
             if !seen.insert(row.url.clone()) {
                 continue;
             }
@@ -182,6 +188,10 @@ pub(crate) async fn ddg_search(
             if rows.len() >= MAX_NUM_RESULTS {
                 return Ok(rows);
             }
+        }
+        page += 1;
+        if page >= max_pages {
+            return Ok(rows);
         }
         let Some(next) = parse_continuation_form(&body) else {
             return Ok(rows);
@@ -549,6 +559,50 @@ mod tests {
         assert_eq!(stub.hits("/html/"), 2, "both stub pages fetched");
     }
 
+    #[tokio::test]
+    async fn ddg_pagination_stops_at_configured_depth() {
+        // #73 acceptance: "pagination stops at the configured depth".
+        // Every page here always includes a continuation form with a
+        // fresh `s` value (an endless-pagination pathological case) --
+        // without the depth cap this stub would loop forever. With
+        // SEARCH_MAX_PAGES_DUCKDUCKGO=2, the leg must stop after exactly
+        // 2 requests despite the continuation form always being present.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::set(&[(
+            "SEARCH_MAX_PAGES_DUCKDUCKGO",
+            "2",
+        )]);
+        fn endless_page(offset: usize) -> String {
+            format!(
+                r#"<html><body><div class="result"><h2 class="result__title"><a class="result__a" href="https://example.com/p{offset}">T{offset}</a></h2><div class="result__snippet">s{offset}</div></div><form action="/html/" method="post"><input type="hidden" name="s" value="{}"/><input type="hidden" name="vqd" value="tok"/><input type="hidden" name="q" value="q"/></form></body></html>"#,
+                offset + 1
+            )
+        }
+        let stub = StubServer::serve(|_: &str, body: &str| {
+            let offset = body
+                .split("s=")
+                .nth(1)
+                .and_then(|rest| rest.split('&').next())
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            StubReply::text(200, &endless_page(offset))
+        })
+        .await;
+        let client = reqwest::Client::new();
+        let rows = ddg_search_with_base(&client, "q", None, &format!("{}/html/", stub.base()))
+            .await
+            .expect("depth-capped stub still succeeds");
+        assert_eq!(
+            rows.len(),
+            2,
+            "exactly 2 pages' worth of rows (1 unique row per page)"
+        );
+        assert_eq!(
+            stub.hits("/html/"),
+            2,
+            "must stop after 2 requests despite an endless continuation form"
+        );
+    }
+
     #[test]
     fn ddg_published_date_extracted() {
         let html = r#"<div class="result">
@@ -635,6 +689,10 @@ mod tests {
         // is a form POST issued from a page, so `sec-fetch-site` is
         // `same-origin` with a Referer/Origin on all of them, including
         // the first (there is no `none` DDG request: #58 review finding).
+        // Depends on DuckDuckGo's default pagination depth (5, #73) not
+        // being overridden by a concurrently-running test -- acquire the
+        // shared env lock even though this test sets no override itself.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
         let (stub, captured) = StubServer::serve_capturing_headers().await;
         let client = reqwest::Client::new();
         let rows = ddg_search_with_base(&client, "q", None, &format!("{}/html/", stub.base()))
