@@ -112,7 +112,7 @@ The shape of a final reply (topic and URLs are only an illustration; the size ab
 fn answer_format(size: SynthesisSize, reads_pages: bool) -> String {
     let mut text = format!(
         "<answer_format>
-In the reply that has no tool call, put the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags. Only the text inside the tags reaches the caller, so keep any remark about your progress outside them. A parser splits that text into a summary, themes, bullet points and citations, and drops anything outside that shape:
+In the reply that has no tool call, put the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, each tag on a line of its own. Only the text inside the tags reaches the caller, so keep any remark about your progress outside them. A parser splits that text into a summary, themes, bullet points and citations, and drops anything outside that shape:
 - The summary comes first, before any heading, and its first sentence answers the goal directly.
 - Then one `## ` heading per theme, each followed by `- ` bullets. Make every bullet a self-contained point: in a section that has bullets, lines that are not bullets are dropped. Use no other heading levels.
 - Code blocks do not survive the parser: put short code inline in backticks inside a bullet.

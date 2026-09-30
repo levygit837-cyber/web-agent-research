@@ -137,17 +137,32 @@ pub(crate) const ANSWER_OPEN: &str = "<answer>";
 /// Closing tag of the final-answer block.
 pub(crate) const ANSWER_CLOSE: &str = "</answer>";
 
-/// The part of a FINAL reply that is the answer: the text between the last
-/// `</answer>` and the nearest `<answer>` before it; the text after that
-/// `<answer>` when the reply was cut before its closing tag; the text before
-/// a stray `</answer>`; otherwise the whole reply. Anchoring on the last
-/// closing tag keeps a tag the model merely mentions in its narration from
-/// being taken for the block.
+/// The part of a FINAL reply that is the answer. A tag counts only on a
+/// line of its own (surrounding whitespace and letter case ignored), so a
+/// tag the model mentions in a remark or shows in inline code stays text.
+/// The answer is the last block: the text between an opening line and the
+/// next closing line. With no closed block, it is the text after the last
+/// opening line (a reply cut at the output-token limit); with no opening
+/// line either, it is the whole reply.
 fn answer_block(body: &str) -> &str {
-    let end = body.rfind(ANSWER_CLOSE).unwrap_or(body.len());
-    match body[..end].rfind(ANSWER_OPEN) {
-        Some(open) => &body[open + ANSWER_OPEN.len()..end],
-        None => &body[..end],
+    let mut open = None;
+    let mut block = None;
+    let mut offset = 0;
+    for line in body.split_inclusive('\n') {
+        let tag = line.trim();
+        if tag.eq_ignore_ascii_case(ANSWER_OPEN) {
+            open = Some(offset + line.len());
+        } else if tag.eq_ignore_ascii_case(ANSWER_CLOSE) {
+            if let Some(start) = open.take() {
+                block = Some(start..offset);
+            }
+        }
+        offset += line.len();
+    }
+    match (block, open) {
+        (Some(block), _) => &body[block],
+        (None, Some(start)) => &body[start..],
+        (None, None) => body,
     }
 }
 
@@ -400,11 +415,12 @@ mod tests {
     }
 
     /// A reply cut at the output-token limit loses its closing tag: the text
-    /// after the opening tag is still the answer, without the tag itself.
+    /// after the opening tag line is still the answer, even when a remark
+    /// before it mentions the tags.
     #[test]
     fn unclosed_answer_block_runs_to_the_end() {
         let synthesis = parse_answer(
-            "Checking the pages.\n<answer>\nTokio is a runtime.\n\n## Use\n\n- Spawn tasks.",
+            "Checking the pages, then I reply inside <answer></answer> tags.\n<answer>\nTokio is a runtime.\n\n## Use\n\n- Spawn tasks.",
             SynthesisSize::Small,
         )
         .expect("unclosed block parses");
@@ -422,5 +438,51 @@ mod tests {
         )
         .expect_err("empty block must not parse");
         assert_eq!(err, AnswerError::EmptyAnswer);
+    }
+
+    /// A remark after the answer may mention the tags; only a tag alone on
+    /// its line opens or closes the block, so the mention never empties it.
+    #[test]
+    fn tags_mentioned_in_a_remark_never_empty_the_answer() {
+        let synthesis = parse_answer(
+            "<answer>\nTokio is a runtime ([Tokio](https://tokio.rs/)).\n\n## Use\n\n- Spawn tasks.\n</answer>\n\nI put the answer inside the <answer></answer> tags.",
+            SynthesisSize::Small,
+        )
+        .expect("the block before the remark parses");
+        assert_eq!(
+            synthesis.summary,
+            "Tokio is a runtime ([Tokio](https://tokio.rs/))."
+        );
+        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+    }
+
+    /// Inline code in the answer can show the tags themselves (a goal about
+    /// prompt templates): they are content, not the edges of the block.
+    #[test]
+    fn tags_inside_inline_code_stay_content() {
+        let synthesis = parse_answer(
+            "<answer>\nWrap the final reply in answer tags.\n\n## Template\n\n- Write `<answer>42</answer>` in the template ([Guide](https://example.com/guide)).\n</answer>",
+            SynthesisSize::Small,
+        )
+        .expect("a block with inline tags parses");
+        assert_eq!(synthesis.summary, "Wrap the final reply in answer tags.");
+        assert_eq!(
+            synthesis.themes[0].points,
+            vec![
+                "Write `<answer>42</answer>` in the template ([Guide](https://example.com/guide))."
+            ]
+        );
+        assert_eq!(synthesis.citations.len(), 1);
+    }
+
+    /// The model may write the tags in any letter case.
+    #[test]
+    fn answer_tags_match_in_any_case() {
+        let synthesis = parse_answer(
+            "Done reading.\n<Answer>\nTokio is a runtime.\n</ANSWER>",
+            SynthesisSize::Small,
+        )
+        .expect("a mixed-case block parses");
+        assert_eq!(synthesis.summary, "Tokio is a runtime.");
     }
 }

@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - After every tool turn the newest tool result ends with the turns left, counting the final answer; on the last turn it tells the model to answer now. The note rides in the transcript tail so the prompt-cache prefix holds, and it never enters recorded Evidence.
   - Observations: search Hits render as numbered candidates under "Candidates only, not Evidence" instead of `[title](url)` citation links; a fetch result starts with `Source: <final URL>`, so the Evidence cap no longer cuts it (it did in 17 of 18 measured fetches); failed-fetch, blocked-search and no-Hits results say what to do next.
   - Tool descriptions: `search` is engine-neutral (it named only DuckDuckGo and Startpage) and says only some engines apply `recency`; `fetch` says what it returns, that long pages are cut, and that `FAILED:` means fetch a different Hit.
-  - The final answer goes inside an `<answer>…</answer>` block and `parse_answer` parses only the last such block, so a progress remark around it ("I have enough information…") no longer becomes `synthesis.summary`. A reply without the block parses whole, as before.
+  - The final answer goes inside an `<answer>` … `</answer>` block, each tag on a line of its own, and `parse_answer` parses only the last such block, so a progress remark around it ("I have enough information…") no longer becomes `synthesis.summary`. A tag counts only alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line parses whole, as before.
 
 ### Fixed
 
