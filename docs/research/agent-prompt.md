@@ -8,7 +8,7 @@ The Web Search agent sometimes answered from search snippets without fetching a 
 - Tools: `search` (`src/web/search/tool.rs`) and `fetch` (`src/web/fetch/tool.rs`), each a name, a description and a JSON Schema. The system prompt only lists them with one-line purposes, because the API already sends the definitions.
 - First user message: the goal and the requested size (`goal_message` in `src/research/agent_loop/context.rs`).
 - After each tool turn: every result rendered by `ToolResult::render` (`src/research/agent_loop/registry.rs`) and cut at `max_evidence_chars` (4,000). The newest result ends with the turns left, counting the final answer (`turns_left_note` in `src/research/agent_loop/runner.rs`). Per-turn state rides here, in the transcript tail, never in the system prompt.
-- The end: the first reply with no tool call and a non-empty answer is the final answer; an empty one gets a repair turn. `parse_answer` (`src/research/agent_loop/answer.rs`) parses only its last `<answer>` … `</answer>` block, whose tags count only alone on their lines, or the whole reply when it has no opening line.
+- The end: the first reply with no tool call and a non-empty answer is the final answer; an empty one gets a repair turn that carries the same turns-left note. `parse_answer` (`src/research/agent_loop/answer.rs`) parses only its last `<answer>` … `</answer>` block, whose tags count only alone on their lines, or the whole reply when it has no opening line.
 - Wire: `tool_choice` is always `auto`; Anthropic cache breakpoints sit on the last tool, the last system block and the last message (`src/llm/anthropic.rs`).
 
 ## Gaps found

@@ -9,7 +9,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 ```
 
 - `--size` (default `medium`): answer length.
-- `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`. The agent is told this budget up front and, after each tool turn, how many turns are left (#72).
+- `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`. The agent is told this budget up front and, after each tool turn or empty-reply repair, how many turns are left (#72).
 - `--session-id`, `--session-out`: optional. By default the Session is written to `sessions/<unix-secs>-<pid>.jsonl`.
 
 ## Environment

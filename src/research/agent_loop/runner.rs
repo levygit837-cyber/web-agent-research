@@ -178,9 +178,22 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
         .join("\n")
 }
 
-fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
+/// Repair observation after a reply with no tool call and no answer text.
+/// It keeps the turns-left countdown (#72); when only the last turn is left
+/// it asks for the answer alone, since a tool call on the last turn ends the
+/// run with no answer.
+fn empty_answer_observation(
+    tools: &ToolRegistry,
+    allowed: &[String],
+    turn: u32,
+    budget: &LoopBudget,
+) -> String {
+    let note = turns_left_note(turn, budget);
+    if budget.max_turns.saturating_sub(turn) <= 1 {
+        return format!("Your last reply had no tool call and no answer text.{note}");
+    }
     format!(
-        "Your last reply had no tool call and no answer text. Continue the research with a tool call, or reply with the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags.\nAvailable tools:\n{}",
+        "Your last reply had no tool call and no answer text. Continue the research with a tool call, or reply with the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags.\nAvailable tools:\n{}{note}",
         roster_footer(tools, allowed)
     )
 }
@@ -465,7 +478,8 @@ pub async fn run_loop(
                             reason: "empty answer".to_owned(),
                         });
                     }
-                    let observation = empty_answer_observation(tools, &input.allowed_tools);
+                    let observation =
+                        empty_answer_observation(tools, &input.allowed_tools, turn, budget);
                     history.push(HistoryEntry::TextTurn {
                         assistant: reply.output.clone(),
                         observation,
@@ -1332,6 +1346,45 @@ mod tests {
         .expect("empty answer must repair");
         assert_eq!(report.turns_used, 2);
         assert_eq!(report.failures_used, 1);
+    }
+
+    /// An empty reply gets a repair turn that keeps the countdown (#72):
+    /// with turns to spare it lists the tools and the turns left; when only
+    /// the last turn is left it asks for the answer now and lists no tools,
+    /// since a tool call on the last turn ends the run with no answer.
+    #[tokio::test]
+    async fn empty_answer_repair_keeps_the_countdown() {
+        for (max_turns, note, lists_tools) in
+            [(8, "[7 turns left", true), (2, "[1 turn left", false)]
+        {
+            let double = spawn_double(vec![(200, empty_body()), (200, text_body(&final_answer()))]);
+            let report = run_loop(
+                &gateway_at(&double.base_url),
+                &stub_tools(vec![]),
+                &loop_input(&["search", "fetch"]),
+                &LoopBudget {
+                    max_turns,
+                    ..LoopBudget::default()
+                },
+            )
+            .await
+            .expect("an empty reply is repaired, then the answer finalizes");
+            assert_eq!(report.turns_used, 2);
+            let bodies = recorded_wire_bodies(&double);
+            let repair = bodies[1]["messages"]
+                .as_array()
+                .expect("messages array")
+                .last()
+                .and_then(|message| message["content"].as_str())
+                .expect("the repair observation is the newest message")
+                .to_owned();
+            assert!(repair.contains(note), "max_turns {max_turns}: {repair}");
+            assert_eq!(
+                repair.contains(crate::web::search::tool::SEARCH_TOOL_PURPOSE),
+                lists_tools,
+                "max_turns {max_turns}: {repair}"
+            );
+        }
     }
 
     #[tokio::test]
