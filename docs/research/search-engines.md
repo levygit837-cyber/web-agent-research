@@ -558,6 +558,16 @@ short for at least these two engines on a flagged IP.
 | Brave | `offset=` (`page-1`) | 0 (blocked before reaching the pagination step) | — | — | **Untested this session** — Brave blocked on the concurrency probe before pagination was ever attempted. SearXNG's own `brave.py` documents `max_page = 10` ("Tested 9 pages maximum... trying to do more won't return any result and you will most likely be flagged as a bot") — treat that as the ceiling if/when a future window re-tests it, not this session's finding. |
 | DuckDuckGo | `s`/`vqd` continuation (existing repo code, `parse_continuation_form`) | 1 (page-1 leg only; the leg's own internal continuation re-POST would have followed automatically inside `ddg_search_with_base` up to `MAX_NUM_RESULTS`, but the single successful request returned before needing one) | 20 (single leg, already past one continuation internally) | N/A (not exercised this session) | Unchanged from existing behavior — #73 doesn't add new DDG pagination, only per-engine defaults. |
 
+**Phase 2 shipped decision (2026-09-29)**: Yahoo and DuckDuckGo ship real, configurable-depth
+pagination in `web::search::governor`/`yahoo.rs`/`ddg.rs` (`SEARCH_MAX_PAGES`/
+`SEARCH_MAX_PAGES_<ENGINE>`, default 3 for Yahoo, 5 for DuckDuckGo). Bing ships none: its
+`first=` pagination is confirmed dead above (byte-identical pages 1-4), so pagination code for it
+would have no effect. **Brave ships none either, and this is an open item, not a finding**:
+Brave's `offset=` pagination was never measured live this session (blocked on request #1, before
+the pagination probe was ever reached) — shipping pagination code for an unmeasured mechanism
+would be guesswork, not a conservative margin below a measured tolerance, so it was deliberately
+left out. Revisit once a future window gets a clean enough Brave run to actually probe `offset=`.
+
 ### Bing `mkt` confirmation (repeat of #65's finding, reconfirmed live)
 
 Without `mkt`: `<html lang="pt">`, results still on-topic (Rust ecosystem blog posts, not the #65
