@@ -1278,12 +1278,19 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn two_engines_with_different_gaps_pace_differently() {
         // #73 acceptance: "two engines with different gaps pace
-        // differently". Bing's #73 default (1000..2000ms) is tighter than
-        // Brave's (1500..4000ms, unchanged); a second leg to each engine
-        // must wait its own engine's minimum, not the other's -- proven by
-        // advancing just past Bing's floor while Brave's second leg is
-        // still provably blocked, then advancing the rest of the way.
-        let _guard = EnvGuard::set(&[]);
+        // differently". Pinned to fixed, non-overlapping gaps via env
+        // override (rather than relying on the #73 defaults' random
+        // draw, whose ranges overlap -- Bing 1000..2000ms vs Brave
+        // 1500..4000ms -- and would make this assertion flaky whenever
+        // Brave's draw happened to land at or below 2100ms) so a second
+        // leg to each engine waits its own engine's minimum
+        // deterministically, not the other's.
+        let _guard = EnvGuard::set(&[
+            ("SEARCH_PACE_BING_MIN_MS", "1000"),
+            ("SEARCH_PACE_BING_MAX_MS", "1000"),
+            ("SEARCH_PACE_BRAVE_MIN_MS", "4000"),
+            ("SEARCH_PACE_BRAVE_MAX_MS", "4000"),
+        ]);
         let governor = Governor::new(None);
         {
             let permit = governor.acquire(SearchProvider::Bing).await;
@@ -1309,20 +1316,20 @@ mod tests {
             }
         });
 
-        // Just past Bing's max gap (2000ms): Bing's second leg must have
-        // resolved by now, but Brave's (max gap 4000ms) must not have.
-        tokio::time::advance(Duration::from_millis(2100)).await;
+        // Just past Bing's fixed 1000ms gap: Bing's second leg must have
+        // resolved by now, but Brave's fixed 4000ms gap must not have.
+        tokio::time::advance(Duration::from_millis(1100)).await;
         assert!(
             bing_second.is_finished(),
-            "Bing's tighter #73 gap (<=2000ms) must have already elapsed"
+            "Bing's fixed 1000ms gap must have already elapsed"
         );
         assert!(
             !brave_second.is_finished(),
-            "Brave's wider gap (<=4000ms) must not have elapsed yet -- \
+            "Brave's fixed 4000ms gap must not have elapsed yet -- \
              if both paced identically this would already be finished"
         );
 
-        tokio::time::advance(Duration::from_millis(2000)).await;
+        tokio::time::advance(Duration::from_millis(3000)).await;
         brave_second.await.expect("brave second leg completes");
     }
 
