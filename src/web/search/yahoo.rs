@@ -683,6 +683,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn yahoo_pagination_stops_at_configured_depth() {
+        // #73 acceptance: "pagination stops at the configured depth".
+        // Every page here is full-size per `yahoo_expected_page_size`
+        // (page 1: 10 rows; page 2+: 7 rows) with no natural
+        // end-of-results signal -- without the depth cap this leg would
+        // keep paginating. With SEARCH_MAX_PAGES_YAHOO=2 the leg must
+        // stop after exactly 2 requests despite every page looking full.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::set(&[(
+            "SEARCH_MAX_PAGES_YAHOO",
+            "2",
+        )]);
+        let stub = StubServer::serve(|path: &str, _: &str| {
+            let (page_start, page_size) = if path.contains("iscqry=") {
+                (0, 10)
+            } else if let Some(b) = path
+                .split("b=")
+                .nth(1)
+                .and_then(|rest| rest.split('&').next())
+                .and_then(|s| s.parse::<usize>().ok())
+            {
+                (b, 7)
+            } else {
+                panic!("unexpected page request: {path}")
+            };
+            let html: String = (page_start..page_start + page_size)
+                .map(yahoo_result_row)
+                .collect();
+            StubReply::text(200, &html)
+        })
+        .await;
+        let client = reqwest::Client::new();
+        let rows = yahoo_search_with_base(&client, "q", None, &format!("{}/search", stub.base()))
+            .await
+            .expect("depth-capped stub still succeeds");
+        assert_eq!(rows.len(), 17, "10 (page 1) + 7 (page 2), never a page 3");
+        assert_eq!(
+            stub.hits("/search"),
+            2,
+            "must stop after 2 requests despite every page being full-size"
+        );
+    }
+
+    #[tokio::test]
     async fn yahoo_challenge_maps_from_final_redirect_target() {
         let stub = StubServer::serve(|_: &str, _: &str| {
             StubReply::redirect(302, "https://guce.yahoo.com/consent?sessionId=x")
