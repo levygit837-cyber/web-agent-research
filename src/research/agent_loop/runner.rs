@@ -314,7 +314,15 @@ async fn dispatch_turn(
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
-                let content = cap_excerpt(&format!("FAILED: {reason}"), budget);
+                // Same text as an executor failure, so a timed-out fetch
+                // carries the failed-fetch next step (#72).
+                let rendered = ToolResult::Failed {
+                    tool: call.name.clone(),
+                    reason: reason.clone(),
+                    kind: FailureKind::Execution,
+                }
+                .render();
+                let content = cap_excerpt(&rendered, budget);
                 results.push(ToolMessage {
                     id: call.id.clone(),
                     content: content.clone(),
@@ -1289,6 +1297,62 @@ mod tests {
         assert_eq!(report.turns_used, 2);
         assert_eq!(report.failures_used, 1);
         assert!(report.evidence.iter().any(|item| item.tool == "search"));
+    }
+
+    /// A fetch the loop times out is a failed fetch like any other (#72):
+    /// its observation carries the same next step, so the model picks a
+    /// different Hit instead of retrying the slow URL.
+    #[tokio::test]
+    async fn timed_out_fetch_points_to_another_hit() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c1",
+                        "fetch",
+                        r#"{"url": "https://example.com/slow"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![ToolResult::Hang]),
+            &loop_input(&["search", "fetch"]),
+            &LoopBudget {
+                tool_timeout: Duration::from_millis(50),
+                ..LoopBudget::default()
+            },
+        )
+        .await
+        .expect("a timed-out fetch is a repairable observation");
+
+        let bodies = recorded_wire_bodies(&double);
+        let observation = bodies[1]["messages"]
+            .as_array()
+            .expect("messages array")
+            .iter()
+            .rev()
+            .find(|message| message["role"] == "tool")
+            .and_then(|message| message["content"].as_str())
+            .expect("the timed-out call is paired with a tool result")
+            .to_owned();
+        let reason = observation
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("FAILED: "))
+            .expect("a failed call starts with FAILED:");
+        assert!(reason.starts_with("timeout"), "{observation}");
+        let failed_fetch = ToolResult::Failed {
+            tool: "fetch".to_owned(),
+            reason: reason.to_owned(),
+            kind: FailureKind::Execution,
+        }
+        .render();
+        assert!(observation.starts_with(&failed_fetch), "{observation}");
     }
 
     #[tokio::test]
