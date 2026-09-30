@@ -178,9 +178,22 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
 
 fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
     format!(
-        "Empty answer — use the offered tools to gather evidence, or answer directly when evidence suffices.\nAvailable tools:\n{}",
+        "Your reply was empty: no text and no tool call. Continue the research with a tool call, or write the final answer as plain text (summary first, then `## ` themes with `- ` bullets).\nAvailable tools:\n{}",
         roster_footer(tools, allowed)
     )
+}
+
+/// Turn-budget note appended to the newest tool result of each tool turn
+/// (#72). The system prompt must stay byte-identical across turns for
+/// prompt caching, so per-turn state rides in the transcript tail; the note
+/// is stored in history, so the transcript stays append-only.
+fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
+    match budget.max_turns.saturating_sub(turn) {
+        0 => String::new(),
+        1 => "\n\n[1 turn left: your next reply must be the final answer, with no tool call.]"
+            .to_owned(),
+        left => format!("\n\n[{left} turns left, counting the final answer.]"),
+    }
 }
 
 fn cap_excerpt(rendered: &str, budget: &LoopBudget) -> String {
@@ -390,7 +403,7 @@ pub async fn run_loop(
     }
 
     let roster: Vec<(&str, &str)> = allowed_roster(tools, &input.allowed_tools);
-    let system_prompt = build_system_prompt(&roster, input.size);
+    let system_prompt = build_system_prompt(&roster, input.size, budget);
     let defs = tools.tool_defs(&input.allowed_tools);
 
     let mut history: Vec<HistoryEntry> = Vec::new();
@@ -462,13 +475,16 @@ pub async fn run_loop(
             }
         }
 
-        let outcome =
+        let mut outcome =
             dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
         evidence.extend(outcome.evidence);
         if outcome.search_blocked.is_some() {
             search_blocked = outcome.search_blocked;
         }
         had_search_hits = had_search_hits || outcome.had_search_hits;
+        if let Some(newest) = outcome.results.last_mut() {
+            newest.content.push_str(&turns_left_note(turn, budget));
+        }
         history.push(HistoryEntry::ToolTurn {
             text: reply.output.clone(),
             calls: outcome.calls,
@@ -1357,7 +1373,7 @@ mod tests {
         let input = loop_input(&["search"]);
         let budget = LoopBudget::default();
         let roster: Vec<(&str, &str)> = tools.tool_purposes();
-        let system_prompt = build_system_prompt(&roster, input.size);
+        let system_prompt = build_system_prompt(&roster, input.size, &budget);
         let defs = tools.tool_defs(&input.allowed_tools);
         let mut history: Vec<crate::research::agent_loop::context::HistoryEntry> = Vec::new();
         let mut lengths = Vec::new();
