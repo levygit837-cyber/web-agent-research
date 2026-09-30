@@ -397,11 +397,12 @@ pub async fn yahoo_search_with_base(
     _recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    // Yahoo has no documented recency filter reachable on page 1 without
-    // extra params (#66 scope: page 1 only); accepted for signature
+    // Yahoo has no documented recency filter reachable through any
+    // measured param (`b`/`pz`/`iscqry` -- #73); accepted for signature
     // symmetry, ignored. `_client` is likewise accepted for signature
     // symmetry with every other engine leg but unused: this leg always
-    // builds its own dedicated no-redirect client (see `yahoo_hop_chain`).
+    // builds its own dedicated no-redirect client (see `yahoo_search`,
+    // which threads it and a shared cookie jar through every page).
     yahoo_search(query, base).await
 }
 

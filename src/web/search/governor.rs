@@ -872,17 +872,21 @@ impl EnginePermit<'_> {
     /// Recheck suspension and the per-run budget (closing the race where a
     /// sibling leg for the *same* engine settled -- and suspended the
     /// engine, or exhausted the budget -- while this leg was still queued
-    /// behind it: this engine's serial queue, held by this `EnginePermit`
-    /// for its whole lifetime, guarantees at most one task is ever inside
-    /// this method for a given provider, so the checks below can never
-    /// race with a concurrent update to the same provider's state), then
-    /// wait the jittered gap since the last leg dispatched to this engine
-    /// (initial value seeded from `engines.json` on a fresh process), then
-    /// atomically reserve the budget and record *this* moment as the new
-    /// last-request time, persisting both. Call once per leg, immediately
-    /// after [`Governor::acquire`] and before the leg's first wire
-    /// request. Always [`PaceOutcome::Proceed`], with zero wait, for a
-    /// hermetic `Governor`.
+    /// behind it), then wait the jittered gap since the last leg
+    /// dispatched to this engine (initial value seeded from
+    /// `engines.json` on a fresh process), then atomically reserve the
+    /// budget and record *this* moment as the new last-request time,
+    /// persisting both. At most `resolve_concurrency(provider)` tasks may
+    /// be inside this method at once for a given provider (#73: one per
+    /// held [`EnginePermit`]) -- for an engine at concurrency 1 (the
+    /// pre-#73 default for every engine) that is still exactly one, so
+    /// the checks below can never race; for concurrency 2 (Bing/Yahoo)
+    /// two siblings can race here, bounded to at most `concurrency - 1`
+    /// requests over budget or under-gapped before the next check catches
+    /// up (see [`Governor::over_budget`]'s doc comment). Call once per
+    /// leg, immediately after [`Governor::acquire`] and before the leg's
+    /// first wire request. Always [`PaceOutcome::Proceed`], with zero
+    /// wait, for a hermetic `Governor`.
     pub(crate) async fn pace(&self) -> PaceOutcome {
         if self.governor.0.hermetic {
             return PaceOutcome::Proceed;
