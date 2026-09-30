@@ -117,25 +117,21 @@ fn cookie_header(jar: &HashMap<String, String>) -> String {
 /// redirect with no `Location` header. Returns status, body, final URL,
 /// and any parsed `Retry-After` header (#62); transport errors map to
 /// `Timeout` (504, `is_timeout`) or `Upstream` (503).
+/// `leg_client`/`jar` are threaded in by the caller (not built fresh
+/// here) so a multi-page leg can reuse page 1's warmed `YBV=v0.2` cookie
+/// on every later page -- matching the mechanism's own design (SearXNG's
+/// own `yahoo.py` caches this cookie 24h; a fresh chain per page would
+/// otherwise pay the full 3-hop redirect cost on every single page of a
+/// paginated fetch, wasting requests #73 was measuring to conserve).
 async fn yahoo_hop_chain(
+    leg_client: &reqwest::Client,
+    jar: &mut HashMap<String, String>,
     query: &str,
     url: &str,
     profile: &BrowserProfile,
+    mut position: ChainPosition,
 ) -> Result<(u16, String, String, Option<u64>), SearchProviderError> {
-    let leg_client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|err| {
-            map_transport_error(
-                SearchProvider::Yahoo,
-                query,
-                false,
-                format!("Yahoo leg client build failed: {err}"),
-            )
-        })?;
-    let mut jar: HashMap<String, String> = HashMap::new();
     let mut current = url.to_string();
-    let mut position = ChainPosition::First;
     for _ in 0..MAX_HOPS {
         let mut builder =
             apply_navigation_headers(leg_client.get(&current), profile, position, None)
@@ -258,12 +254,35 @@ pub(crate) async fn yahoo_search(
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     let profile = pick_profile();
     let max_pages = super::governor::resolve_max_pages(SearchProvider::Yahoo);
+    let leg_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|err| {
+            map_transport_error(
+                SearchProvider::Yahoo,
+                query,
+                false,
+                format!("Yahoo leg client build failed: {err}"),
+            )
+        })?;
+    // One client, one cookie jar for the whole leg: page 2+ reuses page
+    // 1's warmed `YBV` cookie rather than paying the full 3-hop redirect
+    // chain again on every page (see `yahoo_hop_chain`'s doc comment).
+    let mut jar: HashMap<String, String> = HashMap::new();
     let mut rows: Vec<SearchResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for page in 1..=max_pages {
         let url = format!("{base}?{}", yahoo_page_query(query, page));
+        // Page 1 is a fresh navigation (`First`); page 2+ is a follow-up
+        // click from the SERP the leg is already on, same as DDG's `s`
+        // continuation re-POSTs (#59 `ChainPosition` convention).
+        let position = if page == 1 {
+            ChainPosition::First
+        } else {
+            ChainPosition::FollowUp
+        };
         let (status, body, final_url, retry_after) =
-            yahoo_hop_chain(query, &url, &profile).await?;
+            yahoo_hop_chain(&leg_client, &mut jar, query, &url, &profile, position).await?;
         let page_rows = map_yahoo_response(status, &body, &final_url, query, retry_after)?;
         let page_row_count = page_rows.len();
         for mut row in page_rows {
@@ -574,6 +593,93 @@ mod tests {
             .expect("3-hop chain must succeed");
         assert_eq!(rows.len(), 0, "empty result page, but must not error");
         assert_eq!(*hop.lock().expect("hop"), 3, "must make exactly 3 requests");
+    }
+
+    #[tokio::test]
+    async fn yahoo_pagination_page_2_reuses_page_1s_warmed_cookie() {
+        // #73: page 1's 3-hop YBV chain (see the test above) is the only
+        // time the leg should pay that cost. Page 2 must arrive already
+        // holding the `YBV=v0.2...` cache cookie hop 2 set, and go
+        // straight to a single 200 -- never repeating the redirect dance,
+        // exactly like a real browser tab replaying the same session's
+        // cookie jar across searches (SearXNG's own `yahoo.py` caches
+        // this cookie 24h for the same reason).
+        let _guard = crate::web::search::governor::test_support::EnvGuard::set(&[(
+            "SEARCH_MAX_PAGES_YAHOO",
+            "2",
+        )]);
+        use std::sync::{Arc, Mutex};
+        let hop = Arc::new(Mutex::new(0usize));
+        let hop_task = hop.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    return;
+                };
+                let hop_task = hop_task.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+                        .await
+                        .unwrap_or(0);
+                    let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let has_cookie_v02 = raw.contains("YBV=v0.2.cache");
+                    let is_page2 = raw.contains("b=15&pz=7");
+                    let this_hop = {
+                        let mut hop_count = hop_task.lock().expect("hop");
+                        let this_hop = *hop_count;
+                        *hop_count += 1;
+                        this_hop
+                    };
+                    let response = match this_hop {
+                        0 => {
+                            "HTTP/1.1 307 Temporary Redirect\r\nSet-Cookie: YBV=v0.1.tracking\r\nLocation: /_bv/v.gif\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string()
+                        }
+                        1 => {
+                            "HTTP/1.1 307 Temporary Redirect\r\nSet-Cookie: YBV=v0.2.cache\r\nLocation: /search?p=q&iscqry=\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string()
+                        }
+                        2 => {
+                            let html: String = (0..10).map(yahoo_result_row).collect();
+                            format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                                html.len()
+                            )
+                        }
+                        3 => {
+                            assert!(
+                                has_cookie_v02,
+                                "page 2 must send the v0.2 cookie warmed by page 1: {raw}"
+                            );
+                            assert!(is_page2, "hop 4 must be the page-2 request: {raw}");
+                            let html: String = (10..17).map(yahoo_result_row).collect();
+                            format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                                html.len()
+                            )
+                        }
+                        n => panic!("unexpected hop {n} on the wire: {raw}"),
+                    };
+                    let _ = tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
+                        .await;
+                    let _ = tokio::io::AsyncWriteExt::shutdown(&mut stream).await;
+                });
+            }
+        });
+        let base = format!("http://{addr}");
+        let client = reqwest::Client::new();
+        let rows = yahoo_search_with_base(&client, "q", None, &format!("{base}/search"))
+            .await
+            .expect("page-1 3-hop chain + page-2 single hop succeeds");
+        assert_eq!(rows.len(), 17, "10 + 7 rows: {rows:?}");
+        assert_eq!(
+            *hop.lock().expect("hop"),
+            4,
+            "3 hops for page 1's chain + exactly 1 hop for page 2, never a second 3-hop chain"
+        );
     }
 
     #[tokio::test]
