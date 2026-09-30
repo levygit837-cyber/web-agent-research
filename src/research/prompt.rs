@@ -7,6 +7,7 @@
 //! via `ToolDef` on the wire and are never pasted here. Evaluation and
 //! rationale (#72): `docs/research/agent-prompt.md`.
 
+use crate::research::agent_loop::answer::{ANSWER_CLOSE, ANSWER_OPEN};
 use crate::research::agent_loop::LoopBudget;
 use crate::research::synthesis::SynthesisSize;
 use crate::web::fetch::tool::FETCH_TOOL_NAME;
@@ -59,7 +60,7 @@ fn workflow(size: SynthesisSize, budget: &LoopBudget) -> String {
 2. Choose: pick the Hits most likely to hold the answer first-hand: official documentation and references (docs.rs for a Rust crate), the project's own site or repository, release notes and changelogs, and standards; then well-known Q&A sites and in-depth articles. For topics that change over time, prefer the newest pages. Skip mirrors of a page you already have, listicles, and Hits whose snippet is off-topic.
 3. Fetch: call `fetch` on the chosen Hits, up to {tools} calls in one turn when they do not depend on each other. A {size} answer needs {pages} fetched pages.
 4. Check: read what came back. Search or fetch again only to fill a gap you can name, such as a detail the fetched pages do not cover or a claim that only one page makes.
-5. Answer: write the final answer as plain text with no tool call. That reply ends the run.
+5. Answer: reply with no tool call and the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags. That reply ends the run.
 </workflow>
 ",
         tools = budget.max_tools_per_turn.max(1),
@@ -90,25 +91,32 @@ fn budget_rules(budget: &LoopBudget, reads_pages: bool) -> String {
 
 /// One worked answer, shown only to runs that can cite fetched pages. Its
 /// topic differs from any goal on purpose: it demonstrates the parsed shape
-/// (summary first, `## ` themes, `- ` bullets, inline links), not content.
-const ANSWER_EXAMPLE: &str = "<example>
+/// (answer block, summary first, `## ` themes, `- ` bullets, inline links),
+/// not content.
+fn answer_example() -> String {
+    format!(
+        "<example>
 The shape of a final reply (topic and URLs are only an illustration; the size above sets how many themes and bullets to write):
+{ANSWER_OPEN}
 `serde` is a framework for serializing and deserializing Rust data structures; each data format, such as JSON, lives in its own crate ([Overview · Serde](https://serde.rs/)).
 
 ## Deriving the traits
 - `#[derive(Serialize, Deserialize)]` generates both implementations at compile time ([Using derive · Serde](https://serde.rs/derive.html)).
 - The derive macros need the `derive` feature of the `serde` crate ([Using derive · Serde](https://serde.rs/derive.html)).
+{ANSWER_CLOSE}
 </example>
-";
+"
+    )
+}
 
 fn answer_format(size: SynthesisSize, reads_pages: bool) -> String {
-    let mut text = String::from(
+    let mut text = format!(
         "<answer_format>
-Your final reply goes to the caller verbatim, so it holds only the answer: no remark about your research before or after it. When you are ready to answer, do not announce it; start the reply with the summary. A parser splits the reply into a summary, themes, bullet points and citations, and drops anything outside that shape:
-- The summary is the text before the first heading. Its first words already answer the goal: a remark such as \"I have enough information\" or \"Based on the fetched pages\" would become the summary the caller reads.
+In the reply that has no tool call, put the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags. Only the text inside the tags reaches the caller, so keep any remark about your progress outside them. A parser splits that text into a summary, themes, bullet points and citations, and drops anything outside that shape:
+- The summary comes first, before any heading, and its first sentence answers the goal directly.
 - Then one `## ` heading per theme, each followed by `- ` bullets. Make every bullet a self-contained point: in a section that has bullets, lines that are not bullets are dropped. Use no other heading levels.
 - Code blocks do not survive the parser: put short code inline in backticks inside a bullet.
-",
+"
     );
     if reads_pages {
         text.push_str("- Cite with inline markdown links `[page title](url)` in the summary and in the bullets they support, using the URL on each fetched page's `Source:` line. Every theme should cite at least one fetched page.\n");
@@ -123,7 +131,7 @@ Your final reply goes to the caller verbatim, so it holds only the answer: no re
     ));
     if reads_pages {
         text.push('\n');
-        text.push_str(ANSWER_EXAMPLE);
+        text.push_str(&answer_example());
     }
     text
 }

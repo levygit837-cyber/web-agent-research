@@ -1,7 +1,9 @@
 //! Answer parsing: plain-text FINAL replies become typed Synthesis.
 //!
 //! Loop behavior lives here (next to its caller); the output types are
-//! catalog data in `research::synthesis`. The only hard gate is
+//! catalog data in `research::synthesis`. When a reply carries an
+//! `<answer>` block, only that block is parsed, so the model's remarks about
+//! its own progress never reach the caller (#72). The only hard gate is
 //! non-emptiness: markdown pedantry never fails a good answer.
 
 use crate::research::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
@@ -129,7 +131,27 @@ fn bullet_text(line: &str) -> Option<String> {
     let text = line[digits + 2..].trim();
     (!text.is_empty()).then(|| text.to_owned())
 }
+/// Opening tag of the final-answer block the system prompt asks for (#72).
+pub(crate) const ANSWER_OPEN: &str = "<answer>";
+/// Closing tag of the final-answer block.
+pub(crate) const ANSWER_CLOSE: &str = "</answer>";
+
+/// The part of a FINAL reply that is the answer: the text between the last
+/// `</answer>` and the nearest `<answer>` before it; the text after that
+/// `<answer>` when the reply was cut before its closing tag; the text before
+/// a stray `</answer>`; otherwise the whole reply. Anchoring on the last
+/// closing tag keeps a tag the model merely mentions in its narration from
+/// being taken for the block.
+fn answer_block(body: &str) -> &str {
+    let end = body.rfind(ANSWER_CLOSE).unwrap_or(body.len());
+    match body[..end].rfind(ANSWER_OPEN) {
+        Some(open) => &body[open + ANSWER_OPEN.len()..end],
+        None => &body[..end],
+    }
+}
+
 pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis, AnswerError> {
+    let body = answer_block(body);
     if body.trim().is_empty() {
         return Err(AnswerError::EmptyAnswer);
     }
@@ -347,5 +369,57 @@ mod tests {
         let synthesis = parse_answer("## Steps\n\n1. First\n2. Second", SynthesisSize::Medium)
             .expect("numbered list parses");
         assert_eq!(synthesis.themes[0].points, vec!["First", "Second"]);
+    }
+
+    /// Models narrate before their final answer ("I have enough information
+    /// to provide a comprehensive answer.", measured in 4 of 7 runs in #72);
+    /// only the `<answer>` block may reach the caller's Synthesis.
+    #[test]
+    fn remarks_outside_the_answer_block_never_reach_the_synthesis() {
+        let reply = "I have enough information to provide a comprehensive answer.\n\n<answer>\nTokio is an asynchronous runtime for Rust ([Tokio](https://tokio.rs/)).\n\n## Features\n\n- Async I/O and timers ([tokio docs](https://docs.rs/tokio/latest/tokio/)).\n</answer>\n\nLet me know if you need more.";
+        let synthesis = parse_answer(reply, SynthesisSize::Small).expect("tagged answer parses");
+        assert_eq!(
+            synthesis.summary,
+            "Tokio is an asynchronous runtime for Rust ([Tokio](https://tokio.rs/))."
+        );
+        assert_eq!(synthesis.themes.len(), 1);
+        assert_eq!(
+            synthesis.themes[0].points,
+            vec!["Async I/O and timers ([tokio docs](https://docs.rs/tokio/latest/tokio/))."]
+        );
+        let urls: Vec<&str> = synthesis
+            .citations
+            .iter()
+            .map(|citation| citation.url.as_str())
+            .collect();
+        assert_eq!(
+            urls,
+            vec!["https://tokio.rs/", "https://docs.rs/tokio/latest/tokio/"]
+        );
+    }
+
+    /// A reply cut at the output-token limit loses its closing tag: the text
+    /// after the opening tag is still the answer, without the tag itself.
+    #[test]
+    fn unclosed_answer_block_runs_to_the_end() {
+        let synthesis = parse_answer(
+            "Checking the pages.\n<answer>\nTokio is a runtime.\n\n## Use\n\n- Spawn tasks.",
+            SynthesisSize::Small,
+        )
+        .expect("unclosed block parses");
+        assert_eq!(synthesis.summary, "Tokio is a runtime.");
+        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+    }
+
+    /// An explicitly empty answer block is an empty answer, which the loop
+    /// repairs, never a reason to publish the narration around it.
+    #[test]
+    fn empty_answer_block_is_an_empty_answer() {
+        let err = parse_answer(
+            "I have enough information.\n<answer>\n</answer>",
+            SynthesisSize::Small,
+        )
+        .expect_err("empty block must not parse");
+        assert_eq!(err, AnswerError::EmptyAnswer);
     }
 }

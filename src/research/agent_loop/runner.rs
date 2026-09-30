@@ -12,7 +12,9 @@
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
-use crate::research::agent_loop::answer::{parse_answer, retain_fetched_citations};
+use crate::research::agent_loop::answer::{
+    parse_answer, retain_fetched_citations, ANSWER_CLOSE, ANSWER_OPEN,
+};
 use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
@@ -178,7 +180,7 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
 
 fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String {
     format!(
-        "Your reply was empty: no text and no tool call. Continue the research with a tool call, or write the final answer as plain text (summary first, then `## ` themes with `- ` bullets).\nAvailable tools:\n{}",
+        "Your last reply had no tool call and no answer text. Continue the research with a tool call, or reply with the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags.\nAvailable tools:\n{}",
         roster_footer(tools, allowed)
     )
 }
@@ -190,8 +192,9 @@ fn empty_answer_observation(tools: &ToolRegistry, allowed: &[String]) -> String 
 fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
     match budget.max_turns.saturating_sub(turn) {
         0 => String::new(),
-        1 => "\n\n[1 turn left: your next reply must be the final answer, with no tool call.]"
-            .to_owned(),
+        1 => format!(
+            "\n\n[1 turn left: your next reply must be the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, with no tool call.]"
+        ),
         left => format!("\n\n[{left} turns left, counting the final answer.]"),
     }
 }
