@@ -338,6 +338,44 @@ fn pick_gap(min: Duration, max: Duration) -> Duration {
     Duration::from_millis(ms)
 }
 
+/// Per-engine hardcoded pagination-depth default (#73, live-measured
+/// 2026-09-29, `docs/research/search-engines.md`). Yahoo genuinely
+/// paginates (`b=`/`pz=`, verified 0% URL overlap across pages 1/3/4/5
+/// this session with no sign of exhaustion at depth 5) -- default 3 is a
+/// conservative margin below that measured depth, not the ceiling
+/// itself. DuckDuckGo already paginates internally via its own `s`/`vqd`
+/// continuation (pre-#73, unmeasured this round); its depth stays
+/// unbounded in practice (bounded by `MAX_NUM_RESULTS`/a missing
+/// continuation form) except for a generous safety cap of 5 pages
+/// against a pathological continuation cycle -- not a behavior change
+/// for any query this repo has ever seen paginate more than 2 pages.
+/// Bing and Brave both stay page-1-only: Bing's `first=` pagination is
+/// confirmed dead without JS (pages 1-4 byte-identical), and Brave's is
+/// unmeasured (blocked on the concurrency probe before reaching it) --
+/// neither ships pagination code, so this default has no effect for
+/// them. Startpage is untouched (out of #73's scope; unmeasured this
+/// round).
+fn engine_max_pages_default(provider: SearchProvider) -> u64 {
+    match provider {
+        SearchProvider::Yahoo => 3,
+        SearchProvider::DuckDuckGo => 5,
+        SearchProvider::Bing | SearchProvider::Brave | SearchProvider::Startpage => 1,
+    }
+}
+
+/// Per-engine pagination depth (#73). `SEARCH_MAX_PAGES_<ENGINE>`
+/// overrides the engine; `SEARCH_MAX_PAGES` overrides every engine
+/// uniformly when set; else [`engine_max_pages_default`]. Read fresh per
+/// call (like [`resolve_gap`]), not cached at construction, since a
+/// pagination loop reads it once at the start of one leg, not
+/// continuously. Always at least 1 (a depth of 0 would fetch nothing).
+pub(crate) fn resolve_max_pages(provider: SearchProvider) -> usize {
+    let engine = provider.id().to_uppercase();
+    let hardcoded = engine_max_pages_default(provider);
+    let global = env_u64("SEARCH_MAX_PAGES", hardcoded);
+    env_u64(&format!("SEARCH_MAX_PAGES_{engine}"), global).max(1) as usize
+}
+
 /// Per-engine default concurrency (#73, live-measured 2026-09-29): how
 /// many requests to one engine may be genuinely in flight at once. Bing
 /// and Yahoo tolerated 2 simultaneous requests with zero blocks (the
@@ -900,7 +938,7 @@ pub(crate) mod test_support {
     /// Every key this module's env-reading functions consult, so
     /// `set`/`Drop` can clear exactly the keys a test might have touched
     /// without hard-coding the same list at every call site.
-    const GOVERNOR_KEYS: [&str; 24] = [
+    const GOVERNOR_KEYS: [&str; 27] = [
         "SEARCH_ENGINES",
         "SEARCH_SUSPEND_CHALLENGE_SECS",
         "SEARCH_SUSPEND_403_SECS",
@@ -925,6 +963,9 @@ pub(crate) mod test_support {
         "SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL",
         "SEARCH_CONCURRENCY",
         "SEARCH_CONCURRENCY_BRAVE",
+        "SEARCH_MAX_PAGES",
+        "SEARCH_MAX_PAGES_YAHOO",
+        "SEARCH_MAX_PAGES_DUCKDUCKGO",
     ];
 
     /// Serializes tests that mutate any governor env var and clears every
