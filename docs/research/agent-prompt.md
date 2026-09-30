@@ -26,7 +26,7 @@ The Web Search agent sometimes answered from search snippets without fetching a 
 | G9. The answer shape `parse_answer` reads is never spelled out (`prompt.rs:31`) | confirmed | 6 of 6 summaries broken: a progress remark ("I have enough evidence to synthesize a comprehensive answer. Here's the final synthesis:") or a heading pulled into the summary | Explicit shape, one worked example, and the `<answer>` block |
 | G10. `Source:` came after the page body, so the cap cut it (`registry.rs:96`) | new | 17 of 18 fetch results lost their source URL | `Source:` is the first line |
 | G11. The 4,000-char cap keeps only the top of a long page | new; open | q3's docs.rs `ClientBuilder` page lost 81,842 chars, including every `timeout` method | The prompt says pages are cut and not to fetch mirrors; the cap is unchanged |
-| G12. The search description names only DuckDuckGo and Startpage and says recency is "mapped per provider" (`tool.rs:25`, `:45`) | new; recency open | Brave, Yahoo and Bing ignore `recency` (`brave.rs`, `yahoo.rs`, `bing.rs`: `_recency`) | Engine-neutral description; "only some engines apply it" |
+| G12. The search description names only DuckDuckGo and Startpage and says recency is "mapped per provider" (`tool.rs:22`, `:42`) | new; recency open | Brave, Yahoo and Bing ignore `recency` (`brave.rs`, `yahoo.rs`, `bing.rs`: `_recency`) | Engine-neutral description; "only some engines apply it" |
 | G13. The fetch description is one sentence (`fetch/tool.rs:52`) | new | none | What it returns, the JS fallback, the cut, what `FAILED:` means |
 
 Refuted:
@@ -36,7 +36,7 @@ Refuted:
 
 ## Measurement
 
-Seven fixed goals, one per category: crate docs (small), API reference (small), exact error message (medium), recent news (medium), how-to (medium), a pt-BR question (medium), comparison (large). The model is `claude-haiku-4.5` via kiro, without thinking, with the default `LoopBudget`. A local stub replays recorded Hits (5 Yahoo result pages and the #65 fixtures) for every query, so no engine saw traffic, and fetches are real. A logging proxy recorded every request and reply. The harness was throwaway and is not in the repo.
+Seven fixed goals, one per category: crate docs (small), API reference (small), exact error message (medium), recent news (medium), how-to (medium), a pt-BR question (medium), comparison (large). The model is `claude-haiku-4.5` via kiro, without thinking, with the default `LoopBudget`. A local stub serves one recorded Hit list per goal for every query: 5 Yahoo result pages recorded for this evaluation (API reference, error, news, pt-BR, comparison), the #65 fixtures (crate docs) and a #73 Yahoo capture (how-to). No engine saw traffic from the runs, and fetches are real. A logging proxy recorded every request and reply. The harness was throwaway and is not in the repo.
 
 | Phase | Commit | Fetched >= 1 | Exit 0 / 5 | Pages fetched | Citations kept / links | Broken summaries | Turns median, max | Latency s median, max |
 |---|---|---|---|---|---|---|---|---|
@@ -47,7 +47,7 @@ Seven fixed goals, one per category: crate docs (small), API reference (small), 
 | after4 | `e70d386` | 7/7 | 7 / 0 | 21 | 14 / 14 | 0/7 | 3, 8 | 18.1, 20.9 |
 
 - A broken summary opens with a progress remark or a `## ` heading. Three prompt-wording passes (after to after3) left 3 or 4 of 7 of them. After4 moved the answer into an `<answer>` block: 7 of 7 replies used it, and 2 of them (q6, q7) still wrote a remark outside the block that the parser dropped.
-- Before's q4 latency (85.5 s) was the gateway: 77.1 s of it were LLM calls.
+- In the before pass, q4's 85.5 s latency was the gateway: 77.1 s of it were LLM calls.
 - The system prompt grew from 1,141 to 4,857 chars.
 
 ## Decisions
