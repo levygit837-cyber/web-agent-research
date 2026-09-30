@@ -15,7 +15,7 @@
 //! doc comment). No code is ported from SearXNG's own `yahoo.py`
 //! (AGPL-3.0, idea only -- see `THIRD-PARTY-NOTICES.md`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use scraper::{Html, Selector};
 
@@ -212,20 +212,75 @@ async fn yahoo_hop_chain(
     })
 }
 
-/// Yahoo leg: `p=<query>` GET through the YBV hop chain, page 1 only (#66
-/// human decision; `b`/`pz` pagination is #73's job).
+/// Rows Yahoo returns on a full, non-final page (measured 2026-09-29,
+/// `docs/research/search-engines.md` #73 section): page 1 (`iscqry=`)
+/// returns up to 10 organic rows; every page after that (`b=`/`pz=7`)
+/// returns up to 7. A page short of its own expected count is the
+/// natural end-of-results signal used by [`yahoo_search`]'s pagination
+/// loop below -- matching how #73's live measurement actually detected
+/// exhaustion (no separate "next page" marker exists in the markup).
+fn yahoo_expected_page_size(page: usize) -> usize {
+    if page == 1 {
+        10
+    } else {
+        7
+    }
+}
+
+/// Build the `p=`/pagination query string for one Yahoo page (1-based).
+/// Page 1: `p=<query>&iscqry=` (#66's original page-1 shape). Page N>1:
+/// `p=<query>&b=N*7+1&pz=7&bct=0&xargs=0` -- the measured #73 shape
+/// (`docs/research/search-engines.md`), verified live to genuinely
+/// advance (0% URL overlap across pages 1/3/4/5, same session).
+fn yahoo_page_query(query: &str, page: usize) -> String {
+    let q = crate::web::search::decode::percent_encode(query);
+    if page <= 1 {
+        format!("p={q}&iscqry=")
+    } else {
+        let b = page * 7 + 1;
+        format!("p={q}&b={b}&pz=7&bct=0&xargs=0")
+    }
+}
+
+/// Yahoo leg: `p=<query>` GET through the YBV hop chain, paginating up to
+/// [`super::governor::resolve_max_pages`]'s depth (#73,
+/// `SEARCH_MAX_PAGES`/`SEARCH_MAX_PAGES_YAHOO`, default 3) via the
+/// measured `b`/`pz` shape (see [`yahoo_page_query`]). Stops early on a
+/// short page (fewer rows than [`yahoo_expected_page_size`] -- the
+/// natural end-of-results signal, no next-page marker exists) or once
+/// `MAX_NUM_RESULTS` total rows are collected. Exact-URL seen dedup
+/// across pages; global rank order. Every page after the first reuses
+/// the same [`BrowserProfile`], matching every other multi-request
+/// engine leg's chain-reuse contract (#59).
 pub(crate) async fn yahoo_search(
     query: &str,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    // One profile per leg (#59): every hop of this chain reuses it.
     let profile = pick_profile();
-    let url = format!(
-        "{base}?p={}",
-        crate::web::search::decode::percent_encode(query)
-    );
-    let (status, body, final_url, retry_after) = yahoo_hop_chain(query, &url, &profile).await?;
-    map_yahoo_response(status, &body, &final_url, query, retry_after)
+    let max_pages = super::governor::resolve_max_pages(SearchProvider::Yahoo);
+    let mut rows: Vec<SearchResult> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for page in 1..=max_pages {
+        let url = format!("{base}?{}", yahoo_page_query(query, page));
+        let (status, body, final_url, retry_after) =
+            yahoo_hop_chain(query, &url, &profile).await?;
+        let page_rows = map_yahoo_response(status, &body, &final_url, query, retry_after)?;
+        let page_row_count = page_rows.len();
+        for mut row in page_rows {
+            if !seen.insert(row.url.clone()) {
+                continue;
+            }
+            row.rank = rows.len();
+            rows.push(row);
+            if rows.len() >= MAX_NUM_RESULTS {
+                return Ok(rows);
+            }
+        }
+        if page_row_count < yahoo_expected_page_size(page) {
+            return Ok(rows);
+        }
+    }
+    Ok(rows)
 }
 
 /// Unwrap a Yahoo result href (measured shape:
@@ -554,6 +609,123 @@ mod tests {
             .await
             .expect_err("slow stub must time out at leg level");
         assert_eq!(err.http_status(), 504);
+    }
+
+    fn yahoo_result_row(i: usize) -> String {
+        format!(
+            r#"<div class="algo-sr"><div class="compTitle"><a href="https://example.com/s{i}"><h3>T{i}</h3></a></div><div class="compText"><p>d{i}</p></div></div>"#
+        )
+    }
+
+    #[tokio::test]
+    async fn yahoo_pagination_advances_through_pages_with_distinct_rows() {
+        // #73: page 1 (`iscqry=`) returns 10 full rows, page 2 (`b=15&pz=7`)
+        // returns exactly 7 (still "full" for a non-first page), page 3
+        // (`b=22&pz=7`) returns a short page (3 rows) -- the natural
+        // end-of-results signal, so the leg must stop there without
+        // requesting a 4th page. Total: 10 + 7 + 3 = 20 rows, all distinct.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::set(&[(
+            "SEARCH_MAX_PAGES_YAHOO",
+            "5",
+        )]);
+        let stub = StubServer::serve(|path: &str, _: &str| {
+            if path.contains("iscqry=") {
+                let html: String = (0..10).map(yahoo_result_row).collect();
+                StubReply::text(200, &html)
+            } else if path.contains("b=15&pz=7") {
+                let html: String = (10..17).map(yahoo_result_row).collect();
+                StubReply::text(200, &html)
+            } else if path.contains("b=22&pz=7") {
+                let html: String = (17..20).map(yahoo_result_row).collect();
+                StubReply::text(200, &html)
+            } else {
+                panic!("unexpected page request: {path}")
+            }
+        })
+        .await;
+        let client = reqwest::Client::new();
+        let rows = yahoo_search_with_base(&client, "q", None, &format!("{}/search", stub.base()))
+            .await
+            .expect("3-page stub succeeds");
+        assert_eq!(rows.len(), 20, "10 + 7 + 3 rows across 3 pages: {rows:?}");
+        let urls: std::collections::HashSet<&str> =
+            rows.iter().map(|r| r.url.as_str()).collect();
+        assert_eq!(urls.len(), 20, "every row must be distinct: {rows:?}");
+        for (i, row) in rows.iter().enumerate() {
+            assert_eq!(row.rank, i);
+        }
+        assert_eq!(
+            stub.hits("/search"),
+            3,
+            "must stop after the short 3rd page, never requesting a 4th"
+        );
+    }
+
+    #[tokio::test]
+    async fn yahoo_pagination_reuses_the_page_1_profile() {
+        // #73 acceptance: "page 2 reuses the page-1 profile". DDG's `vqd`
+        // continuation depends on this same contract (#59); Yahoo's YBV
+        // chain has no such technical requirement, but every multi-request
+        // engine leg in this repo follows the one-profile-per-chain rule,
+        // so page 2's User-Agent/sec-ch-ua must be byte-identical to
+        // page 1's, not independently redrawn.
+        let _guard = crate::web::search::governor::test_support::EnvGuard::set(&[(
+            "SEARCH_MAX_PAGES_YAHOO",
+            "2",
+        )]);
+        let user_agents: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let captured = user_agents.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    return;
+                };
+                let captured = captured.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+                        .await
+                        .unwrap_or(0);
+                    let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let ua = raw
+                        .lines()
+                        .find(|l| l.to_lowercase().starts_with("user-agent:"))
+                        .unwrap_or("")
+                        .to_string();
+                    captured.lock().expect("captured").push(ua);
+                    let is_page1 = raw.contains("iscqry=");
+                    let html: String = if is_page1 {
+                        (0..10).map(yahoo_result_row).collect()
+                    } else {
+                        (10..17).map(yahoo_result_row).collect()
+                    };
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                        html.len()
+                    );
+                    let _ = tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
+                        .await;
+                    let _ = tokio::io::AsyncWriteExt::shutdown(&mut stream).await;
+                });
+            }
+        });
+        let base = format!("http://{addr}");
+        let client = reqwest::Client::new();
+        let rows = yahoo_search_with_base(&client, "q", None, &format!("{base}/search"))
+            .await
+            .expect("2-page stub succeeds");
+        assert_eq!(rows.len(), 17, "10 + 7 rows: {rows:?}");
+        let uas = user_agents.lock().expect("captured");
+        assert_eq!(uas.len(), 2, "exactly 2 requests, one per page");
+        assert!(!uas[0].is_empty(), "page 1 must send a User-Agent");
+        assert_eq!(
+            uas[0], uas[1],
+            "page 2 must reuse page 1's exact profile, not redraw one"
+        );
     }
 
     #[test]
