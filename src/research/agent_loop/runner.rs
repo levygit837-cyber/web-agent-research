@@ -1834,6 +1834,73 @@ mod tests {
         );
     }
 
+    /// The model plans against the turns it has left (#72): after each tool
+    /// turn the newest tool result states the turns remaining, counting the
+    /// answer, so the last-turn warning lands on the request for the final
+    /// turn. The note is loop text, never part of the recorded Evidence.
+    #[tokio::test]
+    async fn newest_tool_result_counts_down_the_turns_left() {
+        let double = spawn_double(vec![
+            (
+                200,
+                tools_body(
+                    vec![tool_call("c1", "search", r#"{"query": "obscura"}"#)],
+                    "",
+                ),
+            ),
+            (
+                200,
+                tools_body(
+                    vec![tool_call(
+                        "c2",
+                        "fetch",
+                        r#"{"url": "https://example.com/t"}"#,
+                    )],
+                    "",
+                ),
+            ),
+            (200, text_body(&final_answer())),
+        ]);
+        let budget = LoopBudget {
+            max_turns: 3,
+            ..LoopBudget::default()
+        };
+        let report = run_loop(
+            &gateway_at(&double.base_url),
+            &stub_tools(vec![canned_search(), canned_fetch()]),
+            &loop_input(&["search", "fetch"]),
+            &budget,
+        )
+        .await
+        .expect("a run that answers on its last turn must finalize");
+        assert_eq!(report.turns_used, 3);
+
+        let newest_tool_result = |body: &serde_json::Value| -> String {
+            body["messages"]
+                .as_array()
+                .expect("messages array")
+                .iter()
+                .rev()
+                .find(|message| message["role"] == "tool")
+                .and_then(|message| message["content"].as_str())
+                .expect("a request after a tool turn carries a tool result")
+                .to_owned()
+        };
+        let bodies = recorded_wire_bodies(&double);
+        let second = newest_tool_result(&bodies[1]);
+        assert!(second.contains("[2 turns left"), "turn 2 of 3: {second}");
+        let last = newest_tool_result(&bodies[2]);
+        assert!(last.contains("[1 turn left"), "turn 3 of 3: {last}");
+        assert!(
+            report
+                .evidence
+                .iter()
+                .all(|item| !item.excerpt.contains("turns left")
+                    && !item.excerpt.contains("turn left")),
+            "the turns-left note must not leak into recorded Evidence"
+        );
+    }
+
     /// Regression (#53): a `search` call that comes back
     /// `ToolResult::SearchBlocked` (every leg Challenge-walled) must survive
     /// into `RunReport.search_blocked` even though the model still manages a

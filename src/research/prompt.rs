@@ -192,7 +192,10 @@ mod tests {
             "{none}"
         );
         let full = build_system_prompt(
-            &[(SEARCH_TOOL_NAME, "find pages"), (FETCH_TOOL_NAME, "read one")],
+            &[
+                (SEARCH_TOOL_NAME, "find pages"),
+                (FETCH_TOOL_NAME, "read one"),
+            ],
             SynthesisSize::Medium,
             &budget,
         );

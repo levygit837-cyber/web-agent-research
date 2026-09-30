@@ -131,6 +131,7 @@ fn bullet_text(line: &str) -> Option<String> {
     let text = line[digits + 2..].trim();
     (!text.is_empty()).then(|| text.to_owned())
 }
+
 /// Opening tag of the final-answer block the system prompt asks for (#72).
 pub(crate) const ANSWER_OPEN: &str = "<answer>";
 /// Closing tag of the final-answer block.
