@@ -137,7 +137,7 @@ async fn yahoo_hop_chain(
             apply_navigation_headers(leg_client.get(&current), profile, position, None)
                 .timeout(leg_timeout());
         if !jar.is_empty() {
-            builder = builder.header("Cookie", cookie_header(&jar));
+            builder = builder.header("Cookie", cookie_header(jar));
         }
         let response = builder.send().await.map_err(|err| {
             map_transport_error(
@@ -663,8 +663,8 @@ mod tests {
                         }
                         n => panic!("unexpected hop {n} on the wire: {raw}"),
                     };
-                    let _ = tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
-                        .await;
+                    let _ =
+                        tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes()).await;
                     let _ = tokio::io::AsyncWriteExt::shutdown(&mut stream).await;
                 });
             }
@@ -797,8 +797,7 @@ mod tests {
             .await
             .expect("3-page stub succeeds");
         assert_eq!(rows.len(), 20, "10 + 7 + 3 rows across 3 pages: {rows:?}");
-        let urls: std::collections::HashSet<&str> =
-            rows.iter().map(|r| r.url.as_str()).collect();
+        let urls: std::collections::HashSet<&str> = rows.iter().map(|r| r.url.as_str()).collect();
         assert_eq!(urls.len(), 20, "every row must be distinct: {rows:?}");
         for (i, row) in rows.iter().enumerate() {
             assert_eq!(row.rank, i);
@@ -856,8 +855,8 @@ mod tests {
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
                         html.len()
                     );
-                    let _ = tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
-                        .await;
+                    let _ =
+                        tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes()).await;
                     let _ = tokio::io::AsyncWriteExt::shutdown(&mut stream).await;
                 });
             }

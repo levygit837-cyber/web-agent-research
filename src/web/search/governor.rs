@@ -154,7 +154,9 @@ fn mono_to_wall(instant: Instant, base_wall_ms: i64, base_mono: Instant) -> i64 
 /// per-engine hardcoded default): each tier is itself an `Option`, so the
 /// resolver can chain `.or(...)` down to its final hardcoded fallback.
 fn env_u64_opt(key: &str) -> Option<u64> {
-    std::env::var(key).ok().and_then(|v| v.trim().parse::<u64>().ok())
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
 }
 
 fn env_u64(key: &str, default: u64) -> u64 {
@@ -1345,7 +1347,11 @@ mod tests {
         let _guard = EnvGuard::set(&[("SEARCH_PACE_MIN_MS", "0"), ("SEARCH_PACE_MAX_MS", "0")]);
         let governor = Governor::new(None);
 
-        async fn max_in_flight(governor: &Governor, provider: SearchProvider, legs: usize) -> usize {
+        async fn max_in_flight(
+            governor: &Governor,
+            provider: SearchProvider,
+            legs: usize,
+        ) -> usize {
             let in_flight = std::sync::Arc::new(AtomicUsize::new(0));
             let max_seen = std::sync::Arc::new(AtomicUsize::new(0));
             let mut handles = Vec::new();
