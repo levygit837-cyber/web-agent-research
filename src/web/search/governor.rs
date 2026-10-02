@@ -986,9 +986,7 @@ pub(crate) mod test_support {
             let lock = ENV_LOCK
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            for key in GOVERNOR_KEYS {
-                std::env::remove_var(key);
-            }
+            crate::test_support::clear_env_keys(&GOVERNOR_KEYS);
             Self { _lock: lock }
         }
 
@@ -1005,9 +1003,7 @@ pub(crate) mod test_support {
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
-            for key in GOVERNOR_KEYS {
-                std::env::remove_var(key);
-            }
+            crate::test_support::clear_env_keys(&GOVERNOR_KEYS);
         }
     }
 }

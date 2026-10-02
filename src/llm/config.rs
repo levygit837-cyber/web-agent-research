@@ -363,31 +363,7 @@ impl GatewayConfig {
 mod tests {
     use super::*;
     use crate::llm::reply::ChatRequest;
-    use std::sync::{LazyLock, Mutex, MutexGuard};
-
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    /// Serializes tests that mutate `GATEWAY_*` env vars and clears them on
-    /// drop, so `from_env` tests never see another test's leftovers.
-    struct EnvGuard {
-        keys: Vec<&'static str>,
-        _lock: MutexGuard<'static, ()>,
-    }
-
-    impl EnvGuard {
-        fn lock(keys: Vec<&'static str>) -> Self {
-            let lock = ENV_LOCK.lock().expect("env lock");
-            Self { keys, _lock: lock }
-        }
-    }
-
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            for key in &self.keys {
-                std::env::remove_var(key);
-            }
-        }
-    }
+    use crate::test_support::EnvGuard;
 
     const ALL_GATEWAY_KEYS: [&str; 9] = [
         "GATEWAY_API_KEY",

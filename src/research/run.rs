@@ -411,31 +411,7 @@ pub fn render(response: &ResearchResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
-
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    struct EnvGuard {
-        keys: Vec<&'static str>,
-        _lock: MutexGuard<'static, ()>,
-    }
-
-    impl EnvGuard {
-        fn lock(keys: Vec<&'static str>) -> Self {
-            let lock = ENV_LOCK.lock().expect("env lock");
-            Self { keys, _lock: lock }
-        }
-    }
-
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            for key in &self.keys {
-                std::env::remove_var(key);
-            }
-        }
-    }
+    use crate::test_support::{CannedResponse, CannedServer, EnvGuard};
 
     fn tool_call(id: &str, name: &str, arguments: &str) -> serde_json::Value {
         serde_json::json!({
@@ -467,90 +443,30 @@ mod tests {
         .to_string()
     }
 
+    /// Serve each response in order over plain HTTP; return the gateway
+    /// `/v1`-style base URL `point_env_at` expects.
     fn spawn_server(responses: Vec<String>) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
-        let addr = listener.local_addr().expect("listener has an address");
-        std::thread::spawn(move || {
-            for body in responses {
-                let Ok((mut stream, _)) = listener.accept() else {
-                    return;
-                };
-                read_request(&mut stream);
-                let head = format!(
-                    "HTTP/1.1 200 x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-                    body.len()
-                );
-                let _ = stream.write_all(format!("{head}\r\n{body}").as_bytes());
-            }
-        });
-        format!("http://{addr}/v1")
+        let server = CannedServer::spawn(
+            responses
+                .into_iter()
+                .map(|body| CannedResponse::text(200, body))
+                .collect(),
+        );
+        format!("{}/v1", server.base())
     }
 
-    /// Like [`spawn_server`], but also records each request's raw bytes so
-    /// wire-body assertions (e.g. `prompt_cache_key`) can inspect exactly
-    /// what `run_research_with` sent.
-    fn spawn_capturing_server(responses: Vec<String>) -> (String, Arc<Mutex<Vec<String>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
-        let addr = listener.local_addr().expect("listener has an address");
-        let requests: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let requests_in_thread = Arc::clone(&requests);
-        std::thread::spawn(move || {
-            for body in responses {
-                let Ok((mut stream, _)) = listener.accept() else {
-                    return;
-                };
-                let request = read_request_capturing(&mut stream);
-                requests_in_thread
-                    .lock()
-                    .expect("requests lock")
-                    .push(request);
-                let head = format!(
-                    "HTTP/1.1 200 x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-                    body.len()
-                );
-                let _ = stream.write_all(format!("{head}\r\n{body}").as_bytes());
-            }
-        });
-        (format!("http://{addr}/v1"), requests)
-    }
-
-    fn read_request_capturing(stream: &mut std::net::TcpStream) -> String {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1024];
-        while let Ok(n) = stream.read(&mut chunk) {
-            if n == 0 {
-                break;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
-                break;
-            }
-        }
-        let header_end = buf
-            .windows(4)
-            .position(|w| w == b"\r\n\r\n")
-            .map_or(buf.len(), |i| i + 4);
-        let content_length = String::from_utf8_lossy(&buf[..header_end])
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                name.trim()
-                    .eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
-            })
-            .unwrap_or(0);
-        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
-        while remaining > 0 {
-            let Ok(n) = stream.read(&mut chunk) else {
-                break;
-            };
-            if n == 0 {
-                break;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            remaining = remaining.saturating_sub(n);
-        }
-        String::from_utf8_lossy(&buf).into_owned()
+    /// Like [`spawn_server`], but returns the server itself so wire-body
+    /// assertions (e.g. `prompt_cache_key`) can inspect exactly what
+    /// `run_research_with` sent via `.requests()`.
+    fn spawn_capturing_server(responses: Vec<String>) -> (String, CannedServer) {
+        let server = CannedServer::spawn(
+            responses
+                .into_iter()
+                .map(|body| CannedResponse::text(200, body))
+                .collect(),
+        );
+        let base = format!("{}/v1", server.base());
+        (base, server)
     }
 
     fn wire_body_of(request: &str) -> serde_json::Value {
@@ -558,46 +474,6 @@ mod tests {
             .split_once("\r\n\r\n")
             .expect("captured request must carry a body");
         serde_json::from_str(body).expect("wire body must be JSON")
-    }
-
-    fn read_request(stream: &mut std::net::TcpStream) {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1024];
-        loop {
-            let Ok(n) = stream.read(&mut chunk) else {
-                return;
-            };
-            if n == 0 {
-                return;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
-                break;
-            }
-        }
-        let header_end = buf
-            .windows(4)
-            .position(|w| w == b"\r\n\r\n")
-            .map_or(buf.len(), |i| i + 4);
-        let content_length = String::from_utf8_lossy(&buf[..header_end])
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                name.trim()
-                    .eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
-            })
-            .unwrap_or(0);
-        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
-        while remaining > 0 {
-            let Ok(n) = stream.read(&mut chunk) else {
-                return;
-            };
-            if n == 0 {
-                return;
-            }
-            remaining = remaining.saturating_sub(n);
-        }
     }
 
     fn temp_session_out(tag: &str) -> PathBuf {
@@ -814,7 +690,7 @@ mod tests {
         assert_eq!(response.usage.cache_creation_prompt_tokens, 4260);
         assert_eq!(response.usage.prompt_tokens, 4205 + 4310);
 
-        let requests = requests.lock().expect("requests lock");
+        let requests = requests.requests();
         assert!(
             requests[0].starts_with("POST /v1/messages "),
             "{}",
@@ -936,8 +812,7 @@ mod tests {
         );
 
         let bodies: Vec<serde_json::Value> = requests
-            .lock()
-            .expect("requests lock")
+            .requests()
             .iter()
             .map(|r| wire_body_of(r))
             .collect();
