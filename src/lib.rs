@@ -6,10 +6,10 @@
 /// Session JSONL format version. Breaking compat requires bump + migration.
 pub const SESSION_FORMAT_VERSION: u32 = 1;
 
-#[cfg(test)]
-pub(crate) mod test_support;
 pub mod llm;
 pub mod research;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod web;
 
 pub use research::{

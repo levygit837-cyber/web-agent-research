@@ -29,27 +29,26 @@ impl EnvGuard {
         let lock = ENV_LOCK
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        for key in &keys {
-            std::env::remove_var(key);
-        }
+        clear_env_keys(&keys);
         Self { keys, _lock: lock }
-    }
-
-    /// Acquire the lock, clear every given key, then set the given pairs.
-    pub(crate) fn set(keys: Vec<&'static str>, pairs: &[(&str, &str)]) -> Self {
-        let guard = Self::lock(keys);
-        for (k, v) in pairs {
-            std::env::set_var(k, v);
-        }
-        guard
     }
 }
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
-        for key in &self.keys {
-            std::env::remove_var(key);
-        }
+        clear_env_keys(&self.keys);
+    }
+}
+
+/// Remove every given env var. The shared clear-every-key mechanics
+/// behind both [`EnvGuard`] and the module-local env-var guards
+/// (`web::search::cache::test_support::EnvGuard`,
+/// `web::search::governor::test_support::EnvGuard`), which keep their own
+/// `Mutex` (so an unrelated module's tests never block on this one's
+/// lock) but delegate the actual clearing here.
+pub(crate) fn clear_env_keys(keys: &[&'static str]) {
+    for key in keys {
+        std::env::remove_var(key);
     }
 }
 
