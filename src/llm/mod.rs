@@ -12,9 +12,10 @@ mod anthropic;
 mod client;
 mod config;
 pub(crate) mod reply;
+pub(crate) mod request;
+pub(crate) mod response;
 
 pub use client::{Gateway, GatewayError};
 pub use config::{ApiFormat, GatewayConfig, ModelParams, ResolvedParams};
-pub use reply::{
-    ChatMessage, LlmReply, ReplayBlocks, RequestedToolCall, TokenUsage, ToolChoice, ToolDef,
-};
+pub use reply::{LlmReply, RequestedToolCall, TokenUsage};
+pub use request::{ChatMessage, ReplayBlocks, ToolChoice, ToolDef};
