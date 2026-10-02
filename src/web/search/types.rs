@@ -76,6 +76,26 @@ impl SearchProvider {
         }
     }
 
+    /// Whether this engine's request can apply `recency` (#81). Only
+    /// windows verified against the live engine count; an engine that
+    /// cannot apply the window is skipped by the fan-out when `recency` is
+    /// set, never run unfiltered.
+    ///
+    /// - DuckDuckGo `df` and Startpage `with_date`: `d/w/m/y` (Omp).
+    /// - Yahoo `btf`: `d/w/m`, no year window. Verified live 2026-10-02:
+    ///   `docs/research/search-engines.md` "Recency windows (#81)".
+    /// - Brave `tf`: none. SearXNG documents `pd/pw/pm/py`, but Brave
+    ///   answered the one verification request with HTTP 429 (walled from
+    ///   this IP), so it stays unverified rather than guessed.
+    /// - Bing: none (no recency filter reachable without JS).
+    pub fn applies_recency(self, recency: Recency) -> bool {
+        match self {
+            SearchProvider::DuckDuckGo | SearchProvider::Startpage => true,
+            SearchProvider::Yahoo => recency != Recency::Year,
+            SearchProvider::Brave | SearchProvider::Bing => false,
+        }
+    }
+
     /// Stable lowercase id used in logs, `SEARCH_ENGINES`/`SEARCH_PACE_*`
     /// tokens, the cache key, and the all-failed message.
     pub fn id(self) -> &'static str {
@@ -89,9 +109,10 @@ impl SearchProvider {
     }
 }
 
-/// DDG `df` / Startpage `with_date` window.
-/// Omp `RECENCY_TO_DDG_DF` / `RECENCY_TO_STARTPAGE_WITH_DATE`:
-/// `day->d, week->w, month->m, year->y` for both providers.
+/// Freshness window. Form value is `d/w/m/y` for DDG `df`, Startpage
+/// `with_date` and Yahoo `btf` (Omp `RECENCY_TO_DDG_DF` /
+/// `RECENCY_TO_STARTPAGE_WITH_DATE`: `day->d, week->w, month->m, year->y`);
+/// which engines accept which window is [`SearchProvider::applies_recency`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Recency {
@@ -102,14 +123,24 @@ pub enum Recency {
 }
 
 impl Recency {
-    /// Provider form value for this window (identical for DDG `df` and
-    /// Startpage `with_date`).
+    /// Provider form value for this window (identical for DDG `df`,
+    /// Startpage `with_date` and Yahoo `btf`).
     pub fn param(self) -> &'static str {
         match self {
             Recency::Day => "d",
             Recency::Week => "w",
             Recency::Month => "m",
             Recency::Year => "y",
+        }
+    }
+
+    /// The word the model passes in the `search` tool's `recency` argument.
+    pub fn name(self) -> &'static str {
+        match self {
+            Recency::Day => "day",
+            Recency::Week => "week",
+            Recency::Month => "month",
+            Recency::Year => "year",
         }
     }
 }
@@ -220,6 +251,10 @@ pub struct SearchOutput {
     /// One entry per failed provider x Query leg, in leg order (deterministic).
     pub errors: Vec<SearchProviderError>,
     pub stats: SearchStats,
+    /// Model-facing one-liner when the call ran no leg on purpose (#81:
+    /// `recency` set and no enabled engine applies that window). `None`
+    /// on every call that dispatched at least one leg.
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -348,5 +383,27 @@ impl SearchProviderError {
             SearchProviderError::Throttled { provider, .. } => Some(*provider),
             SearchProviderError::AllFailed { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod recency_capability_tests {
+    use super::{Recency, SearchProvider};
+
+    /// #81 acceptance: DuckDuckGo and Startpage apply every window; Yahoo
+    /// applies day/week/month but not year; Brave and Bing apply none
+    /// (Brave's `tf` is unverified, Bing has no recency param at all).
+    #[test]
+    fn applies_recency_matches_the_live_verified_capability_table() {
+        for window in [Recency::Day, Recency::Week, Recency::Month, Recency::Year] {
+            assert!(SearchProvider::DuckDuckGo.applies_recency(window));
+            assert!(SearchProvider::Startpage.applies_recency(window));
+            assert!(!SearchProvider::Brave.applies_recency(window));
+            assert!(!SearchProvider::Bing.applies_recency(window));
+        }
+        assert!(SearchProvider::Yahoo.applies_recency(Recency::Day));
+        assert!(SearchProvider::Yahoo.applies_recency(Recency::Week));
+        assert!(SearchProvider::Yahoo.applies_recency(Recency::Month));
+        assert!(!SearchProvider::Yahoo.applies_recency(Recency::Year));
     }
 }

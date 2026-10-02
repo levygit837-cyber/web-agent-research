@@ -227,15 +227,24 @@ fn yahoo_expected_page_size(page: usize) -> usize {
 /// Page 1: `p=<query>&iscqry=` (#66's original page-1 shape). Page N>1:
 /// `p=<query>&b=N*7+1&pz=7&bct=0&xargs=0` -- the measured #73 shape
 /// (`docs/research/search-engines.md`), verified live to genuinely
-/// advance (0% URL overlap across pages 1/3/4/5, same session).
-fn yahoo_page_query(query: &str, page: usize) -> String {
+/// advance (0% URL overlap across pages 1/3/4/5, same session). A recency
+/// window appends `&btf=d|w|m` (#81; verified live on page 1 only, see
+/// "Recency windows (#81)" in the same doc). The caller only passes a
+/// window Yahoo applies ([`SearchProvider::applies_recency`]): `btf` has
+/// no year value.
+fn yahoo_page_query(query: &str, page: usize, recency: Option<Recency>) -> String {
     let q = crate::web::search::decode::percent_encode(query);
-    if page <= 1 {
+    let mut page_query = if page <= 1 {
         format!("p={q}&iscqry=")
     } else {
         let b = page * 7 + 1;
         format!("p={q}&b={b}&pz=7&bct=0&xargs=0")
+    };
+    if let Some(recency) = recency {
+        page_query.push_str("&btf=");
+        page_query.push_str(recency.param());
     }
+    page_query
 }
 
 /// Yahoo leg: `p=<query>` GET through the YBV hop chain, paginating up to
@@ -250,6 +259,7 @@ fn yahoo_page_query(query: &str, page: usize) -> String {
 /// engine leg's chain-reuse contract (#59).
 pub(crate) async fn yahoo_search(
     query: &str,
+    recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     let profile = pick_profile();
@@ -272,7 +282,7 @@ pub(crate) async fn yahoo_search(
     let mut rows: Vec<SearchResult> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for page in 1..=max_pages {
-        let url = format!("{base}?{}", yahoo_page_query(query, page));
+        let url = format!("{base}?{}", yahoo_page_query(query, page, recency));
         // Page 1 is a fresh navigation (`First`); page 2+ is a follow-up
         // click from the SERP the leg is already on, same as DDG's `s`
         // continuation re-POSTs (#59 `ChainPosition` convention).
@@ -394,16 +404,14 @@ pub fn parse_yahoo_html(html: &str, query: &str) -> Vec<SearchResult> {
 pub async fn yahoo_search_with_base(
     _client: &reqwest::Client,
     query: &str,
-    _recency: Option<Recency>,
+    recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    // Yahoo has no documented recency filter reachable through any
-    // measured param (`b`/`pz`/`iscqry` -- #73); accepted for signature
-    // symmetry, ignored. `_client` is likewise accepted for signature
-    // symmetry with every other engine leg but unused: this leg always
-    // builds its own dedicated no-redirect client (see `yahoo_search`,
-    // which threads it and a shared cookie jar through every page).
-    yahoo_search(query, base).await
+    // `_client` is accepted for signature symmetry with every other engine
+    // leg but unused: this leg always builds its own dedicated no-redirect
+    // client (see `yahoo_search`, which threads it and a shared cookie jar
+    // through every page).
+    yahoo_search(query, recency, base).await
 }
 
 #[cfg(test)]
@@ -438,6 +446,29 @@ mod tests {
         for (i, row) in rows.iter().enumerate() {
             assert_eq!(row.rank, i);
         }
+    }
+
+    /// #81 acceptance: `recency` appends `&btf=<window>` to the page-1 and
+    /// page-N query strings alike; no `recency` appends nothing.
+    #[test]
+    fn yahoo_page_query_wires_btf_for_a_recency_window() {
+        assert_eq!(yahoo_page_query("rust", 1, None), "p=rust&iscqry=");
+        assert_eq!(
+            yahoo_page_query("rust", 1, Some(Recency::Day)),
+            "p=rust&iscqry=&btf=d"
+        );
+        assert_eq!(
+            yahoo_page_query("rust", 1, Some(Recency::Week)),
+            "p=rust&iscqry=&btf=w"
+        );
+        assert_eq!(
+            yahoo_page_query("rust", 1, Some(Recency::Month)),
+            "p=rust&iscqry=&btf=m"
+        );
+        assert_eq!(
+            yahoo_page_query("rust", 2, Some(Recency::Day)),
+            "p=rust&b=15&pz=7&bct=0&xargs=0&btf=d"
+        );
     }
 
     #[test]

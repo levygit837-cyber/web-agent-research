@@ -137,7 +137,29 @@ pub async fn search_multi_with_bases(
     // fan-out test that predates #66 keeps its original two-leg shape by
     // constructing `SEARCH_ENGINES`-filtered expectations explicitly where
     // it cares, and new tests cover the full five-leg shape directly.
-    let enabled = governor.enabled_providers();
+    let mut enabled = governor.enabled_providers();
+    // #81: with a `recency` window, a leg runs only if its engine applies
+    // it. The others are not run unfiltered and are not legs at all: no
+    // request, no `errors` entry, no suspension, no cache lookup or write.
+    if let Some(window) = recency {
+        enabled.retain(|provider| provider.applies_recency(window));
+        if enabled.is_empty() {
+            return Ok(SearchOutput {
+                results: Vec::new(),
+                errors: Vec::new(),
+                stats: SearchStats {
+                    queries: queries.len(),
+                    legs: 0,
+                    raw_hits: 0,
+                    merged: 0,
+                },
+                note: Some(format!(
+                    "recency `{}` is not supported by the enabled search engines; search again without recency.",
+                    window.name()
+                )),
+            });
+        }
+    }
     // Legs in deterministic order: per Query in input order, over `enabled`
     // in priority order. Each leg keeps its spawn index (query index +
     // provider): JoinSet returns legs in completion order, so results
@@ -272,7 +294,7 @@ pub async fn search_multi_with_bases(
                                                 .await
                                         }
                                         SearchProvider::Yahoo => {
-                                            yahoo_search(&query_for_leg, &yahoo).await
+                                            yahoo_search(&query_for_leg, recency, &yahoo).await
                                         }
                                         SearchProvider::Bing => {
                                             bing_search(&client_owned, &query_for_leg, &bing).await
@@ -435,6 +457,7 @@ pub async fn search_multi_with_bases(
             raw_hits: raw_count,
             merged: merged_count,
         },
+        note: None,
     })
 }
 
@@ -463,7 +486,10 @@ mod tests {
     use super::super::ddg::map_ddg_response;
     use super::super::governor::Governor;
     use super::super::startpage::map_startpage_response;
-    use super::super::test_support::{ddg_rows, sp_home_form, sp_rows, FanoutStub, StubServer};
+    use super::super::test_support::{
+        ddg_rows, sp_home_form, sp_rows, FanoutStub, StubReply, StubServer,
+    };
+    use super::super::types::Recency;
     use super::*;
 
     #[test]
@@ -1051,6 +1077,169 @@ mod tests {
             .find(|r| r.canonical_url == "example.com/shared")
             .expect("shared group");
         assert_eq!(top.hit_count, 4);
+    }
+
+    /// #81 acceptance: `recency: day` sends a request only to engines that
+    /// apply `day` (DuckDuckGo, Startpage, Yahoo per the live-verified
+    /// capability table) and sends zero requests to Brave and Bing.
+    #[tokio::test]
+    async fn recency_day_skips_brave_and_bing_runs_the_rest() {
+        let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows("https://example.com/d", "DDG", "ddg text"),
+            sp_home_form(),
+            sp_rows("https://example.com/d", "SP", "sp text"),
+            false,
+        ))
+        .await;
+        let brave_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let yahoo_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let bing_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let client = reqwest::Client::new();
+        let input = SearchInput::validate(vec!["q".to_string()], Some(15), Some(Recency::Day))
+            .expect("valid");
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &brave_stub.base(),
+            &yahoo_stub.base(),
+            &bing_stub.base(),
+            &Governor::hermetic(),
+            None,
+        )
+        .await
+        .expect("DDG/Startpage/Yahoo legs run; Brave/Bing are skipped, not failed");
+        assert_eq!(
+            out.stats.legs, 3,
+            "day applies to DuckDuckGo, Startpage and Yahoo only"
+        );
+        assert_eq!(
+            brave_stub.hits("/"),
+            0,
+            "Brave does not apply recency; must receive zero requests"
+        );
+        assert_eq!(
+            bing_stub.hits("/"),
+            0,
+            "Bing never applies recency; must receive zero requests"
+        );
+        assert!(
+            yahoo_stub.hits("/") > 0,
+            "Yahoo applies day; its leg must have run"
+        );
+    }
+
+    /// #81 acceptance: `recency: year` skips Yahoo too (its `btf` has no
+    /// year value), on top of the always-skipped Brave/Bing; only
+    /// DuckDuckGo and Startpage apply `year`.
+    #[tokio::test]
+    async fn recency_year_skips_yahoo_too() {
+        let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows("https://example.com/y", "DDG", "ddg text"),
+            sp_home_form(),
+            sp_rows("https://example.com/y", "SP", "sp text"),
+            false,
+        ))
+        .await;
+        let brave_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let yahoo_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let bing_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let client = reqwest::Client::new();
+        let input = SearchInput::validate(vec!["q".to_string()], Some(15), Some(Recency::Year))
+            .expect("valid");
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &brave_stub.base(),
+            &yahoo_stub.base(),
+            &bing_stub.base(),
+            &Governor::hermetic(),
+            None,
+        )
+        .await
+        .expect("DDG/Startpage legs run; Brave/Yahoo/Bing are skipped, not failed");
+        assert_eq!(
+            out.stats.legs, 2,
+            "year applies to DuckDuckGo and Startpage only"
+        );
+        assert_eq!(yahoo_stub.hits("/"), 0, "Yahoo's btf has no year value");
+        assert_eq!(brave_stub.hits("/"), 0);
+        assert_eq!(bing_stub.hits("/"), 0);
+    }
+
+    /// #81 acceptance: when every enabled engine is unable to apply the
+    /// requested window, the call makes zero HTTP requests and returns a
+    /// one-line model-facing note instead of unfiltered Hits.
+    #[tokio::test]
+    async fn recency_unsupported_by_every_enabled_engine_makes_zero_requests() {
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        std::env::set_var("SEARCH_ENGINES", "brave,bing");
+        let client = reqwest::Client::new();
+        let input = SearchInput::validate(vec!["q".to_string()], Some(15), Some(Recency::Day))
+            .expect("valid");
+        let governor = Governor::new(None);
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            &governor,
+            None,
+        )
+        .await
+        .expect("no leg to run is Ok, not an error");
+        assert_eq!(out.stats.legs, 0, "zero legs: no HTTP request was made");
+        assert!(out.results.is_empty());
+        assert!(out.errors.is_empty());
+        assert_eq!(
+            out.note,
+            Some(
+                "recency `day` is not supported by the enabled search engines; search again without recency.".to_string()
+            )
+        );
+    }
+
+    /// #81 acceptance: with no `recency` set, every enabled engine still
+    /// runs its own leg, exactly as before this change.
+    #[tokio::test]
+    async fn no_recency_runs_every_enabled_engine() {
+        let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            ddg_rows("https://example.com/n", "DDG", "ddg text"),
+            sp_home_form(),
+            sp_rows("https://example.com/n", "SP", "sp text"),
+            false,
+        ))
+        .await;
+        let client = reqwest::Client::new();
+        let input = SearchInput::validate(vec!["q".to_string()], Some(15), None).expect("valid");
+        let out = search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &format!("{base}/search"),
+            &Governor::hermetic(),
+            None,
+        )
+        .await
+        .expect("5 legs, no leg skipped without recency");
+        assert_eq!(
+            out.stats.legs, 5,
+            "every hermetic engine (DDG/Startpage/Brave/Yahoo/Bing) runs when recency is unset"
+        );
+        assert_eq!(out.note, None);
     }
 
     #[tokio::test]

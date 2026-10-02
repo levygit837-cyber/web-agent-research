@@ -22,7 +22,7 @@ pub fn search_tool_schema() -> Value {
         "type": "object",
         "additionalProperties": false,
         "name": SEARCH_TOOL_NAME,
-        "description": "Search the web across the enabled search engines and return up to `top_k` Hits, deduplicated by URL and ranked by how many engines returned them, then by engine rank. Each Hit has a title, a URL and the engine's snippet. Hits are candidates to read, not Evidence: snippets are short, often outdated or cut mid-sentence, so fetch a Hit's URL with `fetch` before stating or citing anything from it. Send 2-4 queries in one call that approach the goal from different angles, such as the exact error text, the crate or project name, and the question in plain words; the queries run in parallel and their Hits are merged. Search again only with new wording, to fill a specific gap.",
+        "description": "Search the web across the enabled search engines and return up to `top_k` Hits, deduplicated by URL and ranked by how many engines returned them, then by engine rank. Each Hit has a title, a URL and the engine's snippet. Hits are candidates to read, not Evidence: snippets are short, often outdated or cut mid-sentence, so fetch a Hit's URL with `fetch` before stating or citing anything from it. Send 2-4 queries in one call that approach the goal from different angles, such as the exact error text, the crate or project name, and the question in plain words; the queries run in parallel and their Hits are merged. Search again only with new wording, to fill a specific gap. With `recency` set, only engines that can apply that window run and the rest are skipped, so you get fewer, fresher Hits; if no enabled engine can apply it, the call returns a one-line note instead of Hits and you should search again without `recency`.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -42,7 +42,7 @@ pub fn search_tool_schema() -> Value {
                 },
                 "recency": {
                     "type": "string",
-                    "description": "Optional freshness window: day, week, month or year. Only some engines apply it, so still check the dates on fetched pages. Omit it for no time filter.",
+                    "description": "Optional freshness window: day, week, month or year. Only engines that can apply the window run; the others are skipped rather than returning unfiltered Hits, and `year` skips more engines than the shorter windows. Omit it for no time filter.",
                     "enum": ["day", "week", "month", "year"]
                 }
             },
