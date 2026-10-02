@@ -93,6 +93,8 @@ Pagination (#73): Yahoo and DuckDuckGo paginate past page 1, internally, up to `
 
 Hermetic rule: `Searcher::with_bases` and every test use a `Governor` that never persists, never paces, has no cap, always allows concurrency 1 per engine, and always enables every engine, regardless of ambient `SEARCH_*` env vars -- the suite never touches the real cache or the network's pacing state.
 
+Recency (#81): when the `search` tool call's `recency` is set, a leg runs only if its engine applies that window (`SearchProvider::applies_recency`, live-verified 2026-10-02, `docs/research/search-engines.md` "Recency windows (#81)") -- the rest are skipped outright: no request, no `errors` entry, no suspension, no cache lookup or write. DuckDuckGo (`df`) and Startpage (`with_date`) apply every window (`day`/`week`/`month`/`year`); Yahoo (`btf`) applies `day`/`week`/`month` only, no `year`; Brave and Bing apply none (Brave's `tf` is unverified -- the one live probe got HTTP `429` before any filtered-vs-unfiltered comparison was possible; Bing has no recency param to begin with). If `recency` is set and no enabled engine applies that window, the call makes zero HTTP requests and returns a one-line note instead of unfiltered Hits ("recency `<window>` is not supported by the enabled search engines; search again without recency").
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
