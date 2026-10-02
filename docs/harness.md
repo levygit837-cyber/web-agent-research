@@ -93,6 +93,17 @@ Pagination (#73): Yahoo and DuckDuckGo paginate past page 1, internally, up to `
 
 Hermetic rule: `Searcher::with_bases` and every test use a `Governor` that never persists, never paces, has no cap, always allows concurrency 1 per engine, and always enables every engine, regardless of ambient `SEARCH_*` env vars -- the suite never touches the real cache or the network's pacing state.
 
+## Fetch markdown cleanup (#79)
+
+`web::fetch::clean::clean_markdown` runs on the result of both fetch paths (the static `reqwest`/`htmd` conversion and the Obscura browser dump) before it is wrapped in `Evidence`, so the agent and the Harness only ever see the cleaned markdown:
+
+- A data URI (`data:<mime>;base64,…` or `data:<mime>,…`) used as an image or link target is replaced by a short marker (`data:<mime> omitted, <size>`); the payload never reaches Evidence.
+- An image keeps only its alt text; an image with no alt text is dropped entirely (the agent never fetches images, so the URL is never worth keeping).
+- A link's target keeps its path and non-tracking query params but drops known tracking params (`utm_*`, `fbclid`, `gclid`, `ref_src`, `ref_url`, `mc_cid`, `mc_eid`, `igshid`, `icid`, `cmpid`); a link whose visible text ends up empty (directly, or because its only content was an alt-less image) is dropped entirely.
+- A single non-prose token (long base64/hex blob, minified JSON/JS leaking into text, …) of 200+ characters outside a link/image target or code span collapses to `[long token omitted, N chars]`.
+- A run of 2+ blank lines collapses to one.
+- Fenced code blocks and table rows are never altered: only the markup around prose, not prose/code/tables themselves.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:

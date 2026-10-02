@@ -29,6 +29,9 @@ case "$url" in
   *pad*)
     printf '\n\n# Title\n\nbody\n\n   \n'
     ;;
+  *noisy*)
+    printf '# Title\n\n![inline chart](data:image/png;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA)\n\n[reference](https://example.org/ref?utm_source=newsletter&id=3)\n'
+    ;;
   *)
     printf '# Title\n\nbody for %s' "$url"
     ;;
