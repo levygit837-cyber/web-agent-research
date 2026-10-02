@@ -277,12 +277,7 @@ pub(crate) fn backoff_delay(attempt: u32, retry_after_secs: Option<u64>) -> Dura
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
-    };
+    use crate::test_support::{CannedResponse, CannedServer};
 
     const SUCCESS_BODY: &str = r#"{
         "choices": [{
@@ -292,176 +287,17 @@ mod tests {
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
     }"#;
 
-    struct CannedResponse {
-        status: u16,
-        retry_after: Option<&'static str>,
-        body: &'static str,
-        delay_before_response: Duration,
+    fn ok() -> CannedResponse {
+        CannedResponse::text(200, SUCCESS_BODY)
     }
 
-    impl CannedResponse {
-        fn ok() -> Self {
-            Self {
-                status: 200,
-                retry_after: None,
-                body: SUCCESS_BODY,
-                delay_before_response: Duration::ZERO,
-            }
-        }
-
-        fn status(status: u16) -> Self {
-            Self {
-                status,
-                retry_after: None,
-                body: "{}",
-                delay_before_response: Duration::ZERO,
-            }
-        }
-    }
-
-    /// Serve canned responses from a background thread over plain HTTP.
-    /// Returns the base URL (no trailing slash) and the server-side hit count.
-    /// Uses `std::net::TcpListener` so no new deps are needed.
-    fn spawn_server(responses: Vec<CannedResponse>) -> (String, Arc<AtomicUsize>) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
-        let addr = listener.local_addr().expect("listener has an address");
-        let hits = Arc::new(AtomicUsize::new(0));
-        let hits_in_thread = Arc::clone(&hits);
-        let total = responses.len();
-        std::thread::spawn(move || {
-            for canned in responses {
-                let Ok((mut stream, _)) = listener.accept() else {
-                    return;
-                };
-                read_request(&mut stream);
-                if !canned.delay_before_response.is_zero() {
-                    std::thread::sleep(canned.delay_before_response);
-                }
-                let mut head = format!(
-                    "HTTP/1.1 {} x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-                    canned.status,
-                    canned.body.len()
-                );
-                if let Some(retry_after) = canned.retry_after {
-                    head.push_str(&format!("Retry-After: {retry_after}\r\n"));
-                }
-                // Count before writing: the client may read the reply and
-                // assert on `hits` before a post-write increment lands.
-                let served = hits_in_thread.fetch_add(1, Ordering::SeqCst) + 1;
-                let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
-                if served >= total {
-                    return;
-                }
-            }
-        });
-        (format!("http://{addr}"), hits)
-    }
-
-    fn read_request(stream: &mut std::net::TcpStream) {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1024];
-        // Headers first.
-        loop {
-            let Ok(n) = stream.read(&mut chunk) else {
-                return;
-            };
-            if n == 0 {
-                return;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
-                break;
-            }
-        }
-        let header_end = buf
-            .windows(4)
-            .position(|w| w == b"\r\n\r\n")
-            .map_or(buf.len(), |i| i + 4);
-        let content_length = String::from_utf8_lossy(&buf[..header_end])
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                (name.trim().eq_ignore_ascii_case("content-length"))
-                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
-            })
-            .unwrap_or(0);
-        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
-        while remaining > 0 {
-            let Ok(n) = stream.read(&mut chunk) else {
-                return;
-            };
-            if n == 0 {
-                return;
-            }
-            remaining = remaining.saturating_sub(n);
-        }
-    }
-
-    /// Like [`spawn_server`], but records each request's raw bytes (headers
-    /// and body) instead of only counting hits, so wire-body tests can
-    /// assert on exactly what `Gateway` sent.
-    fn spawn_capturing_server(responses: Vec<CannedResponse>) -> (String, Arc<Mutex<Vec<String>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
-        let addr = listener.local_addr().expect("listener has an address");
-        let requests: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        let requests_in_thread = Arc::clone(&requests);
-        std::thread::spawn(move || {
-            for canned in responses {
-                let Ok((mut stream, _)) = listener.accept() else {
-                    return;
-                };
-                let request = read_request_capturing(&mut stream);
-                requests_in_thread
-                    .lock()
-                    .expect("requests lock")
-                    .push(request);
-                let head = format!(
-                    "HTTP/1.1 {} x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-                    canned.status,
-                    canned.body.len()
-                );
-                let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
-            }
-        });
-        (format!("http://{addr}"), requests)
-    }
-
-    fn read_request_capturing(stream: &mut std::net::TcpStream) -> String {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1024];
-        while let Ok(n) = stream.read(&mut chunk) {
-            if n == 0 {
-                break;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
-                break;
-            }
-        }
-        let header_end = buf
-            .windows(4)
-            .position(|w| w == b"\r\n\r\n")
-            .map_or(buf.len(), |i| i + 4);
-        let content_length = String::from_utf8_lossy(&buf[..header_end])
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                (name.trim().eq_ignore_ascii_case("content-length"))
-                    .then(|| value.trim().parse::<usize>().unwrap_or(0))
-            })
-            .unwrap_or(0);
-        let mut remaining = content_length.saturating_sub(buf.len() - header_end);
-        while remaining > 0 {
-            let Ok(n) = stream.read(&mut chunk) else {
-                break;
-            };
-            if n == 0 {
-                break;
-            }
-            buf.extend_from_slice(&chunk[..n]);
-            remaining = remaining.saturating_sub(n);
-        }
-        String::from_utf8_lossy(&buf).into_owned()
+    /// Spawn a server, return the base URL (no trailing slash) and the
+    /// server itself (its `.hits()`/`.requests()` back the old
+    /// `Arc<AtomicUsize>`/`Arc<Mutex<Vec<String>>>` return shapes).
+    fn spawn_server(responses: Vec<CannedResponse>) -> (String, CannedServer) {
+        let server = CannedServer::spawn(responses);
+        let base = server.base().to_owned();
+        (base, server)
     }
 
     fn wire_body_of(request: &str) -> serde_json::Value {
@@ -492,12 +328,7 @@ mod tests {
                 matches!(e, GatewayError::Auth) && !e.is_retryable()
             }),
             (
-                CannedResponse {
-                    status: 429,
-                    retry_after: Some("7"),
-                    body: "{}",
-                    delay_before_response: Duration::ZERO,
-                },
+                CannedResponse::status(429).with_header("Retry-After", "7"),
                 |e| {
                     matches!(
                         e,
@@ -527,12 +358,7 @@ mod tests {
 
     #[tokio::test]
     async fn timeout_maps_and_retries() {
-        let (base_url, _) = spawn_server(vec![CannedResponse {
-            status: 200,
-            retry_after: None,
-            body: SUCCESS_BODY,
-            delay_before_response: Duration::from_secs(5),
-        }]);
+        let (base_url, _) = spawn_server(vec![ok().with_delay(Duration::from_secs(5))]);
         let gateway = Gateway::with_client(
             GatewayConfig::new(base_url, "test-key".to_owned(), "m".to_owned())
                 .with_max_attempts(1),
@@ -553,8 +379,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_then_success() {
-        let (base_url, hits) =
-            spawn_server(vec![CannedResponse::status(429), CannedResponse::ok()]);
+        let (base_url, hits) = spawn_server(vec![CannedResponse::status(429), ok()]);
         let gateway = Gateway::with_client(
             GatewayConfig::new(base_url, "test-key".to_owned(), "m".to_owned())
                 .with_max_attempts(3),
@@ -565,7 +390,7 @@ mod tests {
             .await
             .expect("second attempt must succeed");
         assert_eq!(reply.output, "gateway ok");
-        assert_eq!(hits.load(Ordering::SeqCst), 2);
+        assert_eq!(hits.hits(), 2);
     }
 
     #[tokio::test]
@@ -580,7 +405,7 @@ mod tests {
         assert!(matches!(err, GatewayError::Auth), "got {err:?} ({err})");
         // Give a would-be retry no chance to land: exactly one server hit.
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(hits.hits(), 1);
     }
     const TOOL_CALL_BODY: &str = r#"{
         "choices": [{
@@ -609,12 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn chat_with_tools_returns_tool_calls() {
-        let (base_url, hits) = spawn_server(vec![CannedResponse {
-            status: 200,
-            retry_after: None,
-            body: TOOL_CALL_BODY,
-            delay_before_response: Duration::ZERO,
-        }]);
+        let (base_url, hits) = spawn_server(vec![CannedResponse::text(200, TOOL_CALL_BODY)]);
         let gateway = single_attempt_gateway(base_url);
         let reply = gateway
             .chat_with_tools(&messages(), &get_time_tools(), Some(ToolChoice::Auto))
@@ -629,7 +449,7 @@ mod tests {
                 .expect("arguments must parse"),
             serde_json::json!({})
         );
-        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(hits.hits(), 1);
     }
 
     #[tokio::test]
@@ -646,7 +466,7 @@ mod tests {
             .expect_err("401 must fail");
         assert!(matches!(err, GatewayError::Auth), "got {err:?} ({err})");
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(hits.hits(), 1);
     }
 
     #[test]
@@ -676,8 +496,8 @@ mod tests {
     // absent when unset, through the real `Gateway` HTTP path (not just
     // `ChatRequest::to_wire_value` in isolation) via the capturing server. ---
 
-    fn model_gateway(mut config: GatewayConfig) -> (String, Arc<Mutex<Vec<String>>>, Gateway) {
-        let (base_url, requests) = spawn_capturing_server(vec![CannedResponse::ok()]);
+    fn model_gateway(mut config: GatewayConfig) -> (String, CannedServer, Gateway) {
+        let (base_url, requests) = spawn_server(vec![ok()]);
         config.base_url = base_url.clone();
         let config = config.with_max_attempts(1);
         let gateway = Gateway::with_client(config, reqwest::Client::new());
@@ -697,13 +517,13 @@ mod tests {
             );
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(body["reasoning_effort"], serde_json::json!("high"));
 
         let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert!(
             body.get("reasoning_effort").is_none(),
             "unset reasoning_effort must be absent from the wire body, got {body}"
@@ -723,7 +543,7 @@ mod tests {
             );
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(
             body["thinking"],
             serde_json::json!({"type": "enabled", "budget_tokens": 4096})
@@ -732,7 +552,7 @@ mod tests {
         let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert!(
             body.get("thinking").is_none(),
             "unset thinking budget must omit the field entirely, got {body}"
@@ -752,7 +572,7 @@ mod tests {
             );
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(body["thinking"], serde_json::json!({"type": "disabled"}));
     }
 
@@ -762,13 +582,13 @@ mod tests {
             .with_prompt_cache_key("session-abc");
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(body["prompt_cache_key"], serde_json::json!("session-abc"));
 
         let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert!(
             body.get("prompt_cache_key").is_none(),
             "unset prompt_cache_key must be absent, got {body}"
@@ -784,7 +604,7 @@ mod tests {
         }));
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(body["verbosity"], serde_json::json!("low"));
         assert_eq!(body["prompt_cache_retention"], serde_json::json!("24h"));
         assert_eq!(body["model"], serde_json::json!("m"));
@@ -800,7 +620,7 @@ mod tests {
         cfg.extra_body = Some(serde_json::json!({"model": "attacker-model"}));
         let (_, requests, gateway) = model_gateway(cfg);
         gateway.chat(&messages()).await.expect("call must succeed");
-        let body = wire_body_of(&requests.lock().expect("requests lock")[0]);
+        let body = wire_body_of(&requests.requests()[0]);
         assert_eq!(
             body["model"],
             serde_json::json!("real-model"),
@@ -828,12 +648,7 @@ mod tests {
 
     #[tokio::test]
     async fn anthropic_format_posts_messages_with_api_key_headers_and_parses_reply() {
-        let (base_url, requests) = spawn_capturing_server(vec![CannedResponse {
-            status: 200,
-            retry_after: None,
-            body: ANTHROPIC_OK,
-            delay_before_response: Duration::ZERO,
-        }]);
+        let (base_url, requests) = spawn_server(vec![CannedResponse::text(200, ANTHROPIC_OK)]);
         let mut cfg = GatewayConfig::new(base_url, "secret-key".to_owned(), "m".to_owned())
             .with_max_attempts(1)
             .with_prompt_cache_key("session-1");
@@ -848,7 +663,7 @@ mod tests {
             .await
             .expect("anthropic call must succeed");
 
-        let raw = requests.lock().expect("requests lock")[0].clone();
+        let raw = requests.requests()[0].clone();
         let head = raw
             .split("\r\n\r\n")
             .next()
@@ -883,13 +698,11 @@ mod tests {
     #[tokio::test]
     async fn forbidden_surfaces_the_upstream_message_and_does_not_retry() {
         let (base_url, hits) = spawn_server(vec![
-            CannedResponse {
-                status: 403,
-                retry_after: None,
-                body: r#"{"type":"error","error":{"type":"FreeTierError","message":"free tier gated"}}"#,
-                delay_before_response: Duration::ZERO,
-            },
-            CannedResponse::ok(),
+            CannedResponse::text(
+                403,
+                r#"{"type":"error","error":{"type":"FreeTierError","message":"free tier gated"}}"#,
+            ),
+            ok(),
         ]);
         let gateway = Gateway::with_client(
             GatewayConfig::new(base_url, "k".to_owned(), "m".to_owned()).with_max_attempts(3),
@@ -902,6 +715,6 @@ mod tests {
         );
         assert!(!err.to_string().contains("bad API key"), "{err}");
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(hits.hits(), 1);
     }
 }
