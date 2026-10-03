@@ -95,6 +95,36 @@ pub(crate) fn cap_evidence(text: &str, max_chars: usize) -> String {
     format!("{kept}\n[truncated {removed} chars]")
 }
 
+/// Split a fetched page into parts of at most `part_chars` chars (minimum 1),
+/// always on char boundaries. A cut prefers the last `\n` inside the final
+/// 10% of the window, so a part usually ends at a line end; with none there,
+/// it cuts at exactly `part_chars` chars. The parts concatenate back to
+/// `markdown` byte for byte, and an empty page is one empty part, so the
+/// result is never empty.
+pub(crate) fn page_parts(markdown: &str, part_chars: usize) -> Vec<&str> {
+    let part_chars = part_chars.max(1);
+    let tail_chars = part_chars - part_chars / 10;
+    let mut parts = Vec::new();
+    let mut rest = markdown;
+    loop {
+        let Some((window_end, _)) = rest.char_indices().nth(part_chars) else {
+            parts.push(rest);
+            return parts;
+        };
+        let window = &rest[..window_end];
+        let tail_start = window
+            .char_indices()
+            .nth(tail_chars)
+            .map_or(window_end, |(byte, _)| byte);
+        let cut = window[tail_start..]
+            .rfind('\n')
+            .map_or(window_end, |newline| tail_start + newline + 1);
+        let (part, remainder) = rest.split_at(cut);
+        parts.push(part);
+        rest = remainder;
+    }
+}
+
 /// Drop oldest turns until the assembled transcript fits `max_context_chars`
 /// (or one turn remains). Each `HistoryEntry` is one turn, dropped whole, so
 /// a tool turn's assistant `tool_calls` message and all its `tool` messages
@@ -363,5 +393,49 @@ mod tests {
         let text = "abcdefghij";
         assert_eq!(cap_evidence(text, 10), "abcdefghij");
         assert_eq!(cap_evidence(text, 4), "abcd\n[truncated 6 chars]");
+    }
+
+    #[test]
+    fn page_parts_tile_the_page_exactly_whatever_the_text() {
+        let newline_heavy = "line of text\n".repeat(500);
+        let multibyte = "é漢🦀".repeat(400);
+        let no_breaks = "x".repeat(1_234);
+        for text in [newline_heavy.as_str(), &multibyte, &no_breaks, "", "a"] {
+            for part_chars in [1, 7, 100, 999, 10_000] {
+                let parts = page_parts(text, part_chars);
+                assert_eq!(parts.concat(), text, "part_chars={part_chars}");
+                assert!(!parts.is_empty());
+                assert!(
+                    parts.iter().all(|p| p.chars().count() <= part_chars),
+                    "a part exceeded {part_chars} chars"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn page_parts_cut_at_a_line_end_in_the_last_tenth_else_at_the_limit() {
+        // Newline at char 95 of a 100-char window: inside the last 10%.
+        let late = format!("{}\n{}", "a".repeat(95), "b".repeat(50));
+        let parts = page_parts(&late, 100);
+        assert_eq!(parts, vec![&late[..96], &late[96..]]);
+
+        // Newline at char 10: too early, so the cut is exactly at the limit.
+        let early = format!("{}\n{}", "a".repeat(10), "b".repeat(200));
+        let parts = page_parts(&early, 100);
+        assert_eq!(parts[0].chars().count(), 100);
+        assert_eq!(parts.concat(), early);
+
+        // The last newline of the tail wins over an earlier one.
+        let two = format!("{}\n{}\n{}", "a".repeat(91), "b".repeat(5), "c".repeat(50));
+        let parts = page_parts(&two, 100);
+        assert_eq!(parts[0], &two[..98]);
+    }
+
+    #[test]
+    fn page_parts_keeps_a_page_that_fits_whole_and_an_empty_page_as_one_part() {
+        let exact = "y".repeat(50);
+        assert_eq!(page_parts(&exact, 50), vec![exact.as_str()]);
+        assert_eq!(page_parts("", 50), vec![""]);
     }
 }

@@ -350,7 +350,11 @@ async fn dispatch_turn(
             failure_reason = reason;
             continue;
         }
-        let executed = tokio::time::timeout(budget.tool_timeout, tools.execute(call)).await;
+        let executed = tokio::time::timeout(
+            budget.tool_timeout,
+            tools.execute(call, budget.max_part_chars),
+        )
+        .await;
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
@@ -380,7 +384,13 @@ async fn dispatch_turn(
             }
             Ok(result) => {
                 let rendered = result.render();
-                let excerpt = cap_excerpt(&rendered, budget);
+                // A Fetch part is already sized by the registry; capping it
+                // again would cut the part's continuation line.
+                let excerpt = if matches!(result, ToolResult::Fetch { .. }) {
+                    rendered.clone()
+                } else {
+                    cap_excerpt(&rendered, budget)
+                };
                 results.push(ToolMessage {
                     id: call.id.clone(),
                     content: excerpt.clone(),
@@ -764,10 +774,14 @@ mod tests {
 
     fn canned_fetch() -> ToolResult {
         ToolResult::Fetch {
-            evidence: crate::web::fetch::Evidence::new(
+            evidence: std::sync::Arc::new(crate::web::fetch::Evidence::new(
                 "https://example.com/t".to_owned(),
                 "Body".to_owned(),
-            ),
+            )),
+            span: 0..4,
+            part: 1,
+            parts: 1,
+            first_delivery: true,
         }
     }
 
