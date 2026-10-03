@@ -39,7 +39,7 @@
 //! (`SEARCH_MAX_REQUESTS_PER_ENGINE`/`SEARCH_MAX_QUERIES_PER_ENGINE_PER_CALL`)
 //! are read once, at construction; the engine allowlist, suspension
 //! durations, and pacing gaps are re-read from env on every call
-//! ([`enabled_providers`], [`suspension_for`], [`resolve_gap`]), so a test
+//! ([`enabled_providers`], [`suspension_for`], [`config::resolve_gap`]), so a test
 //! that mutates `SEARCH_*` between two calls on the same `Governor` sees
 //! the new value immediately. State persists to
 //! `<cache_root>/engines.json` when a cache root is given, in-memory-only

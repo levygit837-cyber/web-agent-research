@@ -261,7 +261,7 @@ fn engine_concurrency_default(provider: SearchProvider) -> u64 {
 /// Resolve one engine's concurrency limit: `SEARCH_CONCURRENCY_<ENGINE>`
 /// overrides the engine; `SEARCH_CONCURRENCY` overrides every engine
 /// uniformly when set; else [`engine_concurrency_default`]. Read once, at
-/// [`Governor::new`] construction (sizes each engine's `Semaphore`), not
+/// [`Governor::new`](super::Governor::new) construction (sizes each engine's `Semaphore`), not
 /// re-read per call -- unlike the gap/suspension resolvers, a live
 /// `Governor`'s concurrency limit cannot change after its queues are
 /// built without adding/removing `Semaphore` permits at runtime, which no
