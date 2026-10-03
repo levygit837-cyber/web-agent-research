@@ -51,27 +51,48 @@ fn is_tracking_param(name: &str) -> bool {
     lower.starts_with("utm_") || TRACKING_PARAM_NAMES.contains(&lower.as_str())
 }
 
-/// Matches, left to right: an inline code span, a link whose entire visible
-/// content is one image (htmd/Obscura render `<a><img></a>` as
-/// `[![alt](src)](href)`; tried before the plain `link`/`img` alternatives
-/// so the inner image's own `]`/`)` never gets mis-parsed as the outer
-/// link's closing delimiters), a standalone image, or a standalone link.
+/// A link/image destination as htmd emits it: `<…>` when it contains spaces
+/// (the content is not escaped, so it may hold `>`; the lazy run ends at the
+/// first `>` that the rest of the pattern can close after), otherwise a run
+/// of non-space chars in which `(` and `)` are backslash-escaped (`\(`, `\)`).
+const DEST: &str = r#"(?:<[^\n]*?>|(?:\\.|[^)\s\\])+)"#;
+
+/// Optional `"title"` after a destination.
+const TITLE: &str = r#"(?:\s+"[^"]*")?"#;
+
+/// Matches, left to right: an inline code span, a standalone image, or a
+/// link. A link's text may itself contain images (htmd renders
+/// `<a><img> Headline</a>` as `[![alt](src) Headline](href)`), so the text
+/// group accepts image markup before any other char; the images in it are
+/// resolved by [`replace_images`] afterwards.
 /// MSRV 1.75 predates `LazyLock` (stable 1.80): `OnceLock` + `get_or_init`,
 /// matching `web::search::ddg`'s existing static-regex convention.
 fn inline_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(
-            r#"(?P<code>`[^`\n]*`)|(?P<linkimg>\[!\[(?P<li_alt>[^\]]*)\]\((?P<li_imgurl>[^)\s]+)(?:\s+"[^"]*")?\)\]\((?P<li_url>[^)\s]+)(?:\s+"[^"]*")?\))|(?P<img>!\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)\s]+)(?:\s+"[^"]*")?\))|(?P<link>\[(?P<link_text>[^\]]*)\]\((?P<link_url>[^)\s]+)(?:\s+"[^"]*")?\))"#,
-        )
+        Regex::new(&format!(
+            r"(?P<code>`[^`\n]*`)|(?P<img>!\[(?P<img_alt>[^\]]*)\]\((?P<img_dest>{DEST}){TITLE}\))|(?P<link>\[(?P<link_text>(?:!\[[^\]]*\]\({DEST}{TITLE}\)|[^\]])*)\]\((?P<link_dest>{DEST}){TITLE}\))"
+        ))
         .expect("static fetch cleanup inline regex")
     })
 }
 
+/// A bare image, used to resolve images inside a link's text.
+fn image_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(&format!(r"!\[(?P<alt>[^\]]*)\]\((?P<dest>{DEST}){TITLE}\)"))
+            .expect("static fetch cleanup image regex")
+    })
+}
+
+/// Only runs of printable ASCII count: base64/hex blobs, minified code and
+/// image-proxy URLs are ASCII, while unspaced CJK prose (and its full-width
+/// punctuation) breaks the run and is never collapsed.
 fn long_token_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(&format!(r"\S{{{LONG_TOKEN_CHARS},}}")).expect("static long-token regex")
+        Regex::new(&format!(r"[!-~]{{{LONG_TOKEN_CHARS},}}")).expect("static long-token regex")
     })
 }
 
@@ -80,25 +101,27 @@ fn long_token_re() -> &'static Regex {
 /// code and table lines are untouched.
 pub(crate) fn clean_markdown(markdown: &str) -> String {
     let mut lines_out: Vec<String> = Vec::new();
-    let mut in_fence = false;
+    // Open fence: (marker char, run length). Closes only on a line of the
+    // same char with at least that many, so a longer fence can carry a
+    // shorter one inside it (htmd does exactly that for code showing fences).
+    let mut fence: Option<(char, usize)> = None;
     let mut pending_blank = false;
 
     for line in markdown.split('\n') {
         let trimmed = line.trim_start();
-        let is_fence_delim = trimmed.starts_with("```") || trimmed.starts_with("~~~");
 
-        if in_fence {
+        if let Some((ch, len)) = fence {
             lines_out.push(line.to_string());
-            if is_fence_delim {
-                in_fence = false;
+            if is_fence_close(trimmed, ch, len) {
+                fence = None;
             }
             continue;
         }
 
-        if is_fence_delim {
+        if let Some(open) = fence_open(trimmed) {
             flush_pending_blank(&mut lines_out, &mut pending_blank);
             lines_out.push(line.to_string());
-            in_fence = true;
+            fence = Some(open);
             continue;
         }
 
@@ -122,6 +145,26 @@ pub(crate) fn clean_markdown(markdown: &str) -> String {
     lines_out.join("\n")
 }
 
+/// `Some((char, run))` when `trimmed` opens a fenced code block (3+ of `` ` ``
+/// or `~`; a backtick fence's info string cannot contain a backtick).
+fn fence_open(trimmed: &str) -> Option<(char, usize)> {
+    let ch = trimmed.chars().next()?;
+    if ch != '`' && ch != '~' {
+        return None;
+    }
+    let run = trimmed.chars().take_while(|&c| c == ch).count();
+    if run < 3 || (ch == '`' && trimmed[run..].contains('`')) {
+        return None;
+    }
+    Some((ch, run))
+}
+
+/// A closing fence is only `ch` repeated at least `min` times.
+fn is_fence_close(trimmed: &str, ch: char, min: usize) -> bool {
+    let run = trimmed.chars().take_while(|&c| c == ch).count();
+    run >= min && trimmed[run..].trim().is_empty()
+}
+
 fn flush_pending_blank(lines_out: &mut Vec<String>, pending_blank: &mut bool) {
     if *pending_blank {
         lines_out.push(String::new());
@@ -132,27 +175,27 @@ fn flush_pending_blank(lines_out: &mut Vec<String>, pending_blank: &mut bool) {
 /// Apply the image/link/data-URI/long-token rules to one non-fenced,
 /// non-table line.
 fn clean_inline(line: &str) -> String {
-    let re = inline_re();
     let mut out = String::with_capacity(line.len());
     let mut last_end = 0;
 
-    for caps in re.captures_iter(line) {
+    for caps in inline_re().captures_iter(line) {
         let whole = caps.get(0).expect("regex match always has group 0");
         out.push_str(&collapse_long_tokens(&line[last_end..whole.start()]));
 
         if caps.name("code").is_some() {
             out.push_str(whole.as_str());
-        } else if let Some(li_url) = caps.name("li_url") {
-            let alt = caps.name("li_alt").map(|m| m.as_str()).unwrap_or("");
-            let img_url = caps.name("li_imgurl").map(|m| m.as_str()).unwrap_or("");
-            let text = image_text(alt, img_url);
-            push_link_text(&mut out, &text, li_url.as_str());
-        } else if let Some(img_url) = caps.name("img_url") {
-            let alt = caps.name("img_alt").map(|m| m.as_str()).unwrap_or("");
-            out.push_str(&image_text(alt, img_url.as_str()));
-        } else if let Some(link_url) = caps.name("link_url") {
-            let text = caps.name("link_text").map(|m| m.as_str()).unwrap_or("");
-            push_link_text(&mut out, text, link_url.as_str());
+        } else if let Some(dest) = caps.name("img_dest") {
+            let alt = caps.name("img_alt").map_or("", |m| m.as_str());
+            out.push_str(&image_text(alt, dest.as_str()));
+        } else if let Some(dest) = caps.name("link_dest") {
+            let raw = caps.name("link_text").map_or("", |m| m.as_str());
+            let resolved = replace_images(raw);
+            let text = if resolved == raw {
+                resolved
+            } else {
+                resolved.trim().to_string()
+            };
+            push_link_text(&mut out, &text, dest.as_str());
         }
 
         last_end = whole.end();
@@ -161,11 +204,28 @@ fn clean_inline(line: &str) -> String {
     out
 }
 
+/// Resolve every image in a link's text via [`image_text`].
+fn replace_images(text: &str) -> String {
+    image_re()
+        .replace_all(text, |caps: &Captures<'_>| {
+            image_text(&caps["alt"], &caps["dest"])
+        })
+        .into_owned()
+}
+
+/// A destination without htmd's `<…>` wrapper.
+fn dest_inner(dest: &str) -> &str {
+    dest.strip_prefix('<')
+        .and_then(|d| d.strip_suffix('>'))
+        .unwrap_or(dest)
+}
+
 /// Resolve one image to its final inline text: a data URI target becomes
 /// `![alt](marker)` (per the issue's example), otherwise alt text alone,
 /// or an empty string when there is no alt text (the agent never fetches
 /// images, so an unlabeled one carries nothing to cite).
-fn image_text(alt: &str, url: &str) -> String {
+fn image_text(alt: &str, dest: &str) -> String {
+    let url = dest_inner(dest);
     if is_data_uri(url) {
         return format!("![{alt}]({})", data_uri_label(url));
     }
@@ -176,22 +236,32 @@ fn image_text(alt: &str, url: &str) -> String {
     }
 }
 
-/// Append a resolved link (`text`, raw `url`) to `out`, applying the
+/// Append a resolved link (`text`, raw `dest`) to `out`, applying the
 /// data-URI-marker and tracking-param rules. A link whose resolved text is
 /// empty (no visible text, or its only content was an alt-less image) is
 /// dropped entirely rather than left as `[]()`.
-fn push_link_text(out: &mut String, text: &str, url: &str) {
+fn push_link_text(out: &mut String, text: &str, dest: &str) {
+    let url = dest_inner(dest);
     if is_data_uri(url) {
         out.push_str(&format!("[{text}]({})", data_uri_label(url)));
         return;
     }
-    if !text.trim().is_empty() {
-        out.push_str(&format!("[{text}]({})", strip_tracking_params(url)));
+    if text.trim().is_empty() {
+        return;
+    }
+    let cleaned = strip_tracking_params(url);
+    if url.len() == dest.len() {
+        out.push_str(&format!("[{text}]({cleaned})"));
+    } else {
+        out.push_str(&format!("[{text}](<{cleaned}>)"));
     }
 }
 
 fn is_data_uri(url: &str) -> bool {
-    url.len() >= 5 && url[..5].eq_ignore_ascii_case("data:")
+    // Byte comparison: slicing `url[..5]` would panic inside a multi-byte char.
+    url.as_bytes()
+        .get(..5)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"data:"))
 }
 
 /// `data:image/png;base64,AAAA…` -> `data:image/png omitted, N bytes|KB`.
@@ -430,5 +500,69 @@ mod tests {
         assert!(cleaned.contains("[tracked link](https://example.com)"));
         assert!(cleaned.contains("let utm_source = \"data:kept\";"));
         assert!(cleaned.contains("| [x](https://example.com?utm_source=z) | 2 |"));
+    }
+
+    #[test]
+    fn non_ascii_link_targets_do_not_panic() {
+        // Byte 5 of each target falls inside a multi-byte char.
+        let md = "[x](/中文) and [](#見出し) and [y](/日本語のページ?utm_source=a)";
+        assert_eq!(
+            clean_markdown(md),
+            "[x](/中文) and  and [y](/日本語のページ)"
+        );
+    }
+
+    #[test]
+    fn unspaced_cjk_prose_is_never_collapsed() {
+        let md = "日本語の文章。".repeat(60); // 420 non-whitespace chars
+        assert_eq!(clean_markdown(&md), md);
+    }
+
+    #[test]
+    fn image_sharing_link_text_with_other_content_is_resolved() {
+        let md = "[![logo](https://cdn.example/x.png) Headline](https://site.example/a?utm_source=x&id=1)";
+        assert_eq!(
+            clean_markdown(md),
+            "[logo Headline](https://site.example/a?id=1)"
+        );
+    }
+
+    #[test]
+    fn escaped_parens_in_destinations_are_parsed() {
+        let md = "![Ferris](https://x.example/File_\\(crab\\).png) text and [doc](https://x.example/a_\\(b\\)?utm_source=z)";
+        assert_eq!(
+            clean_markdown(md),
+            "Ferris text and [doc](https://x.example/a_\\(b\\))"
+        );
+    }
+
+    #[test]
+    fn angle_wrapped_data_uri_with_spaces_never_reaches_output() {
+        let md = "![icon](<data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9'></svg>>)";
+        let cleaned = clean_markdown(md);
+        assert!(!cleaned.contains("<svg"), "payload leaked: {cleaned}");
+        assert!(cleaned.starts_with("![icon](data:image/svg+xml omitted, "));
+    }
+
+    #[test]
+    fn angle_wrapped_link_keeps_its_wrapper_and_strips_tracking() {
+        let md = "[spaced](<https://x.example/a b?utm_source=z&q=1>)";
+        assert_eq!(clean_markdown(md), "[spaced](<https://x.example/a b?q=1>)");
+    }
+
+    #[test]
+    fn longer_fence_carries_a_shorter_fence_byte_identical() {
+        let md = "````markdown\n```rust\n![x](data:image/png;base64,AAAA)\n```\n````\n\nafter ![i](data:image/png;base64,AAAA)";
+        let cleaned = clean_markdown(md);
+        assert!(cleaned.starts_with(
+            "````markdown\n```rust\n![x](data:image/png;base64,AAAA)\n```\n````\n\nafter "
+        ));
+        assert!(cleaned.ends_with("![i](data:image/png omitted, 3 bytes)"));
+    }
+
+    #[test]
+    fn tilde_fence_carrying_backtick_fences_is_byte_identical() {
+        let md = "~~~\n```\n![x](data:image/png;base64,AAAA)\n```\n~~~";
+        assert_eq!(clean_markdown(md), md);
     }
 }
