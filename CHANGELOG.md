@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `search_multi_with_bases` filters enabled providers down to the ones that apply the requested `recency` window before building legs: an engine that cannot apply the window is skipped outright (no request, no error, no suspension, no cache lookup or write), never run unfiltered. If `recency` is set and no enabled engine applies it, the call makes zero HTTP requests and returns `SearchOutput { note: Some(...) }`, a one-line note telling the model to search again without `recency`, instead of unfiltered Hits.
   - `ToolResult::SearchNote` (`src/research/agent_loop/registry.rs`) carries that note through to the tool-role transcript.
   - The `search` tool schema's description and `recency` field now state the skip rule for the model.
+- `fetch` takes an optional `part` (integer `>= 1`) (#80). `part` past the end is a dispatch failure naming the page's part count; `0` or a non-integer is a dispatch failure (`FetchError::InvalidPart`).
+- `GATEWAY_CONTEXT_WINDOW` (tokens; default 200000 for `claude*` model ids, else 128000; an invalid value exits `2`), `GatewayConfig::context_window_tokens`, `GatewayConfig::reply_reserve_tokens` and `LoopBudget::for_window` (#80).
 
 ### Changed
 
@@ -61,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Observations: search Hits render as numbered candidates under "Candidates only, not Evidence" instead of `[title](url)` citation links; a fetch result starts with `Source: <final URL>`, so the Evidence cap no longer cuts it (it did in 17 of 18 measured fetches); failed-fetch, blocked-search and no-Hits results say what to do next.
   - Tool descriptions: `search` is engine-neutral (it named only DuckDuckGo and Startpage) and says only some engines apply `recency`; `fetch` says what it returns, that long pages are cut, and that `FAILED:` means fetch a different Hit.
   - The final answer goes inside an `<answer>` … `</answer>` block, each tag on a line of its own, and `parse_answer` parses only the last such block, so a progress remark around it ("I have enough information…") no longer becomes `synthesis.summary`. A tag counts only alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line parses whole, as before.
+- Fetched pages are no longer cut to 4,000 characters (#80). A long page is delivered in parts of up to `max_part_chars` (24,000 by default) and the result says `Part k of N`; the agent reads the rest with `fetch` and `part`. The registry keeps every fetched page whole for the run, so a continuation sends no HTTP request. `LoopBudget::max_evidence_chars` is now `max_part_chars`. The total context is sized from the model's window instead of a fixed 24,000 characters: `min((window - reply reserve) * 3, 400000)` characters, where the reserve is `GATEWAY_MAX_TOKENS` (else 8192) plus `GATEWAY_THINKING_BUDGET`. `--size` does not scale it. See `docs/harness.md` "Page parts and context budget".
+  - The Session persists the whole fetched page once per URL, not the delivered part; `evidence_urls` lists each fetched URL once. `ResearchResponse` JSON is unchanged.
+  - A repeat `fetch` of a known URL without `part` still returns `ALREADY FETCHED`, and now says how many parts the page has.
+  - The `fetch` tool description and the system prompt no longer say long pages are cut; they explain `Part k of N` and `part`.
 
 ### Fixed
 

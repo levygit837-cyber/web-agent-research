@@ -27,6 +27,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
+| `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32` exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
@@ -106,6 +107,25 @@ Recency (#81): when the `search` tool call's `recency` is set, a leg runs only i
 - A run of 2+ blank lines collapses to one.
 - Fenced code blocks and table rows are never altered: only the markup around prose, not prose/code/tables themselves. A fence closes only on a line of the same marker with at least the opening length, so a longer fence can carry a shorter one byte-identical.
 
+## Page parts and context budget (#80)
+
+A fetched page is never cut. The registry keeps the whole cleaned markdown for the run and delivers it in parts; the agent asks for the rest with `fetch` and `part`.
+
+- `fetch` takes an optional `part` (integer `>= 1`, default 1). The result starts `Source: <final url>`, then `Part k of N` when the page has more than one part, then the part text; a part that is not the last ends with `[part k of N; call fetch with the same url and part=k+1 for the rest]`.
+- A part is at most `max_part_chars` characters. A cut prefers the last line break in the final 10% of the window, else it falls at exactly `max_part_chars`; the parts concatenate to the full page.
+- The first `fetch` of a URL makes the one network request and stores the page. Later calls with `part` are served from memory, with no request, even after the first delivery was dropped from the transcript. A repeat `fetch` without `part` still returns the `ALREADY FETCHED` pointer, now with the part count.
+- `part` past the end is a dispatch failure that names the page's part count (`part 4 is past the end: the page has 3 parts`); a `part` that is `0` or not an integer is a dispatch failure too. A fresh fetch asking past the end still stores the page, so the retry costs no request.
+- The Session holds the whole page once per URL (the row of the call that fetched it), not the delivered part. Continuation parts add no row. `evidence_urls` lists each fetched URL once.
+- Search Hits, notes and failures are still capped at `max_part_chars` with a `[truncated N chars]` marker.
+
+The context budget comes from the model's window, not a fixed number: `max_context_chars = min((window_tokens - reply_reserve_tokens) * 3, 400000)` and `max_part_chars = min(24000, max_context_chars / 8)`.
+
+- `window_tokens` is `GATEWAY_CONTEXT_WINDOW`, else 200000 when `GATEWAY_MODEL` starts with `claude`, else 128000.
+- `reply_reserve_tokens` is `GATEWAY_MAX_TOKENS` if set, else 8192, plus `GATEWAY_THINKING_BUDGET` if set.
+- 3 characters per token is a deliberately low estimate: prose averages about 4, but markdown full of URLs and identifiers tokenizes worse, and overshooting the window fails the run while undershooting only drops old turns sooner.
+- The 400000-character ceiling keeps cost and latency bounded, because the whole transcript is resent every turn. `--size` does not scale the budget: the window belongs to the model, not to the answer length.
+- Turn history still drops the oldest whole turns once the transcript passes `max_context_chars`; the registry still serves their pages from memory.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
@@ -149,7 +169,7 @@ Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls 
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
 - `synthesis` comes from the agent's final reply (its first reply with no tool call). The agent is asked to put its answer inside an `<answer>` … `</answer>` block, each tag on a line of its own, and only the text inside the last such block is parsed, so remarks about its own progress never reach `summary` (#72). A tag counts only when it is alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line is parsed whole. `summary` is the text before the first `## ` heading, each `## ` section is one theme, and its `- `/`* `/`N. ` bullets are its `points`.
-- The agent is told to fetch pages before answering and to cite only pages it fetched, but the loop enforces neither. In the #72 measurement every run after the prompt change fetched at least 2 pages (`docs/research/agent-prompt.md`), so no guard was added. An exit-0 run with empty `evidence_urls` read no page, so treat its Synthesis as unverified. A citation means the page was fetched, not that every claim beside it is in the part the agent read: each fetched page reaches the agent cut to its first 4,000 characters.
+- The agent is told to fetch pages before answering and to cite only pages it fetched, but the loop enforces neither. In the #72 measurement every run after the prompt change fetched at least 2 pages (`docs/research/agent-prompt.md`), so no guard was added. An exit-0 run with empty `evidence_urls` read no page, so treat its Synthesis as unverified. A citation means the page was fetched, not that every claim beside it is in the part the agent read: a long page reaches the agent in parts of up to 24,000 characters (see "Page parts and context budget"), and the agent chooses which parts to read.
 - Without `--json`, stdout is human-readable markdown: summary, `##` themes, and a numbered `Sources:` list.
 
 ## Exit codes

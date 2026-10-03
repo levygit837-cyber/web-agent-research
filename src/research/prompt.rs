@@ -80,7 +80,7 @@ fn budget_rules(budget: &LoopBudget, reads_pages: bool) -> String {
         text.push_str(&format!(
             "- A failed fetch is not Evidence: fetch a different Hit rather than retrying the same URL.
 - If search is blocked, or still finds nothing useful after one reworded retry, answer from the pages you already have and say what you could not verify.
-- Long pages are cut to about {chars} characters, and a `[truncated N chars]` line marks the cut. If the detail you need was cut, answer from what you have and say so: fetching copies of the same page from other sites wastes turns.
+- Long pages come in parts of about {chars} characters, and the result says `Part k of N`. To read more of a page, fetch the same url with `part` set; fetching copies of the same page from other sites wastes turns.
 ",
             chars = budget.max_part_chars,
         ));
