@@ -7,7 +7,7 @@ The Web Search agent sometimes answered from search snippets without fetching a 
 - System prompt: `research::prompt::build_system_prompt`, built once per run from the offered tools, the size and the `LoopBudget`, so it is byte-identical across turns and the prompt-cache prefix holds. Sections: role, `<tools>`, `<evidence_rules>`, `<workflow>`, `<budget>`, `<answer_format>`, `<example>`. A section that directs a tool only appears when that tool is offered.
 - Tools: `search` (`src/web/search/tool.rs`) and `fetch` (`src/web/fetch/tool.rs`), each a name, a description and a JSON Schema. The system prompt only lists them with one-line purposes, because the API already sends the definitions.
 - First user message: the goal and the requested size (`goal_message` in `src/research/agent_loop/context.rs`).
-- After each tool turn: every result rendered by `ToolResult::render` (`src/research/agent_loop/registry.rs`) and cut at `max_evidence_chars` (4,000). The newest result ends with the turns left, counting the final answer (`turns_left_note` in `src/research/agent_loop/runner.rs`). Per-turn state rides here, in the transcript tail, never in the system prompt.
+- After each tool turn: every result rendered by `ToolResult::render` (`src/research/agent_loop/registry.rs`). A `fetch` result is one part of the page (#80, up to `max_part_chars`, 24,000 by default); every other result is cut at `max_part_chars`. The newest result ends with the turns left, counting the final answer (`turns_left_note` in `src/research/agent_loop/runner.rs`). Per-turn state rides here, in the transcript tail, never in the system prompt.
 - The end: the first reply with no tool call and a non-empty answer is the final answer; an empty one gets a repair turn that carries the same turns-left note. `parse_answer` (`src/research/agent_loop/answer.rs`) parses only its last `<answer>` … `</answer>` block, whose tags count only alone on their lines, or the whole reply when it has no opening line.
 - Wire: `tool_choice` is always `auto`; Anthropic cache breakpoints sit on the last tool, the last system block and the last message (`src/llm/anthropic.rs`).
 
@@ -25,7 +25,7 @@ The Web Search agent sometimes answered from search snippets without fetching a 
 | G8. No rule for the answer's language | confirmed in the text; no failure seen | q7 answered in pt-BR anyway | "Write in the language of the research goal" |
 | G9. The answer shape `parse_answer` reads is never spelled out (`prompt.rs:31`) | confirmed | 6 of 6 summaries broken: a progress remark ("I have enough evidence to synthesize a comprehensive answer. Here's the final synthesis:") or a heading pulled into the summary | Explicit shape, one worked example, and the `<answer>` block |
 | G10. `Source:` came after the page body, so the cap cut it (`registry.rs:96`) | new | 17 of 18 fetch results lost their source URL | `Source:` is the first line |
-| G11. The 4,000-char cap keeps only the top of a long page | new; open | q3's docs.rs `ClientBuilder` page lost 81,842 chars, including every `timeout` method | The prompt says pages are cut and not to fetch mirrors; the cap is unchanged |
+| G11. The 4,000-char cap keeps only the top of a long page | fixed in #80 | q3's docs.rs `ClientBuilder` page lost 81,842 chars, including every `timeout` method | Pages come in parts of up to 24,000 chars and the agent reads the rest with `fetch` and `part`; measured in `docs/harness.md` "Measured defaults (#80)" |
 | G12. The search description names only DuckDuckGo and Startpage and says recency is "mapped per provider" (`tool.rs:22`, `:42`) | new; recency open | Brave, Yahoo and Bing ignore `recency` (`brave.rs`, `yahoo.rs`, `bing.rs`: `_recency`) | Engine-neutral description; "only some engines apply it" |
 | G13. The fetch description is one sentence (`fetch/tool.rs:52`) | new | none | What it returns, the JS fallback, the cut, what `FAILED:` means |
 
@@ -58,7 +58,6 @@ Seven fixed goals, one per category: crate docs (small), API reference (small), 
 
 ## Open
 
-- G11: q3 still takes 6 to 8 turns, and after4 stated `read_timeout`'s behavior ("resets after a successful read") as `timeout`'s. That phrase appears only in Hit snippets: the fetched docs.rs excerpt, the first 4,000 chars of the page, names no timeout method. History was also truncated to fit the 24,000-char context cap in 3 of 7 after4 runs (1 of 7 before); the system prompt counts toward that cap and grew by 3,716 chars.
 - G12: `recency` has no effect on Brave, Yahoo or Bing.
 
 ## Sources

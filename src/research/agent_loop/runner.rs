@@ -9,6 +9,7 @@
 //! turn (the gateway owns retries); tool and dispatch failures are
 //! model-visible tool-role results bounded by `max_repairs`.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
@@ -19,7 +20,7 @@ use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
 use crate::research::synthesis::{Synthesis, SynthesisSize};
-use crate::web::fetch::FetchPath;
+use crate::web::fetch::{Evidence, FetchPath};
 use crate::web::search::dedup_key;
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,26 @@ pub struct LoopInput {
     pub allowed_tools: Vec<String>,
 }
 
+/// Characters per token assumed when sizing the context from a token
+/// window. 3 is deliberately conservative: prose averages about 4, but
+/// markdown full of URLs, code and identifiers tokenizes worse, and
+/// overshooting the window fails the whole run while undershooting only
+/// drops old turns sooner.
+pub const CHARS_PER_TOKEN: u32 = 3;
+
+/// Ceiling on `max_context_chars` whatever the window. The transcript is
+/// resent every turn, so cost and latency grow with it; past this point a
+/// bigger window buys less than it costs (#80).
+pub const MAX_CONTEXT_CHARS_CEILING: usize = 400_000;
+
+/// Ceiling on `max_part_chars`: one `fetch` part, and the cap on every
+/// other tool result.
+pub const MAX_PART_CHARS: usize = 24_000;
+
+/// A single part never takes more than `1 / PARTS_PER_CONTEXT` of the
+/// context, so a few pages fit before old turns are dropped.
+const PARTS_PER_CONTEXT: usize = 8;
+
 #[derive(Debug, Clone)]
 pub struct LoopBudget {
     /// Total gateway calls allowed.
@@ -42,8 +63,9 @@ pub struct LoopBudget {
     pub max_repairs: u32,
     /// Per-tool-call deadline, applied by the runner.
     pub tool_timeout: Duration,
-    /// Per-evidence-text cap before the truncation marker.
-    pub max_evidence_chars: usize,
+    /// Size of one `fetch` part, and the cap (with truncation marker) on
+    /// every other tool result.
+    pub max_part_chars: usize,
     /// Total assembled-char cap before oldest-turn dropping.
     pub max_context_chars: usize,
     /// Wire-call cap per turn.
@@ -56,9 +78,27 @@ impl Default for LoopBudget {
             max_turns: 8,
             max_repairs: 2,
             tool_timeout: Duration::from_secs(45),
-            max_evidence_chars: 4_000,
+            max_part_chars: MAX_PART_CHARS,
             max_context_chars: 24_000,
             max_tools_per_turn: 3,
+        }
+    }
+}
+
+impl LoopBudget {
+    /// Budget sized to a model window: the window minus the tokens reserved
+    /// for the reply, at [`CHARS_PER_TOKEN`], capped at
+    /// [`MAX_CONTEXT_CHARS_CEILING`]; a part is at most [`MAX_PART_CHARS`]
+    /// and at most an eighth of the context.
+    pub fn for_window(max_turns: u32, window_tokens: u32, reply_reserve_tokens: u32) -> Self {
+        let usable_tokens = window_tokens.saturating_sub(reply_reserve_tokens) as usize;
+        let max_context_chars =
+            (usable_tokens * CHARS_PER_TOKEN as usize).min(MAX_CONTEXT_CHARS_CEILING);
+        Self {
+            max_turns,
+            max_context_chars,
+            max_part_chars: MAX_PART_CHARS.min(max_context_chars / PARTS_PER_CONTEXT),
+            ..Self::default()
         }
     }
 }
@@ -72,13 +112,19 @@ pub struct ToolEvidence {
     pub id: String,
     /// Executed tool name.
     pub tool: String,
-    /// Capped at `max_evidence_chars` (marker when cut).
+    /// What the model saw: the rendered result, with the truncation marker
+    /// when a non-fetch result was capped at `max_part_chars`.
     pub excerpt: String,
     /// `Some` when the tool yields a source URL.
     pub url: Option<String>,
     /// Engine that produced fetched Evidence (`static`/`browser`); `None`
     /// for everything that is not a successful fetch.
     pub fetch_path: Option<FetchPath>,
+    /// The whole fetched page, set only on the call that fetched it over the
+    /// network (#80). `excerpt` stays what the model saw (one part); the
+    /// Session persists this page once per URL. Continuation parts and
+    /// repeat fetches carry `None`.
+    pub page: Option<Arc<Evidence>>,
 }
 
 #[derive(Debug, Clone)]
@@ -213,7 +259,7 @@ fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
 }
 
 fn cap_excerpt(rendered: &str, budget: &LoopBudget) -> String {
-    context::cap_evidence(rendered, budget.max_evidence_chars)
+    context::cap_evidence(rendered, budget.max_part_chars)
 }
 
 /// Stable synthetic id for a call the model sent without one. Turn-scoped
@@ -310,7 +356,11 @@ async fn dispatch_turn(
             failure_reason = reason;
             continue;
         }
-        let executed = tokio::time::timeout(budget.tool_timeout, tools.execute(call)).await;
+        let executed = tokio::time::timeout(
+            budget.tool_timeout,
+            tools.execute(call, budget.max_part_chars),
+        )
+        .await;
         match executed {
             Err(_) => {
                 let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
@@ -334,13 +384,20 @@ async fn dispatch_turn(
                     excerpt: content,
                     url: None,
                     fetch_path: None,
+                    page: None,
                 });
                 failure = Some(FailureKind::Execution);
                 failure_reason = reason;
             }
             Ok(result) => {
                 let rendered = result.render();
-                let excerpt = cap_excerpt(&rendered, budget);
+                // A Fetch part is already sized by the registry; capping it
+                // again would cut the part's continuation line.
+                let excerpt = if matches!(result, ToolResult::Fetch { .. }) {
+                    rendered.clone()
+                } else {
+                    cap_excerpt(&rendered, budget)
+                };
                 results.push(ToolMessage {
                     id: call.id.clone(),
                     content: excerpt.clone(),
@@ -362,6 +419,7 @@ async fn dispatch_turn(
                         excerpt,
                         url: result.url(),
                         fetch_path: result.fetch_path(),
+                        page: result.first_delivery_page(),
                     });
                 } else {
                     let kind = result
@@ -378,6 +436,7 @@ async fn dispatch_turn(
                         excerpt,
                         url: None,
                         fetch_path: None,
+                        page: None,
                     });
                     failure = Some(kind);
                     failure_reason = reason;
@@ -554,6 +613,33 @@ mod tests {
 
     use crate::llm::GatewayConfig;
 
+    #[test]
+    fn for_window_reserves_the_reply_and_sizes_parts() {
+        // 200K window, 8192-token reserve: (200_000 - 8192) * 3 = 575_424
+        // chars, cut to the 400_000 ceiling.
+        let budget = LoopBudget::for_window(5, 200_000, 8192);
+        assert_eq!(budget.max_turns, 5);
+        assert_eq!(budget.max_context_chars, 400_000);
+        assert_eq!(budget.max_part_chars, 24_000);
+
+        // Below the ceiling the window alone decides: (60_000 - 8192) * 3.
+        let small = LoopBudget::for_window(8, 60_000, 8192);
+        assert_eq!(small.max_context_chars, 155_424);
+        assert_eq!(small.max_part_chars, 155_424 / 8);
+
+        // A reserve larger than the window leaves nothing, not an underflow.
+        let none = LoopBudget::for_window(8, 1_000, 8192);
+        assert_eq!(none.max_context_chars, 0);
+        assert_eq!(none.max_part_chars, 0);
+    }
+
+    #[test]
+    fn for_window_caps_the_context_at_the_ceiling() {
+        let budget = LoopBudget::for_window(8, 1_000_000, 8192);
+        assert_eq!(budget.max_context_chars, 400_000);
+        assert_eq!(budget.max_part_chars, 24_000);
+    }
+
     fn tool_call(id: &str, name: &str, arguments: &str) -> serde_json::Value {
         serde_json::json!({
             "id": id,
@@ -697,10 +783,14 @@ mod tests {
 
     fn canned_fetch() -> ToolResult {
         ToolResult::Fetch {
-            evidence: crate::web::fetch::Evidence::new(
+            evidence: std::sync::Arc::new(crate::web::fetch::Evidence::new(
                 "https://example.com/t".to_owned(),
                 "Body".to_owned(),
-            ),
+            )),
+            span: 0..4,
+            part: 1,
+            parts: 1,
+            first_delivery: true,
         }
     }
 

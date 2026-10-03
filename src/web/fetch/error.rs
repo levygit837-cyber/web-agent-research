@@ -21,6 +21,9 @@ pub enum FetchError {
     /// Input is not an absolute http(s) URL. No subprocess was spawned.
     /// `input` is the raw caller-supplied string.
     InvalidUrl { input: String },
+    /// `part` is not an integer >= 1. No request was made. `input` is the
+    /// compact JSON of the supplied value.
+    InvalidPart { input: String },
     /// Exit 0 but stdout was empty/whitespace-only.
     EmptyBody { url: String },
     /// Engine reported access denial (exit code or stderr markers, §3).
@@ -52,6 +55,9 @@ impl fmt::Display for FetchError {
             FetchError::Timeout { url, after } => write!(f, "timeout: {url} after {after:?}"),
             FetchError::CommandFailed { url, detail } => {
                 write!(f, "command failed: {url}: {detail}")
+            }
+            FetchError::InvalidPart { input } => {
+                write!(f, "invalid part: {input} (expected an integer >= 1)")
             }
             FetchError::Http { url, detail } => write!(f, "http error: {url}: {detail}"),
             FetchError::FallbackUnavailable { url, reason } => write!(
