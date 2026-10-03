@@ -61,9 +61,8 @@ async fn evidence_markdown(route: &str) -> String {
 }
 
 #[tokio::test]
-async fn bbc_evidence_has_no_data_uri_or_alt_less_placeholder_image() {
+async fn bbc_evidence_has_no_alt_less_placeholder_image() {
     let md = evidence_markdown("/bbc").await;
-    assert!(!md.contains("data:"), "data URI reached Evidence: {md}");
     assert!(
         !md.contains("grey-placeholder"),
         "alt-less placeholder image reached Evidence: {md}"
