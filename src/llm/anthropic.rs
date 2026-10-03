@@ -21,10 +21,11 @@ use serde::Deserialize;
 
 use super::client::GatewayError;
 use super::config::{ReasoningEffort, ResolvedParams};
-use super::reply::{
-    merge_extra_body, null_to_default, ChatMessage, LlmReply, ReplayBlocks, RequestedToolCall,
-    ThinkingParam, TokenUsage, ToolChoice, ToolDef,
+use super::reply::{LlmReply, RequestedToolCall, TokenUsage};
+use super::request::{
+    merge_extra_body, ChatMessage, ReplayBlocks, ThinkingParam, ToolChoice, ToolDef,
 };
+use super::response::null_to_default;
 
 /// `anthropic-version` header value; the only current API version.
 pub(crate) const ANTHROPIC_VERSION: &str = "2023-06-01";
