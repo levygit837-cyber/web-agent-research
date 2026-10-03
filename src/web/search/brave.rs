@@ -171,11 +171,10 @@ pub async fn brave_search_with_base(
     _recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    // Brave has no documented recency filter for page-1 HTML (#66 scope:
-    // page 1 only); the parameter is accepted for signature symmetry with
-    // the other engine legs and silently ignored, matching how a caller
-    // would already expect zero effect from an unsupported filter rather
-    // than a hard error.
+    // Brave's `tf` window is unverified (#81: the one live request got an
+    // HTTP 429, see `SearchProvider::applies_recency`), so the fan-out never
+    // dispatches a Brave leg when `recency` is set. The parameter is kept
+    // for signature symmetry with the other engine legs and is ignored.
     brave_search(client, query, base).await
 }
 
