@@ -9,6 +9,7 @@
 //! turn (the gateway owns retries); tool and dispatch failures are
 //! model-visible tool-role results bounded by `max_repairs`.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::llm::{Gateway, GatewayError, RequestedToolCall, TokenUsage, ToolChoice};
@@ -19,7 +20,7 @@ use crate::research::agent_loop::context::{self, HistoryEntry, ToolMessage};
 use crate::research::agent_loop::registry::{FailureKind, ToolRegistry, ToolResult};
 use crate::research::prompt::build_system_prompt;
 use crate::research::synthesis::{Synthesis, SynthesisSize};
-use crate::web::fetch::FetchPath;
+use crate::web::fetch::{Evidence, FetchPath};
 use crate::web::search::dedup_key;
 
 #[derive(Debug, Clone)]
@@ -119,6 +120,11 @@ pub struct ToolEvidence {
     /// Engine that produced fetched Evidence (`static`/`browser`); `None`
     /// for everything that is not a successful fetch.
     pub fetch_path: Option<FetchPath>,
+    /// The whole fetched page, set only on the call that fetched it over the
+    /// network (#80). `excerpt` stays what the model saw (one part); the
+    /// Session persists this page once per URL. Continuation parts and
+    /// repeat fetches carry `None`.
+    pub page: Option<Arc<Evidence>>,
 }
 
 #[derive(Debug, Clone)]
@@ -378,6 +384,7 @@ async fn dispatch_turn(
                     excerpt: content,
                     url: None,
                     fetch_path: None,
+                    page: None,
                 });
                 failure = Some(FailureKind::Execution);
                 failure_reason = reason;
@@ -412,6 +419,7 @@ async fn dispatch_turn(
                         excerpt,
                         url: result.url(),
                         fetch_path: result.fetch_path(),
+                        page: result.first_delivery_page(),
                     });
                 } else {
                     let kind = result
@@ -428,6 +436,7 @@ async fn dispatch_turn(
                         excerpt,
                         url: None,
                         fetch_path: None,
+                        page: None,
                     });
                     failure = Some(kind);
                     failure_reason = reason;

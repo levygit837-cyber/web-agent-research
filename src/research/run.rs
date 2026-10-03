@@ -323,11 +323,14 @@ pub(crate) async fn run_research_with(
         .clone()
         .unwrap_or_else(|| PathBuf::from("sessions").join(format!("{session_id}.jsonl")));
     let synthesis_dto = SynthesisDTO::from(report.synthesis);
-    let evidence_urls: Vec<String> = report
-        .evidence
-        .iter()
-        .filter_map(|item| item.url.clone())
-        .collect();
+    // Continuation parts (#80) each carry the page URL; the response lists
+    // every fetched source once, in first-fetched order.
+    let mut evidence_urls: Vec<String> = Vec::new();
+    for url in report.evidence.iter().filter_map(|item| item.url.as_ref()) {
+        if !evidence_urls.contains(url) {
+            evidence_urls.push(url.clone());
+        }
+    }
     // #53: a FINAL parsed, but every fetched-Evidence source is empty, no
     // `search` call this run ever saw a Hit, and at least one `search` call
     // was fully Challenge-walled. Surface it as a typed failure (exit 7)
@@ -350,17 +353,14 @@ pub(crate) async fn run_research_with(
     let synthesis_value =
         serde_json::to_value(&synthesis_dto).map_err(|err| ResearchError::Io(err.to_string()))?;
     for turn in 1..=report.turns_used {
+        // The Session is the record: it holds the whole page, once per URL,
+        // from the call that fetched it. Continuation parts and repeats
+        // carry no `page` and add no row (#80).
         let evidence: Vec<Evidence> = report
             .evidence
             .iter()
             .filter(|item| item.turn == turn)
-            .filter_map(|item| {
-                item.url.clone().map(|url| {
-                    let mut evidence = Evidence::new(url, item.excerpt.clone());
-                    evidence.fetch_path = item.fetch_path;
-                    evidence
-                })
-            })
+            .filter_map(|item| item.page.as_deref().cloned())
             .collect();
         let is_final = turn == report.turns_used;
         let row = TurnRow::new(
@@ -542,6 +542,101 @@ mod tests {
             std::time::Duration::from_secs(1),
         ));
         (ToolRegistry::new(searcher, fetcher), page_url)
+    }
+
+    /// Serves one long page (1,000 numbered paragraphs, about 60K chars of
+    /// markdown, 3 parts at the default part size) and a registry whose
+    /// search is unreachable: the model is scripted to fetch directly.
+    async fn long_page_web() -> (
+        ToolRegistry,
+        String,
+        crate::web::search::test_support::StubServer,
+    ) {
+        use crate::web::search::test_support::{StubReply, StubServer};
+        let pages = StubServer::serve(|_: &str, _: &str| {
+            let paragraphs: String = (0..1_000)
+                .map(|i| {
+                    format!("<p>Paragraph {i:04}: filler words to make the page long enough.</p>")
+                })
+                .collect();
+            StubReply::text(
+                200,
+                &format!("<html><body><h1>Long</h1>{paragraphs}</body></html>"),
+            )
+        })
+        .await;
+        let page_url = format!("{}/long", pages.base());
+        let dead = "http://127.0.0.1:9/";
+        let registry = ToolRegistry::new(
+            Searcher::with_bases(dead, dead, dead, dead, dead, dead),
+            Fetcher::with_obscura(crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            )),
+        );
+        (registry, page_url, pages)
+    }
+
+    /// #80: the Session is the record. A page read in three parts is
+    /// persisted once, whole, from the call that fetched it; the two
+    /// continuation parts add no row and no duplicate response URL.
+    #[tokio::test]
+    async fn session_holds_the_whole_long_page_once_not_its_parts() {
+        let _guard = EnvGuard::lock(vec!["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"]);
+        let (tools, page_url, pages) = long_page_web().await;
+        let fetch_call = |id: &str, part: Option<u32>| {
+            let args = match part {
+                Some(part) => serde_json::json!({ "url": page_url, "part": part }),
+                None => serde_json::json!({ "url": page_url }),
+            };
+            tools_body(vec![tool_call(id, "fetch", &args.to_string())], "")
+        };
+        let final_answer = format!(
+            "The page lists numbered paragraphs.\n\n## Findings\n\n- Paragraph 0999 is the last, per [Long]({page_url}).\n"
+        );
+        let base_url = spawn_server(vec![
+            fetch_call("c1", None),
+            fetch_call("c2", Some(2)),
+            fetch_call("c3", Some(3)),
+            text_body(&final_answer),
+        ]);
+        point_env_at(&base_url);
+        let req = hermetic_request("long-page");
+        let session_out = req.session_out.clone().expect("session out set");
+        let response = run_research_with(req, tools)
+            .await
+            .expect("long-page run must succeed");
+
+        assert_eq!(response.turns_used, 4);
+        assert_eq!(
+            response.evidence_urls,
+            vec![page_url.clone()],
+            "three parts of one page are one source"
+        );
+        assert_eq!(pages.hits("/"), 1, "parts 2 and 3 come from memory");
+
+        let content = std::fs::read_to_string(&session_out).expect("session file must exist");
+        let pages_persisted: Vec<String> = content
+            .lines()
+            .skip(1)
+            .flat_map(|line| {
+                let row: serde_json::Value = serde_json::from_str(line).expect("row is JSON");
+                row["evidence"].as_array().cloned().unwrap_or_default()
+            })
+            .map(|evidence| {
+                assert_eq!(evidence["source_url"], page_url.as_str());
+                evidence["markdown"].as_str().unwrap_or_default().to_owned()
+            })
+            .collect();
+        assert_eq!(pages_persisted.len(), 1, "one Evidence row per URL");
+        let markdown = &pages_persisted[0];
+        assert!(markdown.contains("Paragraph 0000"), "first paragraph");
+        assert!(markdown.contains("Paragraph 0999"), "last paragraph");
+        assert!(
+            !markdown.contains("[truncated") && !markdown.contains("call fetch with"),
+            "the record is the page, not what the model saw"
+        );
+        let _ = std::fs::remove_file(&session_out);
     }
 
     /// A search stub where every leg on every provider is bot-wall
