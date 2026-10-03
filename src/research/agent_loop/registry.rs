@@ -48,6 +48,12 @@ pub enum ToolResult {
     Search {
         hits: Vec<MergedResult>,
     },
+    /// The `search` call ran no leg on purpose (#81: `recency` set, no
+    /// enabled engine applies it). Success, not Hits and not a failure:
+    /// the note tells the model to search again without `recency`.
+    SearchNote {
+        note: String,
+    },
     Fetch {
         evidence: Evidence,
     },
@@ -83,6 +89,7 @@ impl ToolResult {
     /// rendering; the runner applies `max_evidence_chars` after.
     pub fn render(&self) -> String {
         match self {
+            Self::SearchNote { note } => note.clone(),
             Self::Search { hits } => {
                 if hits.is_empty() {
                     return "No Hits for these queries. Rephrase once with different words; if that still finds nothing, answer from the pages you already fetched and say what is missing.".to_owned();
@@ -292,8 +299,11 @@ impl ToolRegistry {
                     }
                 };
                 match searcher.search(input).await {
-                    Ok(output) => ToolResult::Search {
-                        hits: self.mark_already_fetched(output.results),
+                    Ok(output) => match output.note {
+                        Some(note) => ToolResult::SearchNote { note },
+                        None => ToolResult::Search {
+                            hits: self.mark_already_fetched(output.results),
+                        },
                     },
                     Err(crate::web::search::types::SearchProviderError::AllFailed {
                         failures,

@@ -8,6 +8,8 @@ pub const SESSION_FORMAT_VERSION: u32 = 1;
 
 pub mod llm;
 pub mod research;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod web;
 
 pub use research::{

@@ -38,6 +38,7 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
 - New dependency: `htmd` (HTML→markdown). `scraper` stays for search parsing.
 - The ADR-0002 on-disk fetch cache stays unbuilt; decide after real tools are wired and repeat fetches are measured.
 - `trait` is still banned until a second adapter exists; Obscura is a fallback branch inside `web::fetch`, not an adapter behind a seam.
+- Per-file size and test-module layout (production ~500 lines, split by responsibility; oversized test modules move to `<stem>/tests/<theme>.rs`; shared test fixtures live in `#[cfg(test)] test_support` modules) is ADR-0009's concern, not this one's.
 - SearXNG (AGPL-3.0-or-later, `searxng/searxng`) is prior art, not a code
   source: no SearXNG code is copied into this repo. It informed the
   observation that DuckDuckGo's bot detector is sensitive to header order

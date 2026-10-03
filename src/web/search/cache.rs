@@ -277,9 +277,16 @@ pub(crate) mod test_support {
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
+    const CACHE_KEYS: [&str; 3] = [
+        "SEARCH_CACHE",
+        "SEARCH_CACHE_TTL_SECS",
+        "SEARCH_CACHE_MAX_BYTES",
+    ];
+
     /// Serializes tests that mutate `SEARCH_CACHE*` env vars and clears
     /// them on drop, so one test's override never leaks into the next
-    /// (same pattern as `llm::config::tests::EnvGuard`).
+    /// (same pattern as `llm::config::tests::EnvGuard`, delegated to
+    /// `crate::test_support::clear_env_keys`).
     pub(crate) struct EnvGuard {
         _lock: MutexGuard<'static, ()>,
     }
@@ -289,26 +296,14 @@ pub(crate) mod test_support {
             let lock = ENV_LOCK
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            for key in [
-                "SEARCH_CACHE",
-                "SEARCH_CACHE_TTL_SECS",
-                "SEARCH_CACHE_MAX_BYTES",
-            ] {
-                std::env::remove_var(key);
-            }
+            crate::test_support::clear_env_keys(&CACHE_KEYS);
             Self { _lock: lock }
         }
     }
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
-            for key in [
-                "SEARCH_CACHE",
-                "SEARCH_CACHE_TTL_SECS",
-                "SEARCH_CACHE_MAX_BYTES",
-            ] {
-                std::env::remove_var(key);
-            }
+            crate::test_support::clear_env_keys(&CACHE_KEYS);
         }
     }
 }

@@ -593,6 +593,53 @@ Bing silently localizes off client IP and the explicit `mkt`/`setlang` pair is n
   effectively serial-only with a long suspension on any block," which is already `governor.rs`'s
   existing `SEARCH_SUSPEND_CHALLENGE_SECS` default (3600s) behavior.
 
+## Recency windows (#81)
+
+Live verification of which **kept** engine (Brave, Yahoo — DuckDuckGo and Startpage already wire
+`df`/`with_date` pre-#81; Bing has no recency param to test) genuinely filters by date when asked
+to, measured 2026-10-02 on the same shared residential IP. Paced per the #73 budgets, announced
+on IRC before/after. A block counts as a result, not a retry trigger.
+
+### Yahoo `btf` — verified live, wired (`d`/`w`/`m`, no `y`)
+
+Query `rust async runtime`, `search.yahoo.com/search?p=<query>[&btf=<window>]`, each request
+replayed through the full 3-hop `YBV` cookie chain (hop 1 `307` sets a 60s tracking cookie, hop 2
+`307` sets the real 24h cache cookie, hop 3 `200` returns the SERP) — the same chain
+`yahoo_search` itself walks, not a shortcut.
+
+| Window | Status (3 hops) | Rows | Sample dates observed |
+|---|---|---|---|
+| none (baseline) | 307→307→200 | 7 | "Sep 2, 2026", "Aug 25, 2026", "Oct 11, 2019", "2 days ago" |
+| `btf=d` | 307→307→200 | 7 | "2 hours ago", "17 hours ago" (×5), "8 hours ago" |
+| `btf=w` | 307→307→200 | 7 | "4 days ago", "1 day ago", "2 days ago", "1 day ago", "3 days ago", "4 days ago", "1 day ago" |
+| `btf=m` | 307→307→200 | 7 | "4 days ago", "1 day ago", "2 days ago", "1 day ago", "Sep 22, 2026", "3 days ago", "4 days ago" |
+
+`btf=d` returns a completely different result set from the baseline (lwn.net, phoronix.com, ...
+vs. the baseline's docs/blog pages) with every date inside the last 24h — genuine filtering, not
+a no-op. `btf=w` and `btf=m` both stay inside their respective windows (`btf=m` is the first to
+include a date beyond one week: "Sep 22, 2026" against this measurement's "today," 2026-10-02).
+**No year window was tested**: Yahoo's own markup has no fourth bucket beyond month in this
+evidence, consistent with SearXNG's `yahoo.py::time_range_dict` (idea only, no code copied)
+mapping only `day/week/month`. `SearchProvider::applies_recency` ships Yahoo as
+`{Day, Week, Month}`, `Year` excluded, and `yahoo_page_query` wires `&btf=d|w|m` accordingly.
+
+### Brave `tf` — blocked, stays unverified and unwired
+
+Single probe at `search.brave.com/search?q=<query>&source=web&tf=pd` (SearXNG's own
+`time_range_map` value for "day," idea only) returned HTTP `429` (CloudFront edge, the same
+status-only block signal #65/#73 already documented for Brave with no `tf` at all) — the very
+first live request of this window, before any comparison between filtered and unfiltered dates
+was possible. Per the never-retry-around-a-block rule, no further Brave recency traffic was sent
+this wave. `SearchProvider::applies_recency` ships Brave as applying **no** window; `brave.rs`'s
+`tf` stays unwired. Re-measure once this IP is unblocked for Brave — SearXNG's `pd|pw|pm|py`
+mapping is a plausible starting point but must not ship from a single 429.
+
+### Bing — no recency param, none wired (unchanged from #65/#73)
+
+No live request sent: #65 already established Bing's HTML path has no documented recency filter
+reachable without JS (SearXNG's own `bing.py` module doc states time-range is not supported).
+`SearchProvider::applies_recency` ships Bing as applying no window.
+
 ---
 
 ## Fixtures
