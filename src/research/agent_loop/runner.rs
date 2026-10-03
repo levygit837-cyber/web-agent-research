@@ -34,6 +34,26 @@ pub struct LoopInput {
     pub allowed_tools: Vec<String>,
 }
 
+/// Characters per token assumed when sizing the context from a token
+/// window. 3 is deliberately conservative: prose averages about 4, but
+/// markdown full of URLs, code and identifiers tokenizes worse, and
+/// overshooting the window fails the whole run while undershooting only
+/// drops old turns sooner.
+pub const CHARS_PER_TOKEN: u32 = 3;
+
+/// Ceiling on `max_context_chars` whatever the window. The transcript is
+/// resent every turn, so cost and latency grow with it; past this point a
+/// bigger window buys less than it costs (#80).
+pub const MAX_CONTEXT_CHARS_CEILING: usize = 400_000;
+
+/// Ceiling on `max_part_chars`: one `fetch` part, and the cap on every
+/// other tool result.
+pub const MAX_PART_CHARS: usize = 24_000;
+
+/// A single part never takes more than `1 / PARTS_PER_CONTEXT` of the
+/// context, so a few pages fit before old turns are dropped.
+const PARTS_PER_CONTEXT: usize = 8;
+
 #[derive(Debug, Clone)]
 pub struct LoopBudget {
     /// Total gateway calls allowed.
@@ -42,8 +62,9 @@ pub struct LoopBudget {
     pub max_repairs: u32,
     /// Per-tool-call deadline, applied by the runner.
     pub tool_timeout: Duration,
-    /// Per-evidence-text cap before the truncation marker.
-    pub max_evidence_chars: usize,
+    /// Size of one `fetch` part, and the cap (with truncation marker) on
+    /// every other tool result.
+    pub max_part_chars: usize,
     /// Total assembled-char cap before oldest-turn dropping.
     pub max_context_chars: usize,
     /// Wire-call cap per turn.
@@ -56,9 +77,27 @@ impl Default for LoopBudget {
             max_turns: 8,
             max_repairs: 2,
             tool_timeout: Duration::from_secs(45),
-            max_evidence_chars: 4_000,
+            max_part_chars: MAX_PART_CHARS,
             max_context_chars: 24_000,
             max_tools_per_turn: 3,
+        }
+    }
+}
+
+impl LoopBudget {
+    /// Budget sized to a model window: the window minus the tokens reserved
+    /// for the reply, at [`CHARS_PER_TOKEN`], capped at
+    /// [`MAX_CONTEXT_CHARS_CEILING`]; a part is at most [`MAX_PART_CHARS`]
+    /// and at most an eighth of the context.
+    pub fn for_window(max_turns: u32, window_tokens: u32, reply_reserve_tokens: u32) -> Self {
+        let usable_tokens = window_tokens.saturating_sub(reply_reserve_tokens) as usize;
+        let max_context_chars =
+            (usable_tokens * CHARS_PER_TOKEN as usize).min(MAX_CONTEXT_CHARS_CEILING);
+        Self {
+            max_turns,
+            max_context_chars,
+            max_part_chars: MAX_PART_CHARS.min(max_context_chars / PARTS_PER_CONTEXT),
+            ..Self::default()
         }
     }
 }
@@ -72,7 +111,8 @@ pub struct ToolEvidence {
     pub id: String,
     /// Executed tool name.
     pub tool: String,
-    /// Capped at `max_evidence_chars` (marker when cut).
+    /// What the model saw: the rendered result, with the truncation marker
+    /// when a non-fetch result was capped at `max_part_chars`.
     pub excerpt: String,
     /// `Some` when the tool yields a source URL.
     pub url: Option<String>,
@@ -213,7 +253,7 @@ fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
 }
 
 fn cap_excerpt(rendered: &str, budget: &LoopBudget) -> String {
-    context::cap_evidence(rendered, budget.max_evidence_chars)
+    context::cap_evidence(rendered, budget.max_part_chars)
 }
 
 /// Stable synthetic id for a call the model sent without one. Turn-scoped
@@ -553,6 +593,33 @@ mod tests {
     use std::time::Duration;
 
     use crate::llm::GatewayConfig;
+
+    #[test]
+    fn for_window_reserves_the_reply_and_sizes_parts() {
+        // 200K window, 8192-token reserve: (200_000 - 8192) * 3 = 575_424
+        // chars, cut to the 400_000 ceiling.
+        let budget = LoopBudget::for_window(5, 200_000, 8192);
+        assert_eq!(budget.max_turns, 5);
+        assert_eq!(budget.max_context_chars, 400_000);
+        assert_eq!(budget.max_part_chars, 24_000);
+
+        // Below the ceiling the window alone decides: (60_000 - 8192) * 3.
+        let small = LoopBudget::for_window(8, 60_000, 8192);
+        assert_eq!(small.max_context_chars, 155_424);
+        assert_eq!(small.max_part_chars, 155_424 / 8);
+
+        // A reserve larger than the window leaves nothing, not an underflow.
+        let none = LoopBudget::for_window(8, 1_000, 8192);
+        assert_eq!(none.max_context_chars, 0);
+        assert_eq!(none.max_part_chars, 0);
+    }
+
+    #[test]
+    fn for_window_caps_the_context_at_the_ceiling() {
+        let budget = LoopBudget::for_window(8, 1_000_000, 8192);
+        assert_eq!(budget.max_context_chars, 400_000);
+        assert_eq!(budget.max_part_chars, 24_000);
+    }
 
     fn tool_call(id: &str, name: &str, arguments: &str) -> serde_json::Value {
         serde_json::json!({

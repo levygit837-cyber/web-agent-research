@@ -82,7 +82,7 @@ fn budget_rules(budget: &LoopBudget, reads_pages: bool) -> String {
 - If search is blocked, or still finds nothing useful after one reworded retry, answer from the pages you already have and say what you could not verify.
 - Long pages are cut to about {chars} characters, and a `[truncated N chars]` line marks the cut. If the detail you need was cut, answer from what you have and say so: fetching copies of the same page from other sites wastes turns.
 ",
-            chars = budget.max_evidence_chars,
+            chars = budget.max_part_chars,
         ));
     }
     text.push_str("</budget>\n");

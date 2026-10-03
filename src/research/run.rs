@@ -301,15 +301,18 @@ pub(crate) async fn run_research_with(
     let config = GatewayConfig::from_env()
         .map_err(|err| ResearchError::NotConfigured(err.to_string()))?
         .with_prompt_cache_key(session_id.clone());
+    // Sized before `Gateway::new` consumes the config. `--size` does not
+    // scale it: the window is a property of the model, not of the answer.
+    let budget = LoopBudget::for_window(
+        req.max_turns,
+        config.context_window_tokens,
+        config.reply_reserve_tokens(),
+    );
     let gateway = Gateway::new(config);
     let input = LoopInput {
         goal: req.goal.clone(),
         size: req.size,
         allowed_tools: vec!["search".to_owned(), "fetch".to_owned()],
-    };
-    let budget = LoopBudget {
-        max_turns: req.max_turns,
-        ..LoopBudget::default()
     };
     let report = run_loop(&gateway, &tools, &input, &budget)
         .await

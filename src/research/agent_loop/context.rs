@@ -85,13 +85,13 @@ pub(crate) fn goal_message(input: &LoopInput) -> String {
 
 /// Cap one evidence text at insertion time; excess becomes a marker naming
 /// the removed char count.
-pub(crate) fn cap_evidence(text: &str, max_evidence_chars: usize) -> String {
+pub(crate) fn cap_evidence(text: &str, max_chars: usize) -> String {
     let total: usize = text.chars().count();
-    if total <= max_evidence_chars {
+    if total <= max_chars {
         return text.to_owned();
     }
-    let kept: String = text.chars().take(max_evidence_chars).collect();
-    let removed = total - max_evidence_chars;
+    let kept: String = text.chars().take(max_chars).collect();
+    let removed = total - max_chars;
     format!("{kept}\n[truncated {removed} chars]")
 }
 
