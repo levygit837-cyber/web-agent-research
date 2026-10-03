@@ -362,7 +362,7 @@ impl GatewayConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::reply::ChatRequest;
+    use crate::llm::request::ChatRequest;
     use crate::test_support::EnvGuard;
 
     const ALL_GATEWAY_KEYS: [&str; 9] = [
