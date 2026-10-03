@@ -345,6 +345,7 @@ mod tests {
 
     #[tokio::test]
     async fn bing_always_sends_mkt_and_setlang() {
+        let _guard = crate::test_support::EnvGuard::lock(vec!["SEARCH_BING_MARKET"]);
         let stub = StubServer::serve(|path: &str, _: &str| {
             assert!(path.contains("mkt="), "mkt missing from request: {path}");
             assert!(
@@ -355,7 +356,7 @@ mod tests {
         })
         .await;
         let client = reqwest::Client::new();
-        std::env::remove_var("SEARCH_BING_MARKET");
+        // `_guard` already cleared `SEARCH_BING_MARKET`; the default market applies.
         let rows = bing_search_with_base(&client, "q", None, &format!("{}/search", stub.base()))
             .await
             .expect("stub replies 200");
@@ -365,6 +366,7 @@ mod tests {
 
     #[tokio::test]
     async fn bing_market_env_override_changes_setlang() {
+        let _guard = crate::test_support::EnvGuard::lock(vec!["SEARCH_BING_MARKET"]);
         // The path itself is the evidence: echo it into the body so the
         // assertion can inspect exactly what `bing_get` sent, with no need
         // for a capturing stub.
@@ -397,7 +399,7 @@ mod tests {
             body.contains("setlang=pt"),
             "path echo missing setlang=pt: {body}"
         );
-        std::env::remove_var("SEARCH_BING_MARKET");
+        // `_guard` clears `SEARCH_BING_MARKET` on drop, even if an assert above fails.
     }
 
     #[tokio::test]
