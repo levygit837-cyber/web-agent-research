@@ -121,7 +121,7 @@ async fn challenged_leg_is_never_cached() {
     // against a stub that Challenge-walls both legs: a second call
     // must hit the stub again, and the cache directory must end up
     // with no entries, because `store` is inside `if let Ok(rows) =
-    // &outcome` at the leg closure and a Challenge is an `Err`.
+    // &outcome` in `fanout::leg::run` and a Challenge is an `Err`.
     let _guard = EnvGuard::lock();
     let root = std::env::temp_dir().join(format!(
         "war-fanout-challenge-test-{}-{}",

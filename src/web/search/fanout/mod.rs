@@ -93,6 +93,7 @@ fn leg_slot(query_index: usize, provider: SearchProvider, enabled: &[SearchProvi
 
 /// One settled fan-out leg: spawn index, provider, query, and outcome.
 type SettledLeg = (usize, SearchProvider, String, LegOutcome);
+
 /// Deep-module entry: full fan-out (validate is the caller's job -- this
 /// takes a validated `SearchInput`; run legs under soft/hard deadlines ->
 /// merge -> truncate). Accepts the shared client, base URLs (production
