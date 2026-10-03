@@ -126,6 +126,33 @@ The context budget comes from the model's window, not a fixed number: `max_conte
 - The 400000-character ceiling keeps cost and latency bounded, because the whole transcript is resent every turn. `--size` does not scale the budget: the window belongs to the model, not to the answer length.
 - Turn history still drops the oldest whole turns once the transcript passes `max_context_chars`; the registry still serves their pages from memory.
 
+### Measured defaults (#80)
+
+Seven goals, one per #72 category, run with `claude-haiku-4.5` via kiro without thinking, `--json --max-turns 8`, a shared temp `SEARCH_CACHE_DIR` (so both phases saw the same Hits) and a logging proxy on the gateway. Before is `origin/main` at `ecffa46` (pages cut to 4,000 characters), after is this change. The goal wording is reconstructed, because the #72 harness was throwaway: tokio (small), reqwest `ClientBuilder` timeouts (small, the q3 reference page), the E0502 error (medium, q4), latest Rust release notes (medium), iterating a `HashMap` (medium), a pt-BR HTTP server question (medium), async versus sync HTTP clients (large). One run per cell, so turns and latency are noisy; all 14 runs exited 0.
+
+| Goal | Turns before / after | Latency s before / after | Last request KB before / after | Pages fetched before / after |
+|---|---|---|---|---|
+| tokio | 3 / 3 | 9.9 / 10.9 | 20.6 / 35.6 | 2 / 2 |
+| reqwest timeouts (q3) | 8 / 3 | 31.3 / 12.5 | 26.2 / 38.5 | 3 / 1 |
+| E0502 (q4) | 4 / 3 | 32.8 / 18.4 | 27.7 / 54.1 | 4 / 3 |
+| Rust release notes | 4 / 3 | 21.4 / 15.4 | 22.2 / 43.2 | 2 / 2 |
+| `HashMap` iteration | 3 / 3 | 17.9 / 19.7 | 26.3 / 76.7 | 3 / 3 |
+| pt-BR HTTP server | 3 / 3 | 16.7 / 22.0 | 25.8 / 69.6 | 3 / 3 |
+| async vs sync | 4 / 4 | 33.4 / 38.3 | 27.4 / 71.7 | 4 / 5 |
+
+- The last request is the whole transcript the model saw on its final call, system prompt and tool definitions included. It grew 1.5x to 2.9x and the largest was 76.7 KB, far under the 400000-character ceiling, so no run dropped a turn.
+- q3: before, the model fetched three pages of 4,024 characters each (the `ClientBuilder` page among them) and spent all 8 turns. After, it fetched the docs.rs page once (75,771 characters, 4 parts) and answered in 3 turns, naming `timeout`, `read_timeout` and `connect_timeout` from the page. The three methods sit at offsets 12,842 to 13,782, so they are in part 1 and the run never asked for `part=2`.
+- A goal that asks for methods further down reads the rest: "list the `ClientBuilder` methods for proxies and TLS root certificates" fetched the same page, then `part=2` and `part=3`, with one HTTP request for the page and none for the parts (4 turns, 84 KB).
+- q4: 4 fetches at 4,024 characters became 3 fetches with longer pages, the same correct explanation of E0502, and one turn fewer.
+- The async-vs-sync citation count swung from 15 to 3 in one after run. Two repeats of each phase gave 15, 15, 15 before and 3, 15, 20 after, so it is run-to-run noise in how the model formats links, not an effect of the budget.
+- Latency moved both ways, within the spread of repeated runs: async-vs-sync took 28.6 to 35.9 s before and 29.3 to 38.3 s after. More characters per turn costs a little, and fewer turns saves more.
+
+Chosen defaults and why:
+
+- Part size 24,000 characters (`MAX_PART_CHARS`). Across the 19 distinct pages these runs fetched, 14 fit in one part at 24,000, 11 at 16,000 and 17 at 32,000; the whole set is 27, 33 and 23 parts respectively. 16,000 splits common articles (12,000 to 19,000 characters) into two parts and costs a turn each. 32,000 saves only 4 parts across the set but makes every later turn carry up to 8,000 more characters per page. 24,000 is about 8,000 tokens, 4% of a 200K window.
+- Context 400,000 characters ceiling (`MAX_CONTEXT_CHARS_CEILING`), reached for a 200K-token window (`(200000 - 8192) * 3 = 575,424`). Eight full parts fit (`PARTS_PER_CONTEXT`), so a run that reads a long page in parts keeps its earlier turns. The measured runs peaked at 77 KB, so the ceiling costs nothing in normal use and bounds cost and latency when the agent reads many parts.
+- `--size` does not scale either number, since the window belongs to the model, not to the answer length.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
