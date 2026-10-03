@@ -209,7 +209,7 @@ impl Fetcher {
         }
         Ok(StaticOutcome::Done(FetchedMarkdown {
             url: final_url,
-            markdown,
+            markdown: super::clean::clean_markdown(&markdown),
         }))
     }
 

@@ -42,6 +42,21 @@ fn article_html() -> String {
     )
 }
 
+/// Same article shape plus a data-URI image and a tracking-param link, to
+/// prove the static path's result went through the shared cleanup pass
+/// (#79): the data URI must never reach the markdown, and the tracking
+/// params must be gone from the kept link.
+fn noisy_article_html() -> String {
+    format!(
+        "<html><head><title>A</title></head><body><h1>Article</h1><p>{}</p>\
+         <p><img src=\"data:image/png;base64,{}\" alt=\"inline chart\"></p>\
+         <p><a href=\"https://example.org/ref?utm_source=newsletter&id=3\">reference</a></p>\
+         </body></html>",
+        "Obscura is a headless browser written in Rust for scraping and agents. ".repeat(6),
+        "A".repeat(400),
+    )
+}
+
 /// Minimal Cloudflare-style interstitial matching `CHALLENGE_MARKERS`.
 fn challenge_body() -> String {
     "<html><title>Just a moment...</title><div class=\"cf-chl-widget\"></div></html>".to_owned()
@@ -92,6 +107,12 @@ fn route(path: &str) -> RouteResponse {
                 "<html><body><div id=\"root\"></div><script src=\"/app.js\"></script></body></html>"
                     .to_owned(),
             ),
+        },
+        "/noisy-article" => RouteResponse {
+            status: 200,
+            content_type: "text/html; charset=utf-8",
+            extra_headers: &[],
+            body: Body::Plain(noisy_article_html()),
         },
         "/cf" => RouteResponse {
             status: 200,
@@ -270,6 +291,37 @@ async fn static_html_becomes_markdown_without_browser() {
     for chrome in ["Home | Docs", "track()", "(c)"] {
         assert!(!page.markdown.contains(chrome), "{chrome} leaked");
     }
+}
+
+#[tokio::test]
+async fn static_path_result_went_through_the_cleanup_pass() {
+    // #79: proves `Fetcher`'s static path calls the shared cleanup, not
+    // just that `clean_markdown` works in isolation (that's covered unit-
+    // side). The data URI must never reach the markdown, and the tracked
+    // link must keep its destination without the tracking param.
+    let base = serve().await;
+    let (page, path) = fetcher()
+        .fetch(&format!("{base}/noisy-article"))
+        .await
+        .unwrap();
+    assert_eq!(path, FetchPath::Static);
+    assert!(
+        !page.markdown.to_ascii_lowercase().contains("base64"),
+        "data URI leaked: {}",
+        page.markdown
+    );
+    assert!(
+        page.markdown.contains("inline chart"),
+        "alt text missing: {}",
+        page.markdown
+    );
+    assert!(
+        page.markdown
+            .contains("[reference](https://example.org/ref?id=3)"),
+        "tracking param not stripped: {}",
+        page.markdown
+    );
+    assert!(!page.markdown.contains("utm_source"));
 }
 
 #[tokio::test]

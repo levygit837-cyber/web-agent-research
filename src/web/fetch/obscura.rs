@@ -94,7 +94,7 @@ impl Obscura {
 
         Ok(FetchedMarkdown {
             url: normalized,
-            markdown,
+            markdown: super::clean::clean_markdown(&markdown),
         })
     }
 }

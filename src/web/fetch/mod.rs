@@ -1,5 +1,6 @@
 //! Fetch: URL → Evidence. `reqwest` + `htmd` first, Obscura fallback (ADR-0006 §3).
 
+pub(crate) mod clean;
 pub mod error;
 pub mod evidence;
 pub mod fetcher;

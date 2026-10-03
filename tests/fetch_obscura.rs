@@ -282,3 +282,34 @@ async fn missing_binary_is_fallback_unavailable() {
         "{err}"
     );
 }
+
+#[tokio::test]
+async fn obscura_path_result_went_through_the_cleanup_pass() {
+    // #79: proves `Obscura::fetch_markdown` calls the shared cleanup, not
+    // just that `clean_markdown` works in isolation (that's covered unit-
+    // side). The fixture's `*noisy*` route dumps a raw data-URI image and a
+    // tracked link; the data URI must never reach the markdown, and the
+    // tracked link must keep its destination without the tracking param.
+    let fetched = fake_engine()
+        .fetch_markdown("https://example.com/noisy")
+        .await
+        .unwrap();
+    assert!(
+        !fetched.markdown.to_ascii_lowercase().contains("base64"),
+        "data URI leaked: {}",
+        fetched.markdown
+    );
+    assert!(
+        fetched.markdown.contains("inline chart"),
+        "alt text missing: {}",
+        fetched.markdown
+    );
+    assert!(
+        fetched
+            .markdown
+            .contains("[reference](https://example.org/ref?id=3)"),
+        "tracking param not stripped: {}",
+        fetched.markdown
+    );
+    assert!(!fetched.markdown.contains("utm_source"));
+}

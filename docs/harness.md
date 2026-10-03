@@ -95,6 +95,17 @@ Hermetic rule: `Searcher::with_bases` and every test use a `Governor` that never
 
 Recency (#81): when the `search` tool call's `recency` is set, a leg runs only if its engine applies that window (`SearchProvider::applies_recency`, live-verified 2026-10-02, `docs/research/search-engines.md` "Recency windows (#81)") -- the rest are skipped outright: no request, no `errors` entry, no suspension, no cache lookup or write. DuckDuckGo (`df`) and Startpage (`with_date`) apply every window (`day`/`week`/`month`/`year`); Yahoo (`btf`) applies `day`/`week`/`month` only, no `year`; Brave and Bing apply none (Brave's `tf` is unverified -- the one live probe got HTTP `429` before any filtered-vs-unfiltered comparison was possible; Bing has no recency param to begin with). If `recency` is set and no enabled engine applies that window, the call makes zero HTTP requests and returns a one-line note instead of unfiltered Hits ("recency `<window>` is not supported by the enabled search engines; search again without recency").
 
+## Fetch markdown cleanup (#79)
+
+`web::fetch::clean::clean_markdown` runs on the result of both fetch paths (the static `reqwest`/`htmd` conversion and the Obscura browser dump) before it is wrapped in `Evidence`, so the agent and the Harness only ever see the cleaned markdown:
+
+- A data URI (`data:<mime>;base64,…` or `data:<mime>,…`) used as an image or link target is replaced by a short marker (`data:<mime> omitted, <size>`); the payload never reaches Evidence.
+- An image keeps only its alt text; an image with no alt text is dropped entirely (the agent never fetches images, so the URL is never worth keeping).
+- A link's target keeps its path and non-tracking query params but drops known tracking params (`utm_*`, `fbclid`, `gclid`, `ref_src`, `ref_url`, `mc_cid`, `mc_eid`, `igshid`, `icid`, `cmpid`); a link whose visible text ends up empty (directly, or because its only content was an alt-less image) is dropped entirely.
+- A run of 200+ printable-ASCII characters without whitespace (long base64/hex blob, minified JSON/JS leaking into text, …) outside a link/image target or code span collapses to `[long token omitted, N chars]`. Non-ASCII text, such as unspaced CJK prose, is never collapsed.
+- A run of 2+ blank lines collapses to one.
+- Fenced code blocks and table rows are never altered: only the markup around prose, not prose/code/tables themselves. A fence closes only on a line of the same marker with at least the opening length, so a longer fence can carry a shorter one byte-identical.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
