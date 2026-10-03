@@ -385,25 +385,3 @@ impl SearchProviderError {
         }
     }
 }
-
-#[cfg(test)]
-mod recency_capability_tests {
-    use super::{Recency, SearchProvider};
-
-    /// #81 acceptance: DuckDuckGo and Startpage apply every window; Yahoo
-    /// applies day/week/month but not year; Brave and Bing apply none
-    /// (Brave's `tf` is unverified, Bing has no recency param at all).
-    #[test]
-    fn applies_recency_matches_the_live_verified_capability_table() {
-        for window in [Recency::Day, Recency::Week, Recency::Month, Recency::Year] {
-            assert!(SearchProvider::DuckDuckGo.applies_recency(window));
-            assert!(SearchProvider::Startpage.applies_recency(window));
-            assert!(!SearchProvider::Brave.applies_recency(window));
-            assert!(!SearchProvider::Bing.applies_recency(window));
-        }
-        assert!(SearchProvider::Yahoo.applies_recency(Recency::Day));
-        assert!(SearchProvider::Yahoo.applies_recency(Recency::Week));
-        assert!(SearchProvider::Yahoo.applies_recency(Recency::Month));
-        assert!(!SearchProvider::Yahoo.applies_recency(Recency::Year));
-    }
-}

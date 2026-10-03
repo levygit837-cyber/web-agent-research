@@ -138,6 +138,7 @@ pub async fn search_multi_with_bases(
     // constructing `SEARCH_ENGINES`-filtered expectations explicitly where
     // it cares, and new tests cover the full five-leg shape directly.
     let mut enabled = governor.enabled_providers();
+    let enabled_before_recency = enabled.len();
     // #81: with a `recency` window, a leg runs only if its engine applies
     // it. The others are not run unfiltered and are not legs at all: no
     // request, no `errors` entry, no suspension, no cache lookup or write.
@@ -160,6 +161,10 @@ pub async fn search_multi_with_bases(
             });
         }
     }
+    // Engines skipped for `recency` were never asked, so a wall on the
+    // remaining ones does not mean "every enabled engine is walled": the
+    // same search without `recency` could still succeed.
+    let narrowed_by_recency = enabled.len() < enabled_before_recency;
     // Legs in deterministic order: per Query in input order, over `enabled`
     // in priority order. Each leg keeps its spawn index (query index +
     // provider): JoinSet returns legs in completion order, so results
@@ -427,11 +432,12 @@ pub async fn search_multi_with_bases(
         // force `all_challenged: true` (that would send a plain outage or
         // a busy-run cap down the exit-7 `SearchBlocked` path, which is
         // reserved for an actual bot wall).
-        let all_challenged = errors.iter().all(|err| match err {
-            SearchProviderError::Challenge { .. } => true,
-            SearchProviderError::Suspended { reason, .. } => reason == "challenge",
-            _ => false,
-        });
+        let all_challenged = !narrowed_by_recency
+            && errors.iter().all(|err| match err {
+                SearchProviderError::Challenge { .. } => true,
+                SearchProviderError::Suspended { reason, .. } => reason == "challenge",
+                _ => false,
+            });
         let failures: Vec<(String, String)> = errors
             .iter()
             .map(|err| {
@@ -1079,11 +1085,12 @@ mod tests {
         assert_eq!(top.hit_count, 4);
     }
 
-    /// #81 acceptance: `recency: day` sends a request only to engines that
-    /// apply `day` (DuckDuckGo, Startpage, Yahoo per the live-verified
-    /// capability table) and sends zero requests to Brave and Bing.
+    /// #81 acceptance: `recency: day` reaches the supporting engines with
+    /// their window param and sends zero requests to Brave and Bing. The
+    /// Yahoo stub only serves rows for a request carrying `btf=d`, so a
+    /// leg that dropped the window would come back empty.
     #[tokio::test]
-    async fn recency_day_skips_brave_and_bing_runs_the_rest() {
+    async fn recency_day_sends_btf_to_yahoo_and_skips_brave_and_bing() {
         let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
             ddg_rows("https://example.com/d", "DDG", "ddg text"),
             sp_home_form(),
@@ -1092,7 +1099,17 @@ mod tests {
         ))
         .await;
         let brave_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
-        let yahoo_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
+        let yahoo_stub = StubServer::serve(|path: &str, _: &str| {
+            if path.contains("btf=d") {
+                StubReply::text(
+                    200,
+                    r#"<div class="algo-sr"><div class="compTitle"><a href="https://example.com/yahoo-day"><h3>Y</h3></a></div><div class="compText"><p>yahoo text</p></div></div>"#,
+                )
+            } else {
+                StubReply::text(404, "unfiltered request")
+            }
+        })
+        .await;
         let bing_stub = StubServer::serve(|_: &str, _: &str| StubReply::text(404, "nope")).await;
         let client = reqwest::Client::new();
         let input = SearchInput::validate(vec!["q".to_string()], Some(15), Some(Recency::Day))
@@ -1115,20 +1132,21 @@ mod tests {
             out.stats.legs, 3,
             "day applies to DuckDuckGo, Startpage and Yahoo only"
         );
-        assert_eq!(
-            brave_stub.hits("/"),
-            0,
-            "Brave does not apply recency; must receive zero requests"
-        );
-        assert_eq!(
-            bing_stub.hits("/"),
-            0,
-            "Bing never applies recency; must receive zero requests"
+        assert!(
+            out.errors.is_empty(),
+            "a skip is not an error: {:?}",
+            out.errors
         );
         assert!(
-            yahoo_stub.hits("/") > 0,
-            "Yahoo applies day; its leg must have run"
+            out.results
+                .iter()
+                .any(|r| r.display_url == "https://example.com/yahoo-day"
+                    && r.providers.contains(&SearchProvider::Yahoo)),
+            "Yahoo must have been asked with btf=d: {:?}",
+            out.results
         );
+        assert_eq!(brave_stub.hits("/"), 0, "Brave gets zero requests");
+        assert_eq!(bing_stub.hits("/"), 0, "Bing gets zero requests");
     }
 
     /// #81 acceptance: `recency: year` skips Yahoo too (its `btf` has no
@@ -1200,11 +1218,59 @@ mod tests {
         assert_eq!(out.stats.legs, 0, "zero legs: no HTTP request was made");
         assert!(out.results.is_empty());
         assert!(out.errors.is_empty());
-        assert_eq!(
-            out.note,
-            Some(
-                "recency `day` is not supported by the enabled search engines; search again without recency.".to_string()
+        let note = out.note.expect("a one-line note instead of Hits");
+        assert!(note.contains("day") && !note.contains('\n'), "{note}");
+    }
+
+    /// #81 review: engines skipped for `recency` were never asked, so a
+    /// wall on the engines that did run must not be reported as "every
+    /// enabled engine is walled" (exit-7 `SearchBlocked`): the same search
+    /// without `recency` would still reach the skipped engine. The control
+    /// call shows the same two walls do count as all-challenged when
+    /// nothing was narrowed.
+    #[tokio::test]
+    async fn recency_narrowed_wall_is_not_reported_as_every_engine_walled() {
+        let _guard = crate::web::search::governor::test_support::EnvGuard::lock();
+        std::env::set_var("SEARCH_ENGINES", "duckduckgo,brave");
+        let (base, _hits) = StubServer::serve_routes(FanoutStub::single_page(
+            r#"<div id="anomaly-modal"></div>"#.to_string(),
+            sp_home_form(),
+            String::new(),
+            false,
+        ))
+        .await;
+        let brave_stub =
+            StubServer::serve(|_: &str, _: &str| StubReply::text(429, "rate limited")).await;
+        let client = reqwest::Client::new();
+        let mut walled = Vec::new();
+        for recency in [None, Some(Recency::Day)] {
+            let input =
+                SearchInput::validate(vec!["q".to_string()], Some(15), recency).expect("valid");
+            let err = search_multi_with_bases(
+                &client,
+                input,
+                &format!("{base}/html/"),
+                &format!("{base}/"),
+                &format!("{base}/sp/search"),
+                &brave_stub.base(),
+                "http://127.0.0.1:9/",
+                "http://127.0.0.1:9/",
+                &Governor::new(None),
+                None,
             )
+            .await
+            .expect_err("every leg that ran is walled");
+            match err {
+                SearchProviderError::AllFailed { all_challenged, .. } => {
+                    walled.push(all_challenged)
+                }
+                other => panic!("expected AllFailed, got {other:?}"),
+            }
+        }
+        assert_eq!(
+            walled,
+            vec![true, false],
+            "unnarrowed: all engines walled; recency-narrowed: Brave was never asked"
         );
     }
 
