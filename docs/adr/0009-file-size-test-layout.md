@@ -23,6 +23,6 @@ Fourteen files in `src/` exceed 600 total lines (measured `main` `ebbda8b`); the
 ## Consequences
 
 - `src/test_support.rs` is the only place a raw-`TcpListener` canned HTTP server or a caller-keyed `EnvGuard` is implemented; `llm/config.rs`, `llm/client.rs`, and `research/run.rs` import it. `web::search::cache::test_support::EnvGuard` and `web::search::governor::test_support::EnvGuard` keep their existing call-site shapes but delegate to it.
-- `research/agent_loop/runner.rs`'s own `spawn_double` canned server is explicitly left alone by #82: #83 (splitting `runner.rs` itself) rewrites those tests and migrates it then, so #82 does not touch a file #80 is concurrently editing.
+- `research/agent_loop/runner.rs`'s own `spawn_double` canned server was left alone by #82 and migrated to `CannedServer` by #83 (the `runner.rs` split), so #82 did not touch a file #80 was concurrently editing. `registry.rs`'s `spawn_llm_double` went the same way.
 - A themed test split (`<stem>/tests/<theme>.rs`) is a tool for when a test module alone crosses ~500 lines, not a default; most current test modules stay inline. `llm/client.rs`'s 631 test lines are the first real candidate and are split under #84 alongside its production split.
 - This ADR is a convention, not an enforced lint: no CI check greps for line counts. Revisit if files drift past the cap again without anyone noticing.
