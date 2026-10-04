@@ -13,8 +13,8 @@
 //! `messages[1]` (goal) are never dropped.
 
 use crate::llm::{ChatMessage, ReplayBlocks, RequestedToolCall};
-use crate::research::agent_loop::runner::LoopBudget;
-use crate::research::agent_loop::runner::LoopInput;
+use crate::research::agent_loop::types::LoopBudget;
+use crate::research::agent_loop::types::LoopInput;
 
 /// One `tool`-role wire message: the id it answers plus rendered content.
 #[derive(Debug, Clone, PartialEq, Eq)]
