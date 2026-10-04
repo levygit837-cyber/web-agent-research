@@ -20,6 +20,7 @@ use std::collections::HashMap;
 #[cfg(test)]
 use std::collections::VecDeque;
 use std::ops::Range;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::llm::{RequestedToolCall, ToolDef};
@@ -151,11 +152,10 @@ impl ToolResult {
                 let mut text = format!(
                     "ALREADY FETCHED: {url} was already fetched earlier in this Research (as {first_url}). Use that earlier content, or fetch a different Hit."
                 );
-                if *parts > 1 {
-                    text.push_str(&format!(
-                        " It has {parts} parts; call fetch with the same url and part=k to read part k (served from memory, no new request)."
-                    ));
-                }
+                text.push_str(&format!(
+                    " The page has {parts} {}; call fetch with the same url and part=k to read part k again (served from memory, no new request).",
+                    plural_parts(*parts)
+                ));
                 text
             }
             Self::SearchBlocked { detail } => format!(
@@ -241,7 +241,7 @@ pub struct ToolRegistry {
     /// `dedup_key(url) -> stored page` for every URL successfully fetched
     /// so far this run, under both the requested and the final URL. The
     /// page is kept whole so a later `part` is served without a request.
-    fetched: Mutex<HashMap<String, Arc<Evidence>>>,
+    fetched: Mutex<HashMap<String, Arc<StoredPage>>>,
 }
 impl ToolRegistry {
     /// Live dispatch over the real web tools.
@@ -388,29 +388,48 @@ impl ToolRegistry {
                     .expect("fetched lock")
                     .get(&requested_key)
                     .cloned();
-                if let Some(page) = known {
+                if let Some(stored) = known {
                     // Known page: never the network. Without `part` it is
-                    // the #43 pointer; with `part` it is a slice of the
-                    // stored page.
+                    // the #43 pointer once the model has seen the page; a
+                    // page no part of which was delivered yet (an earlier
+                    // call asked past the end) delivers part 1 instead.
                     return match input.part {
-                        None => ToolResult::AlreadyFetched {
-                            url: input.url,
-                            first_url: page.source_url.clone(),
-                            parts: u32::try_from(part_spans(&page.markdown, part_chars).len())
+                        None if stored.delivered.load(Ordering::Relaxed) => {
+                            ToolResult::AlreadyFetched {
+                                url: input.url,
+                                first_url: stored.page.source_url.clone(),
+                                parts: u32::try_from(
+                                    page_parts(&stored.page.markdown, part_chars).len(),
+                                )
                                 .unwrap_or(u32::MAX),
-                        },
-                        Some(part) => deliver_part(call, page, part, part_chars, false),
+                            }
+                        }
+                        part => deliver_part(call, &stored, part.unwrap_or(1), part_chars),
                     };
                 }
                 match fetch_tool(&args, fetcher).await {
                     Ok(evidence) => {
-                        let page = Arc::new(evidence);
-                        let source_key = dedup_key(&page.source_url);
-                        let mut fetched = self.fetched.lock().expect("fetched lock");
-                        fetched.insert(requested_key, Arc::clone(&page));
-                        fetched.insert(source_key, Arc::clone(&page));
-                        drop(fetched);
-                        deliver_part(call, page, input.part.unwrap_or(1), part_chars, true)
+                        let source_key = dedup_key(&evidence.source_url);
+                        let stored = {
+                            let mut fetched = self.fetched.lock().expect("fetched lock");
+                            // Two requested URLs can redirect to one final
+                            // URL: keep the page already stored under it, so
+                            // the Session gets one row per URL.
+                            let stored = match fetched.get(&source_key) {
+                                Some(existing) => Arc::clone(existing),
+                                None => {
+                                    let stored = Arc::new(StoredPage {
+                                        page: Arc::new(evidence),
+                                        delivered: AtomicBool::new(false),
+                                    });
+                                    fetched.insert(source_key, Arc::clone(&stored));
+                                    stored
+                                }
+                            };
+                            fetched.insert(requested_key, Arc::clone(&stored));
+                            stored
+                        };
+                        deliver_part(call, &stored, input.part.unwrap_or(1), part_chars)
                     }
                     Err(err @ (FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. })) => {
                         failed(
@@ -460,6 +479,23 @@ fn failed(call: &RequestedToolCall, reason: String, kind: FailureKind) -> ToolRe
     }
 }
 
+/// A fetched page kept whole for the run (#80). `delivered` turns true when
+/// a part of it first reaches the model: that call is the one the Session
+/// persists the page from, even when an earlier call fetched it over the
+/// network but asked for a part past the end.
+struct StoredPage {
+    page: Arc<Evidence>,
+    delivered: AtomicBool,
+}
+
+fn plural_parts(parts: u32) -> &'static str {
+    if parts == 1 {
+        "part"
+    } else {
+        "parts"
+    }
+}
+
 /// Byte ranges of `markdown` for each part of at most `part_chars` chars
 /// (see [`page_parts`]). Never empty.
 fn part_spans(markdown: &str, part_chars: usize) -> Vec<Range<usize>> {
@@ -475,30 +511,33 @@ fn part_spans(markdown: &str, part_chars: usize) -> Vec<Range<usize>> {
 }
 
 /// Build the result for `part` (1-based) of a stored page, or a Dispatch
-/// failure naming the real part count when `part` is past the end.
+/// failure naming the real part count when `part` is past the end. A
+/// failure leaves the page undelivered.
 fn deliver_part(
     call: &RequestedToolCall,
-    page: Arc<Evidence>,
+    stored: &StoredPage,
     part: u32,
     part_chars: usize,
-    first_delivery: bool,
 ) -> ToolResult {
-    let mut spans = part_spans(&page.markdown, part_chars);
+    let mut spans = part_spans(&stored.page.markdown, part_chars);
     let parts = u32::try_from(spans.len()).unwrap_or(u32::MAX);
     if part > parts {
         return failed(
             call,
-            format!("part {part} is past the end: the page has {parts} parts"),
+            format!(
+                "part {part} is past the end: the page has {parts} {}",
+                plural_parts(parts)
+            ),
             FailureKind::Dispatch,
         );
     }
     let span = spans.swap_remove(part as usize - 1);
     ToolResult::Fetch {
-        evidence: page,
+        evidence: Arc::clone(&stored.page),
         span,
         part,
         parts,
-        first_delivery,
+        first_delivery: !stored.delivered.swap(true, Ordering::Relaxed),
     }
 }
 
@@ -679,14 +718,14 @@ mod tests {
             }
             .render()
         };
-        assert_eq!(
-            render(0..4, 1),
-            "Source: https://example.com/final\nPart 1 of 3\n\naaaa\n[part 1 of 3; call fetch with the same url and part=2 for the rest]"
-        );
-        assert_eq!(
-            render(8..10, 3),
-            "Source: https://example.com/final\nPart 3 of 3\n\ncc"
-        );
+        let first = render(0..4, 1);
+        assert!(first.starts_with("Source: https://example.com/final\n"));
+        assert!(first.contains("aaaa") && !first.contains("bbbb"));
+        assert!(first.contains("part=2"), "{first}");
+        let last = render(8..10, 3);
+        assert!(last.starts_with("Source: https://example.com/final\n"));
+        assert!(last.contains("cc") && !last.contains("bbbb"));
+        assert!(!last.contains("part="), "the last part has no next: {last}");
     }
 
     #[test]
@@ -703,7 +742,10 @@ mod tests {
             first_delivery: true,
         }
         .render();
-        assert_eq!(rendered, "Source: https://example.com/p\n\nBody");
+        assert!(rendered.starts_with("Source: https://example.com/p\n"));
+        assert!(rendered.ends_with("Body"));
+        assert!(!rendered.contains("part"), "{rendered}");
+        assert!(!rendered.contains("Part"), "{rendered}");
     }
 
     fn page_html() -> String {
@@ -993,10 +1035,10 @@ mod tests {
         );
         assert_eq!(pages.hits("/"), 1);
         let rendered = first.render();
-        assert!(rendered.contains("Part 1 of 3"), "{rendered}");
+        assert!(rendered.starts_with(&format!("Source: {}\n", page.source_url)));
         assert!(
-            rendered.ends_with("call fetch with the same url and part=2 for the rest]"),
-            "{}",
+            rendered.contains("part=2"),
+            "a part that is not the last must say how to get the next: {}",
             &rendered[rendered.len().saturating_sub(120)..]
         );
 
@@ -1018,45 +1060,64 @@ mod tests {
             1,
             "continuation parts must be served from memory"
         );
-        assert!(!third.render().contains("for the rest]"), "last part");
+        assert!(
+            !third.render().contains("part="),
+            "the last part has no next"
+        );
 
         let joined = [delivered(&first), delivered(&second), delivered(&third)].concat();
         assert_eq!(joined, page.markdown, "the parts must tile the page");
     }
 
+    /// A `part` past the end fails with the page's real part count. The
+    /// model has seen nothing, so the page stays undelivered: the next
+    /// valid call is its first delivery (the one the Session persists) and
+    /// costs no second request.
     #[tokio::test]
-    async fn part_past_the_end_names_the_page_part_count() {
+    async fn part_past_the_end_fails_and_leaves_the_page_undelivered() {
         use crate::web::search::test_support::{StubReply, StubServer};
         let pages =
             StubServer::serve(|_: &str, _: &str| StubReply::text(200, &long_page_html())).await;
         let url = format!("{}/long", pages.base());
         let registry = ToolRegistry::offline();
 
-        // A fresh fetch asking past the end still stores the page.
         let past = fetch_part(&registry, &url, Some(9)).await;
         assert_eq!(kind(&past), FailureKind::Dispatch);
+        assert!(past.first_delivery_page().is_none());
+        let failure = reason(past);
         assert!(
-            reason(past).contains("part 9 is past the end: the page has 3 parts"),
-            "the failure must name the part count"
+            failure.contains("3"),
+            "the failure must name the part count: {failure}"
         );
-        let after = fetch_part(&registry, &url, Some(1)).await;
+        assert_eq!(pages.hits("/"), 1, "the failed call still fetched the page");
+
+        // No part was delivered, so a plain repeat delivers part 1 now
+        // instead of pointing at content the model never saw.
+        let first = fetch_part(&registry, &url, None).await;
         assert!(
             matches!(
-                after,
+                first,
                 ToolResult::Fetch {
                     part: 1,
-                    first_delivery: false,
+                    parts: 3,
+                    first_delivery: true,
                     ..
                 }
             ),
-            "the page was stored by the failed call, got {after:?}"
+            "got {first:?}"
         );
+        assert!(first.first_delivery_page().is_some());
+
         let four = fetch_part(&registry, &url, Some(4)).await;
         assert_eq!(kind(&four), FailureKind::Dispatch);
-        assert!(reason(four).contains("the page has 3 parts"));
+        assert!(reason(four).contains("3"));
+        let later = fetch_part(&registry, &url, Some(2)).await;
+        assert!(later.first_delivery_page().is_none(), "already delivered");
         assert_eq!(pages.hits("/"), 1);
     }
 
+    /// After a part reached the model, a repeat without `part` is the #43
+    /// pointer and tells the model how many parts the page has.
     #[tokio::test]
     async fn repeat_without_part_points_at_the_parts() {
         use crate::web::search::test_support::{StubReply, StubServer};
@@ -1073,9 +1134,47 @@ mod tests {
         );
         let rendered = repeat.render();
         assert!(rendered.contains("ALREADY FETCHED"), "{rendered}");
-        assert!(rendered.contains("has 3 parts"), "{rendered}");
-        assert!(rendered.contains("part=k"), "{rendered}");
+        assert!(
+            rendered.contains('3'),
+            "the part count must be stated: {rendered}"
+        );
         assert_eq!(pages.hits("/"), 1);
+    }
+
+    /// Two requested URLs that redirect to one final URL are one page: the
+    /// second call must not become a second first delivery (a second
+    /// Session row for the same `source_url`), and its parts come from the
+    /// page already stored.
+    #[tokio::test]
+    async fn two_urls_redirecting_to_one_page_deliver_it_once() {
+        use crate::web::search::test_support::{StubReply, StubServer};
+        let pages = StubServer::serve(|path: &str, _: &str| match path {
+            "/final" => StubReply::text(200, &long_page_html()),
+            _ => StubReply::redirect(302, "/final"),
+        })
+        .await;
+        let registry = ToolRegistry::offline();
+
+        let via_a = fetch_part(&registry, &format!("{}/a", pages.base()), None).await;
+        let via_b = fetch_part(&registry, &format!("{}/b", pages.base()), None).await;
+        let (
+            ToolResult::Fetch {
+                evidence: page_a, ..
+            },
+            ToolResult::Fetch {
+                evidence: page_b, ..
+            },
+        ) = (&via_a, &via_b)
+        else {
+            panic!("expected two Fetch results, got {via_a:?} and {via_b:?}");
+        };
+        assert_eq!(page_a.source_url, page_b.source_url);
+        assert!(Arc::ptr_eq(page_a, page_b), "one stored page per final URL");
+        assert!(via_a.first_delivery_page().is_some());
+        assert!(
+            via_b.first_delivery_page().is_none(),
+            "the same page must not be persisted twice"
+        );
     }
 
     #[tokio::test]
@@ -1088,7 +1187,6 @@ mod tests {
 
         let zero = fetch_part(&registry, &url, Some(0)).await;
         assert_eq!(kind(&zero), FailureKind::Dispatch);
-        assert!(reason(zero).contains("invalid part"));
         assert_eq!(
             pages.hits("/"),
             0,

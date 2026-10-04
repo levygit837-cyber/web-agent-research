@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ToolResult::SearchNote` (`src/research/agent_loop/registry.rs`) carries that note through to the tool-role transcript.
   - The `search` tool schema's description and `recency` field now state the skip rule for the model.
 - `fetch` takes an optional `part` (integer `>= 1`) (#80). `part` past the end is a dispatch failure naming the page's part count; `0` or a non-integer is a dispatch failure (`FetchError::InvalidPart`).
-- `GATEWAY_CONTEXT_WINDOW` (tokens; default 200000 for `claude*` model ids, else 128000; an invalid value exits `2`), `GatewayConfig::context_window_tokens`, `GatewayConfig::reply_reserve_tokens` and `LoopBudget::for_window` (#80).
+- `GATEWAY_CONTEXT_WINDOW` (tokens; default 200000 for `claude*` model ids, else 128000; an invalid value, or a window that leaves under 16000 characters of context after the reply reserve, exits `2`), `GatewayConfig::context_window_tokens`, `GatewayConfig::reply_reserve_tokens` and `LoopBudget::for_window` (#80).
 
 ### Changed
 

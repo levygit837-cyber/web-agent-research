@@ -27,7 +27,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
-| `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32` exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
+| `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32`, or a window that leaves under 16000 characters of context after the reply reserve, exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
@@ -113,15 +113,16 @@ A fetched page is never cut. The registry keeps the whole cleaned markdown for t
 
 - `fetch` takes an optional `part` (integer `>= 1`, default 1). The result starts `Source: <final url>`, then `Part k of N` when the page has more than one part, then the part text; a part that is not the last ends with `[part k of N; call fetch with the same url and part=k+1 for the rest]`.
 - A part is at most `max_part_chars` characters. A cut prefers the last line break in the final 10% of the window, else it falls at exactly `max_part_chars`; the parts concatenate to the full page.
-- The first `fetch` of a URL makes the one network request and stores the page. Later calls with `part` are served from memory, with no request, even after the first delivery was dropped from the transcript. A repeat `fetch` without `part` still returns the `ALREADY FETCHED` pointer, now with the part count.
-- `part` past the end is a dispatch failure that names the page's part count (`part 4 is past the end: the page has 3 parts`); a `part` that is `0` or not an integer is a dispatch failure too. A fresh fetch asking past the end still stores the page, so the retry costs no request.
-- The Session holds the whole page once per URL (the row of the call that fetched it), not the delivered part. Continuation parts add no row. `evidence_urls` lists each fetched URL once.
+- The first `fetch` of a URL makes the one network request and stores the page. Later calls with `part` are served from memory, with no request, even after the first delivery was dropped from the transcript. A repeat `fetch` without `part` returns the `ALREADY FETCHED` pointer with the part count, once a part of the page has reached the model.
+- `part` past the end is a dispatch failure that names the page's part count (`part 4 is past the end: the page has 3 parts`); a `part` that is `0` or not an integer is a dispatch failure too. A fresh fetch asking past the end still stores the page, so the retry costs no request, but it delivers nothing: the retry (with or without `part`) is the page's first delivery.
+- The Session holds the whole page once per URL (the row of the first call that delivered a part of it), not the delivered part. Continuation parts add no row, and two requested URLs that redirect to one final URL share one stored page and one row. `evidence_urls` lists each fetched URL once.
 - Search Hits, notes and failures are still capped at `max_part_chars` with a `[truncated N chars]` marker.
 
 The context budget comes from the model's window, not a fixed number: `max_context_chars = min((window_tokens - reply_reserve_tokens) * 3, 400000)` and `max_part_chars = min(24000, max_context_chars / 8)`.
 
 - `window_tokens` is `GATEWAY_CONTEXT_WINDOW`, else 200000 when `GATEWAY_MODEL` starts with `claude`, else 128000.
 - `reply_reserve_tokens` is `GATEWAY_MAX_TOKENS` if set, else 8192, plus `GATEWAY_THINKING_BUDGET` if set.
+- A window that leaves less than 16000 characters (`MIN_CONTEXT_CHARS`) after the reserve exits `2` (`NotConfigured`) and names `GATEWAY_CONTEXT_WINDOW`, instead of running with parts too small to read a page.
 - 3 characters per token is a deliberately low estimate: prose averages about 4, but markdown full of URLs and identifiers tokenizes worse, and overshooting the window fails the run while undershooting only drops old turns sooner.
 - The 400000-character ceiling keeps cost and latency bounded, because the whole transcript is resent every turn. `--size` does not scale the budget: the window belongs to the model, not to the answer length.
 - Turn history still drops the oldest whole turns once the transcript passes `max_context_chars`; the registry still serves their pages from memory.

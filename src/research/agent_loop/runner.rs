@@ -55,6 +55,13 @@ pub const MAX_PART_CHARS: usize = 24_000;
 /// context, so a few pages fit before old turns are dropped.
 const PARTS_PER_CONTEXT: usize = 8;
 
+/// Smallest context a run can work in: the system prompt and tool
+/// definitions take about 6,000 characters, and a part under 2,000 (an
+/// eighth of this) splits ordinary pages into dozens of turns. A window
+/// that leaves less than this once the reply is reserved is a
+/// misconfiguration, not a budget.
+pub const MIN_CONTEXT_CHARS: usize = 16_000;
+
 #[derive(Debug, Clone)]
 pub struct LoopBudget {
     /// Total gateway calls allowed.
@@ -89,17 +96,29 @@ impl LoopBudget {
     /// Budget sized to a model window: the window minus the tokens reserved
     /// for the reply, at [`CHARS_PER_TOKEN`], capped at
     /// [`MAX_CONTEXT_CHARS_CEILING`]; a part is at most [`MAX_PART_CHARS`]
-    /// and at most an eighth of the context.
-    pub fn for_window(max_turns: u32, window_tokens: u32, reply_reserve_tokens: u32) -> Self {
+    /// and at most an eighth of the context. Errs when the window leaves
+    /// less than [`MIN_CONTEXT_CHARS`], so `max_part_chars` is never tiny.
+    pub fn for_window(
+        max_turns: u32,
+        window_tokens: u32,
+        reply_reserve_tokens: u32,
+    ) -> Result<Self, String> {
         let usable_tokens = window_tokens.saturating_sub(reply_reserve_tokens) as usize;
-        let max_context_chars =
-            (usable_tokens * CHARS_PER_TOKEN as usize).min(MAX_CONTEXT_CHARS_CEILING);
-        Self {
+        let max_context_chars = usable_tokens
+            .saturating_mul(CHARS_PER_TOKEN as usize)
+            .min(MAX_CONTEXT_CHARS_CEILING);
+        if max_context_chars < MIN_CONTEXT_CHARS {
+            return Err(format!(
+                "GATEWAY_CONTEXT_WINDOW={window_tokens} tokens leaves {usable_tokens} after reserving {reply_reserve_tokens} for the reply (GATEWAY_MAX_TOKENS plus GATEWAY_THINKING_BUDGET); the agent needs at least {} tokens of context",
+                MIN_CONTEXT_CHARS.div_ceil(CHARS_PER_TOKEN as usize)
+            ));
+        }
+        Ok(Self {
             max_turns,
             max_context_chars,
             max_part_chars: MAX_PART_CHARS.min(max_context_chars / PARTS_PER_CONTEXT),
             ..Self::default()
-        }
+        })
     }
 }
 
@@ -613,31 +632,59 @@ mod tests {
 
     use crate::llm::GatewayConfig;
 
+    /// Whatever the window and reserve, a budget that is handed out can be
+    /// worked in: a part is never empty, never above its ceiling, never
+    /// more than an eighth of the context, and the context never passes
+    /// its ceiling. Anything else is an error that names the variable.
     #[test]
-    fn for_window_reserves_the_reply_and_sizes_parts() {
-        // 200K window, 8192-token reserve: (200_000 - 8192) * 3 = 575_424
-        // chars, cut to the 400_000 ceiling.
-        let budget = LoopBudget::for_window(5, 200_000, 8192);
-        assert_eq!(budget.max_turns, 5);
-        assert_eq!(budget.max_context_chars, 400_000);
-        assert_eq!(budget.max_part_chars, 24_000);
-
-        // Below the ceiling the window alone decides: (60_000 - 8192) * 3.
-        let small = LoopBudget::for_window(8, 60_000, 8192);
-        assert_eq!(small.max_context_chars, 155_424);
-        assert_eq!(small.max_part_chars, 155_424 / 8);
-
-        // A reserve larger than the window leaves nothing, not an underflow.
-        let none = LoopBudget::for_window(8, 1_000, 8192);
-        assert_eq!(none.max_context_chars, 0);
-        assert_eq!(none.max_part_chars, 0);
+    fn for_window_hands_out_only_workable_budgets() {
+        let windows = [0, 1_000, 8_192, 10_000, 32_000, 128_000, 200_000, u32::MAX];
+        let reserves = [0, 4_096, 8_192, 40_000, u32::MAX];
+        for window in windows {
+            for reserve in reserves {
+                match LoopBudget::for_window(5, window, reserve) {
+                    Ok(budget) => {
+                        assert_eq!(budget.max_turns, 5);
+                        assert!(budget.max_context_chars >= MIN_CONTEXT_CHARS);
+                        assert!(budget.max_context_chars <= MAX_CONTEXT_CHARS_CEILING);
+                        assert!(budget.max_part_chars >= 1);
+                        assert!(budget.max_part_chars <= MAX_PART_CHARS);
+                        assert!(
+                            budget.max_part_chars * PARTS_PER_CONTEXT <= budget.max_context_chars
+                        );
+                    }
+                    Err(reason) => assert!(
+                        reason.contains("GATEWAY_CONTEXT_WINDOW"),
+                        "window {window}, reserve {reserve}: {reason}"
+                    ),
+                }
+            }
+        }
     }
 
+    /// A bigger window never shrinks the budget, and a bigger reply
+    /// reserve never grows it.
     #[test]
-    fn for_window_caps_the_context_at_the_ceiling() {
-        let budget = LoopBudget::for_window(8, 1_000_000, 8192);
-        assert_eq!(budget.max_context_chars, 400_000);
-        assert_eq!(budget.max_part_chars, 24_000);
+    fn for_window_grows_with_the_window_and_shrinks_with_the_reserve() {
+        let chars = |window: u32, reserve: u32| {
+            LoopBudget::for_window(8, window, reserve)
+                .expect("workable budget")
+                .max_context_chars
+        };
+        assert!(chars(60_000, 8_192) > chars(40_000, 8_192));
+        assert!(chars(60_000, 8_192) > chars(60_000, 20_000));
+        // Past the ceiling the window stops mattering.
+        assert_eq!(chars(500_000, 8_192), chars(1_000_000, 8_192));
+    }
+
+    /// The reserve is subtracted before anything is sized: a window that
+    /// the reply reserve swallows is an error, not a zero-sized budget.
+    #[test]
+    fn for_window_rejects_a_window_the_reply_reserve_swallows() {
+        let err = LoopBudget::for_window(8, 8_192, 8_192).expect_err("nothing left");
+        assert!(err.contains("GATEWAY_CONTEXT_WINDOW=8192"), "{err}");
+        assert!(LoopBudget::for_window(8, 1_000, 8_192).is_err());
+        assert!(LoopBudget::for_window(8, 0, 0).is_err());
     }
 
     fn tool_call(id: &str, name: &str, arguments: &str) -> serde_json::Value {
