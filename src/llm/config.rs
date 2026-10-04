@@ -107,6 +107,9 @@ pub struct GatewayConfig {
     api_key: String,
     /// Default model id used when the caller does not pick one.
     pub model: String,
+    /// Model context window in tokens; `GATEWAY_CONTEXT_WINDOW`, else a
+    /// default by model id. Sizes the research loop's context budget.
+    pub context_window_tokens: u32,
     /// Gateway-wide defaults; per-model entries in `model_overrides` win.
     pub default_reasoning_effort: Option<ReasoningEffort>,
     pub default_max_tokens: Option<u32>,
@@ -143,6 +146,7 @@ impl std::fmt::Debug for GatewayConfig {
             .field("model_overrides", &self.model_overrides)
             .field("request_timeout", &self.request_timeout)
             .field("max_attempts", &self.max_attempts)
+            .field("context_window_tokens", &self.context_window_tokens)
             .field("prompt_cache_key", &self.prompt_cache_key)
             .field("prompt_cache_key_enabled", &self.prompt_cache_key_enabled)
             .field("extra_body", &self.extra_body)
@@ -154,12 +158,24 @@ fn trim_one_slash(url: &str) -> &str {
     url.strip_suffix('/').unwrap_or(url)
 }
 
+/// Context window, in tokens, assumed for a model when
+/// `GATEWAY_CONTEXT_WINDOW` is unset: 200K for `claude*` ids, 128K for
+/// anything else (the smallest window among common current models).
+fn default_context_window(model: &str) -> u32 {
+    if model.starts_with("claude") {
+        200_000
+    } else {
+        128_000
+    }
+}
+
 impl GatewayConfig {
     pub fn new(base_url: String, api_key: String, model: String) -> Self {
         Self {
             api_format: ApiFormat::Openai,
             base_url: trim_one_slash(&base_url).to_owned(),
             api_key,
+            context_window_tokens: default_context_window(&model),
             model,
             default_reasoning_effort: None,
             default_max_tokens: None,
@@ -280,6 +296,17 @@ impl GatewayConfig {
             .ok()
             .map(|v| v.trim().to_owned())
             .map_or(true, |v| v != "off");
+        let context_window_tokens = std::env::var("GATEWAY_CONTEXT_WINDOW")
+            .map(|v| v.trim().to_owned())
+            .ok()
+            .filter(|v| !v.is_empty())
+            .map(|v| {
+                v.parse::<u32>().map_err(|_| {
+                    anyhow::anyhow!("GATEWAY_CONTEXT_WINDOW is not a valid u32: {v:?}")
+                })
+            })
+            .transpose()?
+            .unwrap_or_else(|| default_context_window(&model));
         let extra_body = std::env::var("GATEWAY_EXTRA_BODY")
             .ok()
             .map(|v| v.trim().to_owned())
@@ -299,6 +326,7 @@ impl GatewayConfig {
             api_format,
             base_url: trim_one_slash(&base_url).to_owned(),
             api_key,
+            context_window_tokens,
             model,
             default_reasoning_effort,
             default_max_tokens,
@@ -325,6 +353,17 @@ impl GatewayConfig {
     pub fn with_max_attempts(mut self, n: u32) -> Self {
         self.max_attempts = n;
         self
+    }
+
+    /// Tokens the context must leave free for the model's reply:
+    /// `default_max_tokens` if set, else the Anthropic default, plus the
+    /// thinking budget when one is set. Deliberately conservative: it is
+    /// also applied on the OpenAI branch, where the real cap may be larger
+    /// or absent.
+    pub fn reply_reserve_tokens(&self) -> u32 {
+        self.default_max_tokens
+            .unwrap_or(super::anthropic::DEFAULT_MAX_TOKENS)
+            .saturating_add(self.default_thinking_budget.unwrap_or(0))
     }
 
     /// Per-run prompt-cache routing hint (typically the Session id), sent
@@ -365,7 +404,7 @@ mod tests {
     use crate::llm::request::ChatRequest;
     use crate::test_support::EnvGuard;
 
-    const ALL_GATEWAY_KEYS: [&str; 9] = [
+    const ALL_GATEWAY_KEYS: [&str; 10] = [
         "GATEWAY_API_KEY",
         "GATEWAY_API_FORMAT",
         "GATEWAY_BASE_URL",
@@ -375,6 +414,7 @@ mod tests {
         "GATEWAY_THINKING_BUDGET",
         "GATEWAY_PROMPT_CACHE_KEY",
         "GATEWAY_EXTRA_BODY",
+        "GATEWAY_CONTEXT_WINDOW",
     ];
 
     #[test]
@@ -620,5 +660,48 @@ mod tests {
             .expect("default must parse")
             .with_prompt_cache_key("session-1");
         assert_eq!(cfg.prompt_cache_key.as_deref(), Some("session-1"));
+    }
+
+    #[test]
+    fn context_window_defaults_by_model_family() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_MODEL", "claude-haiku-4.5");
+        let claude = GatewayConfig::from_env().expect("claude config");
+        assert_eq!(claude.context_window_tokens, 200_000);
+        std::env::set_var("GATEWAY_MODEL", "glm-5p2");
+        let other = GatewayConfig::from_env().expect("non-claude config");
+        assert_eq!(other.context_window_tokens, 128_000);
+    }
+
+    #[test]
+    fn context_window_env_overrides_the_default() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_MODEL", "claude-haiku-4.5");
+        std::env::set_var("GATEWAY_CONTEXT_WINDOW", " 1000000 ");
+        let cfg = GatewayConfig::from_env().expect("override must parse");
+        assert_eq!(cfg.context_window_tokens, 1_000_000);
+    }
+
+    #[test]
+    fn invalid_context_window_errors_naming_the_var() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_CONTEXT_WINDOW", "200k");
+        let err = GatewayConfig::from_env().expect_err("bad window must fail");
+        assert!(err.to_string().contains("GATEWAY_CONTEXT_WINDOW"), "{err}");
+    }
+
+    #[test]
+    fn reply_reserve_is_max_tokens_plus_thinking() {
+        let mut cfg = GatewayConfig::new("http://h/v1".to_owned(), "k".to_owned(), "m".to_owned());
+        assert_eq!(cfg.reply_reserve_tokens(), 8192);
+        cfg.default_max_tokens = Some(4096);
+        assert_eq!(cfg.reply_reserve_tokens(), 4096);
+        cfg.default_thinking_budget = Some(2048);
+        assert_eq!(cfg.reply_reserve_tokens(), 6144);
+        cfg.default_max_tokens = None;
+        assert_eq!(cfg.reply_reserve_tokens(), 8192 + 2048);
     }
 }

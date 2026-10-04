@@ -27,6 +27,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
+| `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32`, or a window that leaves under 16000 characters of context after the reply reserve, exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
@@ -106,6 +107,53 @@ Recency (#81): when the `search` tool call's `recency` is set, a leg runs only i
 - A run of 2+ blank lines collapses to one.
 - Fenced code blocks and table rows are never altered: only the markup around prose, not prose/code/tables themselves. A fence closes only on a line of the same marker with at least the opening length, so a longer fence can carry a shorter one byte-identical.
 
+## Page parts and context budget (#80)
+
+A fetched page is never cut. The registry keeps the whole cleaned markdown for the run and delivers it in parts; the agent asks for the rest with `fetch` and `part`.
+
+- `fetch` takes an optional `part` (integer `>= 1`, default 1). The result starts `Source: <final url>`, then `Part k of N` when the page has more than one part, then the part text; a part that is not the last ends with `[part k of N; call fetch with the same url and part=k+1 for the rest]`.
+- A part is at most `max_part_chars` characters. A cut prefers the last line break in the final 10% of the window, else it falls at exactly `max_part_chars`; the parts concatenate to the full page.
+- The first `fetch` of a URL makes the one network request and stores the page. Later calls with `part` are served from memory, with no request, even after the first delivery was dropped from the transcript. A repeat `fetch` without `part` returns the `ALREADY FETCHED` pointer with the part count, once a part of the page has reached the model.
+- `part` past the end is a dispatch failure that names the page's part count (`part 4 is past the end: the page has 3 parts`); a `part` that is `0` or not an integer is a dispatch failure too. A fresh fetch asking past the end still stores the page, so the retry costs no request, but it delivers nothing: the retry (with or without `part`) is the page's first delivery.
+- The Session holds the whole page once per URL (the row of the first call that delivered a part of it), not the delivered part. Continuation parts add no row, and two requested URLs that redirect to one final URL share one stored page and one row. `evidence_urls` lists each fetched URL once.
+- Search Hits, notes and failures are still capped at `max_part_chars` with a `[truncated N chars]` marker.
+
+The context budget comes from the model's window, not a fixed number: `max_context_chars = min((window_tokens - reply_reserve_tokens) * 3, 400000)` and `max_part_chars = min(24000, max_context_chars / 8)`.
+
+- `window_tokens` is `GATEWAY_CONTEXT_WINDOW`, else 200000 when `GATEWAY_MODEL` starts with `claude`, else 128000.
+- `reply_reserve_tokens` is `GATEWAY_MAX_TOKENS` if set, else 8192, plus `GATEWAY_THINKING_BUDGET` if set.
+- A window that leaves less than 16000 characters (`MIN_CONTEXT_CHARS`) after the reserve exits `2` (`NotConfigured`) and names `GATEWAY_CONTEXT_WINDOW`, instead of running with parts too small to read a page.
+- 3 characters per token is a deliberately low estimate: prose averages about 4, but markdown full of URLs and identifiers tokenizes worse, and overshooting the window fails the run while undershooting only drops old turns sooner.
+- The 400000-character ceiling keeps cost and latency bounded, because the whole transcript is resent every turn. `--size` does not scale the budget: the window belongs to the model, not to the answer length.
+- Turn history still drops the oldest whole turns once the transcript passes `max_context_chars`; the registry still serves their pages from memory.
+
+### Measured defaults (#80)
+
+Seven goals, one per #72 category, run with `claude-haiku-4.5` via kiro without thinking, `--json --max-turns 8`, a shared temp `SEARCH_CACHE_DIR` (so both phases saw the same Hits) and a logging proxy on the gateway. Before is `origin/main` at `ecffa46` (pages cut to 4,000 characters), after is this change. The goal wording is reconstructed, because the #72 harness was throwaway: tokio (small), reqwest `ClientBuilder` timeouts (small, the q3 reference page), the E0502 error (medium, q4), latest Rust release notes (medium), iterating a `HashMap` (medium), a pt-BR HTTP server question (medium), async versus sync HTTP clients (large). One run per cell, so turns and latency are noisy; all 14 runs exited 0.
+
+| Goal | Turns before / after | Latency s before / after | Last request KB before / after | Pages fetched before / after |
+|---|---|---|---|---|
+| tokio | 3 / 3 | 9.9 / 10.9 | 20.6 / 35.6 | 2 / 2 |
+| reqwest timeouts (q3) | 8 / 3 | 31.3 / 12.5 | 26.2 / 38.5 | 3 / 1 |
+| E0502 (q4) | 4 / 3 | 32.8 / 18.4 | 27.7 / 54.1 | 4 / 3 |
+| Rust release notes | 4 / 3 | 21.4 / 15.4 | 22.2 / 43.2 | 2 / 2 |
+| `HashMap` iteration | 3 / 3 | 17.9 / 19.7 | 26.3 / 76.7 | 3 / 3 |
+| pt-BR HTTP server | 3 / 3 | 16.7 / 22.0 | 25.8 / 69.6 | 3 / 3 |
+| async vs sync | 4 / 4 | 33.4 / 38.3 | 27.4 / 71.7 | 4 / 5 |
+
+- The last request is the whole transcript the model saw on its final call, system prompt and tool definitions included. It grew 1.5x to 2.9x and the largest was 76.7 KB, far under the 400000-character ceiling, so no run dropped a turn.
+- q3: before, the model fetched three pages of 4,024 characters each (the `ClientBuilder` page among them) and spent all 8 turns. After, it fetched the docs.rs page once (75,771 characters, 4 parts) and answered in 3 turns, naming `timeout`, `read_timeout` and `connect_timeout` from the page. The three methods sit at offsets 12,842 to 13,782, so they are in part 1 and the run never asked for `part=2`.
+- A goal that asks for methods further down reads the rest: "list the `ClientBuilder` methods for proxies and TLS root certificates" fetched the same page, then `part=2` and `part=3`, with one HTTP request for the page and none for the parts (4 turns, 84 KB).
+- q4: 4 fetches at 4,024 characters became 3 fetches with longer pages, the same correct explanation of E0502, and one turn fewer.
+- The async-vs-sync citation count swung from 15 to 3 in one after run. Two repeats of each phase gave 15, 15, 15 before and 3, 15, 20 after, so it is run-to-run noise in how the model formats links, not an effect of the budget.
+- Latency moved both ways, within the spread of repeated runs: async-vs-sync took 28.6 to 35.9 s before and 29.3 to 38.3 s after. More characters per turn costs a little, and fewer turns saves more.
+
+Chosen defaults and why:
+
+- Part size 24,000 characters (`MAX_PART_CHARS`). Across the 19 distinct pages these runs fetched, 14 fit in one part at 24,000, 11 at 16,000 and 17 at 32,000; the whole set is 27, 33 and 23 parts respectively. 16,000 splits common articles (12,000 to 19,000 characters) into two parts and costs a turn each. 32,000 saves only 4 parts across the set but makes every later turn carry up to 8,000 more characters per page. 24,000 is about 8,000 tokens, 4% of a 200K window.
+- Context 400,000 characters ceiling (`MAX_CONTEXT_CHARS_CEILING`), reached for a 200K-token window (`(200000 - 8192) * 3 = 575,424`). Eight full parts fit (`PARTS_PER_CONTEXT`), so a run that reads a long page in parts keeps its earlier turns. The measured runs peaked at 77 KB, so the ceiling costs nothing in normal use and bounds cost and latency when the agent reads many parts.
+- `--size` does not scale either number, since the window belongs to the model, not to the answer length.
+
 ## Latency
 
 Measured tool numbers, not end-to-end run time:
@@ -149,7 +197,7 @@ Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls 
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
 - `synthesis` comes from the agent's final reply (its first reply with no tool call). The agent is asked to put its answer inside an `<answer>` … `</answer>` block, each tag on a line of its own, and only the text inside the last such block is parsed, so remarks about its own progress never reach `summary` (#72). A tag counts only when it is alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line is parsed whole. `summary` is the text before the first `## ` heading, each `## ` section is one theme, and its `- `/`* `/`N. ` bullets are its `points`.
-- The agent is told to fetch pages before answering and to cite only pages it fetched, but the loop enforces neither. In the #72 measurement every run after the prompt change fetched at least 2 pages (`docs/research/agent-prompt.md`), so no guard was added. An exit-0 run with empty `evidence_urls` read no page, so treat its Synthesis as unverified. A citation means the page was fetched, not that every claim beside it is in the part the agent read: each fetched page reaches the agent cut to its first 4,000 characters.
+- The agent is told to fetch pages before answering and to cite only pages it fetched, but the loop enforces neither. In the #72 measurement every run after the prompt change fetched at least 2 pages (`docs/research/agent-prompt.md`), so no guard was added. An exit-0 run with empty `evidence_urls` read no page, so treat its Synthesis as unverified. A citation means the page was fetched, not that every claim beside it is in the part the agent read: a long page reaches the agent in parts of up to 24,000 characters (see "Page parts and context budget"), and the agent chooses which parts to read.
 - Without `--json`, stdout is human-readable markdown: summary, `##` themes, and a numbered `Sources:` list.
 
 ## Exit codes

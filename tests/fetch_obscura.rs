@@ -24,7 +24,9 @@ fn fixture_binary() -> PathBuf {
 /// `CommandFailed` error for URL-carry assertions.
 fn error_url(err: &FetchError) -> &str {
     match err {
-        FetchError::InvalidUrl { .. } => panic!("expected url-carrying error"),
+        FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. } => {
+            panic!("expected url-carrying error")
+        }
         FetchError::EmptyBody { url }
         | FetchError::Blocked { url, .. }
         | FetchError::Timeout { url, .. }
@@ -246,8 +248,10 @@ fn fetch_tool_schema_matches_mandatory_agent_loop_contract() {
     let properties = schema["parameters"]["properties"]
         .as_object()
         .expect("parameters.properties object");
-    assert_eq!(properties.len(), 1);
+    assert_eq!(properties.len(), 2);
     assert_eq!(properties["url"]["type"], "string");
+    assert_eq!(properties["part"]["type"], "integer");
+    assert_eq!(properties["part"]["minimum"], 1);
     assert_eq!(schema["parameters"]["additionalProperties"], false);
 }
 
