@@ -1,6 +1,9 @@
 //! One fan-out leg's lifecycle: cache lookup, per-call query cap,
 //! suspension check, acquire and pace, engine request, outcome recording,
 //! cache store.
+//!
+//! Split out of the fan-out ported from oh-my-pi (MIT,
+//! can1357/oh-my-pi@83c9df0); see `THIRD-PARTY-NOTICES.md`.
 
 use std::path::PathBuf;
 use std::sync::Arc;

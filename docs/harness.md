@@ -205,12 +205,12 @@ Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls 
 | Code | Meaning | Harness action |
 |---|---|---|
 | 0 | Synthesis on stdout | use it |
-| 2 | Not configured (empty goal, missing key, `max_turns < 1`) | fix env/args; do not retry |
+| 2 | Not configured: empty goal, missing key, `max_turns < 1`, an invalid `GATEWAY_*` value, or a `GATEWAY_CONTEXT_WINDOW` too small to leave 16000 characters of context | fix env/args; do not retry |
 | 3 | Gateway exhausted: retries/rate limit, auth failed (`bad API key`, HTTP 401), or access refused (`refused access (HTTP 403): <upstream message>`) | 401: fix key; 403: the key works but the model/tier is gated upstream, pick another model; otherwise retry later |
 | 4 | Tool failures exceeded the repair budget | retry, or rephrase the goal |
 | 5 | Turn budget exhausted | retry with a higher `--max-turns` |
 | 6 | Session file I/O | check `--session-out` path |
-| 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page or Startpage Anubis proof-of-work/CAPTCHA) or a skip of an engine already suspended *from* such a Challenge (#62) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
+| 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page, Startpage Anubis proof-of-work/CAPTCHA, Brave or Bing HTTP `429`, Bing `challenge/verify` gate, Yahoo consent redirect) or a skip of an engine already suspended *from* such a Challenge (#62). A `search` call narrowed by `recency` never counts, since the same search without `recency` could still reach the skipped engines (#81) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 
 Errors are printed to stderr as `error: <message>`; stdout stays empty.
 

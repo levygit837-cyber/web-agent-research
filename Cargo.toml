@@ -1,9 +1,9 @@
 [package]
 name = "web-agent-research"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
-description = "Protótipo CLI de agente multi-turno para pesquisa na web sobre a engine Obscura"
+description = "CLI Web Search agent for coding-agent Harnesses: searches free HTML engines, fetches pages, returns only the Synthesis"
 license = "MIT"
 
 [[bin]]

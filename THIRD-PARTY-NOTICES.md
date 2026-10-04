@@ -17,8 +17,9 @@ doc line pointing back here.
   fan-out shape (soft/hard deadline, straggler abort, dedup, ranking), and
   the shared HTML-entity/tag-strip/percent-encode decoding helpers.
 - Files in this repo: `src/web/search/ddg.rs`, `src/web/search/startpage.rs`,
-  `src/web/search/dedup.rs`, `src/web/search/fanout.rs`,
-  `src/web/search/types.rs`, `src/web/search/decode.rs`.
+  `src/web/search/dedup.rs`, `src/web/search/fanout/mod.rs`,
+  `src/web/search/fanout/leg.rs`, `src/web/search/types.rs`,
+  `src/web/search/decode.rs`.
 
 ### MIT License text
 
