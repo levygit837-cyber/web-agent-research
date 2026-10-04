@@ -514,8 +514,8 @@ mod tests {
         // never a `Result`, so there is no branch inside `store` itself
         // that could persist an error leg -- the guarantee that a real
         // Challenge/Timeout/Upstream leg never reaches `store` at all is
-        // enforced by the call site in `fanout.rs`, covered by
-        // `fanout::tests::challenged_leg_is_never_cached`, not by this
+        // enforced by the call site in `fanout/leg.rs`, covered by
+        // `fanout::tests::cache::challenged_leg_is_never_cached`, not by this
         // function.
         assert_eq!(
             lookup(Some(&root), SearchProvider::DuckDuckGo, "q", None, 0),

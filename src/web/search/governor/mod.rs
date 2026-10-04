@@ -603,7 +603,7 @@ mod tests {
         // one that matters: a leg already queued behind another same-
         // engine leg must not dispatch once that other leg has just
         // suspended the engine. Governor::acquire itself does not
-        // recheck (that is fanout.rs's job, right after acquiring); this
+        // recheck (that is fanout/leg.rs's job, right after acquiring); this
         // test proves the state acquire/pace would observe is correct.
         let _guard = EnvGuard::set(&[]);
         let governor = Governor::new(None);

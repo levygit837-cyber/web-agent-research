@@ -1,7 +1,8 @@
 //! Fetch-only search types: providers, recency, hits, merge, fan-out I/O.
 //!
-//! The `search` tool fans out agent-loop Queries over DuckDuckGo and Startpage
-//! (both fetch-only HTML, no credentials), dedups hits by URL key and returns
+//! The `search` tool fans out agent-loop Queries over the enabled engines
+//! (DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage; all fetch-only
+//! HTML, no credentials), dedups hits by URL key and returns
 //! consensus-ranked merged results. Provider text inside hits is an ungrounded
 //! candidate: only fetched page content with URL + time becomes Evidence.
 //!

@@ -2150,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "web-agent-research"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "brotli 9.0.0",
