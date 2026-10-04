@@ -15,3 +15,7 @@ GitHub issues hold issues and PRDs, operated via `gh`. Read `docs/agents/issue-t
 ### Domain docs
 
 Single-context repo: `CONTEXT.md` defines the glossary, `docs/adr/` records decisions. Read `docs/agents/domain.md` when exploring code, naming a domain concept, or resolving a decision conflict.
+
+### Releases
+
+Read `docs/agents/release.md` when cutting a release, bumping the version, or editing `CHANGELOG.md`.
