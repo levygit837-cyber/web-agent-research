@@ -5,9 +5,10 @@
 //! `chat()` for zero-tool runs), feeds tool results back as native
 //! `role: "tool"` messages paired to the model's own `tool_calls`, and
 //! repeats until the first tool-free non-empty answer, which becomes the
-//! typed [`Synthesis`](crate::research::synthesis::Synthesis). Gateway errors reaching the loop are final for that
-//! turn (the gateway owns retries); tool and dispatch failures are
-//! model-visible tool-role results bounded by `max_repairs`.
+//! typed [`Synthesis`](crate::research::synthesis::Synthesis). Gateway
+//! errors reaching the loop are final for that turn (the gateway owns
+//! retries); tool and dispatch failures are model-visible tool-role
+//! results bounded by `max_repairs`.
 //!
 //! The contract types are in `types.rs`; per-turn dispatch and the prompt
 //! notes are in `dispatch.rs`.

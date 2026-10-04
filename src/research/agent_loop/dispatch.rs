@@ -23,7 +23,7 @@ pub(super) fn allowed_roster(
         .collect()
 }
 
-pub(super) fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
+fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
     allowed_roster(tools, allowed)
         .iter()
         .map(|(name, purpose)| format!("{name} — {purpose}"))
