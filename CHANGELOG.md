@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
 - Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
 - `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
+- Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` tool tape, judge, paired compare (#107).
 
 ### Changed
 

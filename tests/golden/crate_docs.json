@@ -1,0 +1,335 @@
+{
+  "category": "crate_docs",
+  "goals": [
+    {
+      "id": "crate_docs-01",
+      "goal": "Which tokio Cargo features do I need for #[tokio::main] with the multi-threaded runtime, and what does the full feature do?",
+      "nuggets": [
+        {
+          "text": "The tokio feature flag \"macros\" enables the #[tokio::main] and #[tokio::test] attributes.",
+          "url": "https://docs.rs/tokio/latest/tokio/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The tokio feature flag \"rt-multi-thread\" enables the multi-threaded, work-stealing scheduler.",
+          "url": "https://docs.rs/tokio/latest/tokio/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The tokio feature flag \"rt\" enables tokio::spawn and the current-thread scheduler.",
+          "url": "https://docs.rs/tokio/latest/tokio/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Enabling tokio's \"full\" feature turns on all features: tokio = { version = \"1\", features = [\"full\"] }.",
+          "url": "https://docs.rs/tokio/latest/tokio/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "#[tokio::main] uses the multi-threaded runtime flavor by default, which requires the rt-multi-thread feature.",
+          "url": "https://docs.rs/tokio/latest/tokio/attr.main.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "#[tokio::main(flavor = \"current_thread\")] selects the single-threaded current_thread runtime.",
+          "url": "https://docs.rs/tokio/latest/tokio/attr.main.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-02",
+      "goal": "How do I enable #[derive(Serialize, Deserialize)] in serde, and what do the Serialize and Deserialize trait methods look like?",
+      "nuggets": [
+        {
+          "text": "The Serialize and Deserialize derive macros are only available if serde is built with features = [\"derive\"].",
+          "url": "https://docs.rs/serde/latest/serde/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Serialize has one required method: fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer.",
+          "url": "https://docs.rs/serde/latest/serde/trait.Serialize.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Deserialize<'de> has one required method: fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de>.",
+          "url": "https://docs.rs/serde/latest/serde/trait.Deserialize.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Serde is built on Rust's trait system rather than runtime reflection or runtime type information.",
+          "url": "https://docs.rs/serde/latest/serde/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Serde separates data structures (implementing Serialize/Deserialize) from data formats, so any supported structure works with any supported format such as JSON, TOML or YAML.",
+          "url": "https://docs.rs/serde/latest/serde/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-03",
+      "goal": "Which async runtime does reqwest's Client need, and which Cargo features are required for .json(), .form() and the blocking API?",
+      "nuggets": [
+        {
+          "text": "The reqwest::Client is asynchronous and requires Tokio.",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The reqwest \"json\" feature is required for RequestBuilder::json (JSON body serialization/deserialization).",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The reqwest \"form\" feature is required for RequestBuilder::form (form data serialization).",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The reqwest \"blocking\" feature provides the blocking client API (reqwest::blocking).",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "By default a reqwest Client follows HTTP redirects with a maximum redirect chain of 10 hops.",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "For multiple requests, reqwest recommends creating one Client and reusing it to benefit from keep-alive connection pooling.",
+          "url": "https://docs.rs/reqwest/latest/reqwest/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-04",
+      "goal": "How do I define command-line arguments with clap's derive API, and which feature flag must be enabled?",
+      "nuggets": [
+        {
+          "text": "The clap \"derive\" feature enables the custom derive (#[derive(Parser)]); it can be added with `cargo add clap --features derive`.",
+          "url": "https://docs.rs/clap/latest/clap/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "A clap derive CLI is defined as a struct annotated with #[derive(Parser, Debug)] and parsed by calling Args::parse() (use clap::Parser).",
+          "url": "https://docs.rs/clap/latest/clap/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Struct fields are configured with #[arg(short, long)] attributes, and default_value_t = 1 sets a default value for a field such as count: u8.",
+          "url": "https://docs.rs/clap/latest/clap/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "#[command(version, about, long_about = None)] on the struct sets up version and about info for the generated help.",
+          "url": "https://docs.rs/clap/latest/clap/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "clap's default features are std, color, help, usage, error-context and suggestions.",
+          "url": "https://docs.rs/clap/latest/clap/_features/index.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The clap \"env\" feature turns on the usage of environment variables during parsing.",
+          "url": "https://docs.rs/clap/latest/clap/_features/index.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-05",
+      "goal": "How do I attach context to errors with anyhow, and how do I use anyhow in a no_std crate?",
+      "nuggets": [
+        {
+          "text": "anyhow::Result<T> is equivalent to Result<T, anyhow::Error>, where anyhow::Error is a trait-object based error type.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The anyhow::Context trait (use anyhow::Context) provides the .context() method, with .with_context(|| ...) for lazily built messages, on Result.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/trait.Context.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "When an anyhow error with context is printed, the outermost context is shown first, followed by \"Caused by:\" and the lower level causes.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/trait.Context.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The anyhow! macro builds a one-off anyhow::Error from a message with string interpolation, and bail! is a shorthand for returning Err(anyhow!(...)) early.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "To use anyhow in no_std mode, disable the default \"std\" feature (default-features = false); a global allocator is required.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "With Rust 1.65 or newer, anyhow captures a backtrace, shown when RUST_BACKTRACE=1 (panics and errors) or RUST_LIB_BACKTRACE=1 (errors only) is set.",
+          "url": "https://docs.rs/anyhow/latest/anyhow/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-06",
+      "goal": "How do I compile and reuse a regex with Rust's regex crate, and what regex features does the crate not support?",
+      "nuggets": [
+        {
+          "text": "Regex::new compiles a regular expression; compilation is somewhat expensive and not automatically cached, so compile once and reuse it rather than in a loop.",
+          "url": "https://docs.rs/regex/latest/regex/struct.Regex.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The regex docs recommend std::sync::LazyLock (or the once_cell crate) to hold a static Regex so it compiles only once in helper functions.",
+          "url": "https://docs.rs/regex/latest/regex/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The regex crate does not support look-around or backreferences.",
+          "url": "https://docs.rs/regex/latest/regex/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "All regex searches have worst case O(m * n) time, where m is proportional to the regex size and n to the haystack size.",
+          "url": "https://docs.rs/regex/latest/regex/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Regex::is_match reports whether a match exists, Regex::find returns the byte offsets of a match, and Regex::captures returns a Captures with capture group offsets.",
+          "url": "https://docs.rs/regex/latest/regex/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "regex-lite is a standalone zero-dependency, simpler alternative to regex that favors compile time and binary size over Unicode support and performance.",
+          "url": "https://docs.rs/regex/latest/regex/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-07",
+      "goal": "How do I use rayon parallel iterators and control the number of threads in its global thread pool?",
+      "nuggets": [
+        {
+          "text": "Import the rayon prelude with use rayon::prelude::* to get traits that provide par_iter and other parallel iterator methods.",
+          "url": "https://docs.rs/rayon/latest/rayon/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "rayon::ThreadPoolBuilder can create custom thread pools or customize the global rayon thread pool.",
+          "url": "https://docs.rs/rayon/latest/rayon/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If num_threads is 0 or not called, rayon chooses the thread count from the RAYON_NUM_THREADS environment variable if set, otherwise the number of logical CPUs.",
+          "url": "https://docs.rs/rayon/latest/rayon/struct.ThreadPoolBuilder.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "rayon::join takes two closures, potentially runs them in parallel, and returns a pair of their results (RA, RB).",
+          "url": "https://docs.rs/rayon/latest/rayon/fn.join.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "rayon::join uses work stealing on a fixed pool of worker threads and only runs code in parallel when there are idle CPUs.",
+          "url": "https://docs.rs/rayon/latest/rayon/fn.join.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rayon guarantees data-race free executions.",
+          "url": "https://docs.rs/rayon/latest/rayon/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "crate_docs-08",
+      "goal": "How do I record spans and events with the tracing crate, and how do I install a subscriber in an executable?",
+      "nuggets": [
+        {
+          "text": "A tracing span represents a period of time with a beginning and end; Span::enter returns an RAII guard that exits the span when dropped.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Holding the Span::enter guard across an .await point in async code may produce incorrect traces.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The #[instrument] attribute creates and enters a span named after the function on each call and records the arguments as fields using fmt::Debug.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Events are recorded with the event! macro, e.g. event!(Level::INFO, \"something happened\"); an Event may occur inside a span.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The tracing crate contains no Subscriber implementations; executables must install one, e.g. with tracing::subscriber::set_global_default.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Libraries should not call set_global_default(); libraries should only link the tracing crate and use its macros.",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    }
+  ]
+}

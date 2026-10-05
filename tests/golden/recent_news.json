@@ -1,0 +1,305 @@
+{
+  "category": "recent_news",
+  "goals": [
+    {
+      "id": "recent_news-01",
+      "goal": "What changed in Rust 1.99.0?",
+      "nuggets": [
+        {
+          "text": "Rust 1.99.0 was announced on Oct. 1, 2026 by the Rust Release Team.",
+          "url": "https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rust 1.99.0 stabilizes defining C-ABI variadic functions (using `...` with the \"C\" and \"C-unwind\" ABIs) in Rust itself.",
+          "url": "https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The type of `...` in a C-variadic function is `VaList` (core::ffi::VaList), which is ABI-compatible with the C va_list type, and the readable types are guarded by the `VaArgSafe` trait.",
+          "url": "https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rust 1.99.0 stabilizes `Layout::for_value_raw`, `mem::size_of_val_raw` and `mem::align_of_val_raw` for getting size and alignment from raw pointers, including to non-Sized types.",
+          "url": "https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The `Box::leak` documentation now recommends against patterns that later deallocate the leaked memory; `Box::into_non_null` or `Box::into_raw` should be preferred.",
+          "url": "https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-02",
+      "goal": "What is the Rust project's announced change for the i686 Windows targets coming with Rust 1.100.0?",
+      "nuggets": [
+        {
+          "text": "The change takes effect with Rust 1.100.0 and was announced on the Rust blog on Oct. 2, 2026.",
+          "url": "https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "i686-pc-windows-msvc goes from Tier 1 with host tools to Tier 1 without host tools.",
+          "url": "https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "i686-pc-windows-gnu goes from Tier 2 with host tools to Tier 2 without host tools.",
+          "url": "https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Builds of the standard library will continue to be distributed, but host tools such as the compiler will no longer be available, so building 32-bit Windows binaries requires cross-compiling from a supported host such as 64-bit Windows.",
+          "url": "https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The demotions are tracked in RFC 3999 (i686-pc-windows-msvc) and MCP 1020 (i686-pc-windows-gnu).",
+          "url": "https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-03",
+      "goal": "What was the Rust security team's September 2026 advisory about Miri and GitHub Actions caching, and how should affected projects respond?",
+      "nuggets": [
+        {
+          "text": "Miri stores all environment variables to the target/ directory, so secrets can persist in caches of target/.",
+          "url": "https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Combined with GitHub Actions caching that is readable by PR CI runs, this can expose secrets to PRs from anyone who has previously landed a change.",
+          "url": "https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The short-term fix makes Miri preserve only CARGO_* environment variables (excepting CARGO_*_TOKEN) and OUT_DIR.",
+          "url": "https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The Miri release in the nightly of 2026-09-22 no longer has this problem.",
+          "url": "https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Recommended mitigations include disabling the cache for the Miri job or scoping secrets to steps that do not call Miri, then clearing the cache and considering rotating any secrets that might have leaked.",
+          "url": "https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-04",
+      "goal": "What are the main language and tooling changes in Go 1.27?",
+      "nuggets": [
+        {
+          "text": "Go 1.27 was released on 19 August 2026.",
+          "url": "https://go.dev/blog/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Go 1.27 supports generic methods: a method declaration may declare its own type parameters (interface methods may not).",
+          "url": "https://go.dev/doc/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "A key in a struct literal may now be any valid field selector for the struct type, so fields of embedded structs can be initialized directly.",
+          "url": "https://go.dev/blog/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`go doc` now supports package@version queries such as `go doc example.com/pkg@v1.2.3`.",
+          "url": "https://go.dev/doc/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "For modules declaring go 1.27 or later, `go mod tidy` merges duplicate require blocks into at most two blocks: one for direct and one for indirect dependencies.",
+          "url": "https://go.dev/doc/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The go command no longer supports the bzr version control system.",
+          "url": "https://go.dev/doc/go1.27",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-05",
+      "goal": "What are the headline features of Python 3.15, and when is 3.15.0 final due?",
+      "nuggets": [
+        {
+          "text": "PEP 810 adds explicit lazy imports via a new `lazy` soft keyword (e.g. `lazy import json`), deferring module loading until the name is first used.",
+          "url": "https://docs.python.org/3.15/whatsnew/3.15.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Python 3.15 adds a `frozendict` built-in type (PEP 814) and a `sentinel` built-in type (PEP 661).",
+          "url": "https://docs.python.org/3.15/whatsnew/3.15.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Python 3.15 uses UTF-8 as the default encoding (PEP 686).",
+          "url": "https://docs.python.org/3.15/whatsnew/3.15.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Python 3.15 adds a dedicated `profiling` package including Tachyon, a high-frequency statistical sampling profiler (PEP 799).",
+          "url": "https://docs.python.org/3.15/whatsnew/3.15.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "3.15.0rc3, a surprise third release candidate released Oct. 2, 2026, was added because of last-minute lazy-import release blockers.",
+          "url": "https://www.python.org/downloads/release/python-3150rc3/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Python 3.15.0 final is scheduled for 2026-10-09.",
+          "url": "https://blog.python.org/2026/10/python-3150-rc3/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-06",
+      "goal": "What was in the PostgreSQL 19 Beta 4 release and which features were reverted?",
+      "nuggets": [
+        {
+          "text": "PostgreSQL 19 Beta 4 was released on September 24, 2026.",
+          "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Beta 4 reverts SQL/PGQ (property graph query) support.",
+          "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Beta 4 reverts online enabling and disabling of data checksums.",
+          "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Beta 4 reverts temporal update/delete support via the FOR PORTION OF clause, and reverts ALTER TABLE ... MERGE PARTITIONS and SPLIT PARTITIONS.",
+          "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The next planned PostgreSQL 19 release is the release candidate in early October, and GA may also occur in October.",
+          "url": "https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-07",
+      "goal": "What's new in Kubernetes v1.37?",
+      "nuggets": [
+        {
+          "text": "Kubernetes v1.37, with the release theme \"Garhwal\", was announced on August 26, 2026.",
+          "url": "https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Kubernetes v1.37 consists of 67 enhancements: 16 graduated to Stable, 23 to Beta, 27 entering Alpha, and 1 deprecation/removal.",
+          "url": "https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "HorizontalPodAutoscaler scale to zero graduates to Beta and is enabled by default, applied by setting spec.minReplicas: 0 for workloads using object or external metrics.",
+          "url": "https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Manifest-based admission control configuration graduates to Beta, loading admission webhooks and CEL-based policies from files on disk via the staticManifestsDir field in AdmissionConfiguration.",
+          "url": "https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Alpha Pod-level checkpoint and restore extends the CRI with CheckpointPod and RestorePod RPCs.",
+          "url": "https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "recent_news-08",
+      "goal": "What notable features were added in Node.js 26.10.0?",
+      "nuggets": [
+        {
+          "text": "Node.js 26.10.0 (Current) was released on 2026-09-22.",
+          "url": "https://nodejs.org/en/blog/release/v26.10.0",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Node.js 26.10.0 adds `crypto.parsePKCS12()`.",
+          "url": "https://nodejs.org/en/blog/release/v26.10.0",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Node.js 26.10.0 adds `util.throttle` and `util.debounce`.",
+          "url": "https://nodejs.org/en/blog/release/v26.10.0",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Node.js 26.10.0 adds `fs.openAsBlobSync`.",
+          "url": "https://nodejs.org/en/blog/release/v26.10.0",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Node.js 26.10.0 supports sending `net.BoundSocket` to threads and child processes.",
+          "url": "https://nodejs.org/en/blog/release/v26.10.0",
+          "volatility": "fast",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    }
+  ]
+}

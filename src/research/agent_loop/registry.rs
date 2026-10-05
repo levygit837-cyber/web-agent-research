@@ -15,6 +15,10 @@
 //! from memory, even after turn-history truncation dropped the first
 //! delivery from the transcript. Pages are delivered in parts of
 //! `LoopBudget::max_part_chars` (see [`page_parts`]).
+//!
+//! Eval record/replay (#107): an optional [`Tape`] records what `search`
+//! and `fetch` returned, or serves both from a fixture dir instead of the
+//! network. Eval-only, selected by env in `run_research`; see `tape.rs`.
 
 use std::collections::HashMap;
 #[cfg(test)]
@@ -26,6 +30,7 @@ use std::sync::{Arc, Mutex};
 use crate::llm::{RequestedToolCall, ToolDef};
 use crate::research::agent_loop::context::page_parts;
 use crate::research::agent_loop::result::{plural_parts, FailureKind, ToolResult};
+use crate::research::agent_loop::tape::{SearchOutcome, Tape};
 use crate::web::fetch::tool::{
     fetch_tool, fetch_tool_schema, FetchInput, FETCH_TOOL_NAME, FETCH_TOOL_PURPOSE,
 };
@@ -34,7 +39,7 @@ use crate::web::search::dedup_key;
 use crate::web::search::tool::{
     parse_search_args, search_tool_schema, Searcher, SEARCH_TOOL_NAME, SEARCH_TOOL_PURPOSE,
 };
-use crate::web::search::types::MergedResult;
+use crate::web::search::types::{MergedResult, SearchInput};
 
 enum Backend {
     Live {
@@ -54,6 +59,8 @@ pub struct ToolRegistry {
     /// so far this run, under both the requested and the final URL. The
     /// page is kept whole so a later `part` is served without a request.
     fetched: Mutex<HashMap<String, Arc<StoredPage>>>,
+    /// Eval record/replay of the live tools (#107); `None` on normal runs.
+    tape: Option<Tape>,
 }
 impl ToolRegistry {
     /// Live dispatch over the real web tools.
@@ -61,7 +68,15 @@ impl ToolRegistry {
         Self {
             backend: Backend::Live { searcher, fetcher },
             fetched: Mutex::new(HashMap::new()),
+            tape: None,
         }
+    }
+
+    /// Record into or replay from an eval fixture (#107). Applies to the
+    /// live backend only; `None` keeps the run live.
+    pub(crate) fn with_tape(mut self, tape: Option<Tape>) -> Self {
+        self.tape = tape;
+        self
     }
 
     /// Test seam: pop canned results in wire order, ignoring arguments.
@@ -70,6 +85,7 @@ impl ToolRegistry {
         Self {
             backend: Backend::Queue(tokio::sync::Mutex::new(results)),
             fetched: Mutex::new(HashMap::new()),
+            tape: None,
         }
     }
 
@@ -167,22 +183,15 @@ impl ToolRegistry {
                         )
                     }
                 };
-                match searcher.search(input).await {
-                    Ok(output) => match output.note {
-                        Some(note) => ToolResult::SearchNote { note },
-                        None => ToolResult::Search {
-                            hits: self.mark_already_fetched(output.results),
-                        },
+                match self.search(searcher, input).await {
+                    SearchOutcome::Hits { hits } => ToolResult::Search {
+                        hits: self.mark_already_fetched(hits),
                     },
-                    Err(crate::web::search::types::SearchProviderError::AllFailed {
-                        failures,
-                        all_challenged: true,
-                    }) => ToolResult::SearchBlocked { detail: failures },
-                    Err(err) => failed(
-                        call,
-                        format!("search failed: {}", search_error(&err)),
-                        FailureKind::Execution,
-                    ),
+                    SearchOutcome::Note { note } => ToolResult::SearchNote { note },
+                    SearchOutcome::Blocked { detail } => ToolResult::SearchBlocked { detail },
+                    SearchOutcome::Failed { reason } => {
+                        failed(call, reason, FailureKind::Execution)
+                    }
                 }
             }
             FETCH_TOOL_NAME => {
@@ -222,7 +231,7 @@ impl ToolRegistry {
                         part => deliver_part(call, &stored, part.unwrap_or(1), part_chars),
                     };
                 }
-                match fetch_tool(&args, fetcher).await {
+                match self.fetch(&args, &input.url, fetcher).await {
                     Ok(evidence) => {
                         let source_key = dedup_key(&evidence.source_url);
                         let stored = {
@@ -246,16 +255,7 @@ impl ToolRegistry {
                         };
                         deliver_part(call, &stored, input.part.unwrap_or(1), part_chars)
                     }
-                    Err(err @ (FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. })) => {
-                        failed(
-                            call,
-                            format!("invalid args for 'fetch': {err}"),
-                            FailureKind::Dispatch,
-                        )
-                    }
-                    Err(err) => {
-                        failed(call, format!("fetch failed: {err}"), FailureKind::Execution)
-                    }
+                    Err((reason, kind)) => failed(call, reason, kind),
                 }
             }
             _ => failed(
@@ -264,6 +264,61 @@ impl ToolRegistry {
                 FailureKind::Dispatch,
             ),
         }
+    }
+
+    /// One `search` call: live (recorded when taping), or replayed.
+    async fn search(&self, searcher: &Searcher, input: SearchInput) -> SearchOutcome {
+        if let Some(Tape::Replay(fixture)) = &self.tape {
+            return fixture.search(&input);
+        }
+        let queries = match &self.tape {
+            Some(Tape::Record(_)) => input.queries.clone(),
+            _ => Vec::new(),
+        };
+        let outcome = match searcher.search(input).await {
+            Ok(output) => match output.note {
+                Some(note) => SearchOutcome::Note { note },
+                None => SearchOutcome::Hits {
+                    hits: output.results,
+                },
+            },
+            Err(crate::web::search::types::SearchProviderError::AllFailed {
+                failures,
+                all_challenged: true,
+            }) => SearchOutcome::Blocked { detail: failures },
+            Err(err) => SearchOutcome::Failed {
+                reason: format!("search failed: {}", search_error(&err)),
+            },
+        };
+        if let Some(Tape::Record(recorder)) = &self.tape {
+            recorder.search(queries, &outcome);
+        }
+        outcome
+    }
+
+    /// One network `fetch` of a page not yet known this run: live
+    /// (recorded when taping), or replayed. `Err` carries the model-facing
+    /// reason and its [`FailureKind`].
+    async fn fetch(
+        &self,
+        args: &serde_json::Value,
+        url: &str,
+        fetcher: &Fetcher,
+    ) -> Result<Evidence, (String, FailureKind)> {
+        if let Some(Tape::Replay(fixture)) = &self.tape {
+            return fixture.fetch(url);
+        }
+        let outcome = fetch_tool(args, fetcher).await.map_err(|err| match err {
+            FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. } => (
+                format!("invalid args for 'fetch': {err}"),
+                FailureKind::Dispatch,
+            ),
+            err => (format!("fetch failed: {err}"), FailureKind::Execution),
+        });
+        if let Some(Tape::Record(recorder)) = &self.tape {
+            recorder.fetch(url, &outcome);
+        }
+        outcome
     }
 
     /// Search Hits already fetched this run get an `(already fetched)`
