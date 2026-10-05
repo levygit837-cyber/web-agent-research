@@ -9,7 +9,7 @@ Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 ## Stack (recorded decisions)
 
 - **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-anchor-language.md)
-- **No DB in the prototype**: Session in `sessions/<id>.jsonl`; search-leg cache and engine state on disk under the cache root — [ADR-0002](docs/adr/0002-no-db-files-only.md)
+- **No DB in the prototype**: Session in `<data root>/sessions/<id>.jsonl`; search-leg cache and engine state on disk under the cache root — [ADR-0002](docs/adr/0002-no-db-files-only.md)
 - **Own HTTP LLM client** (`reqwest` + `serde`, no SDK): OpenAI-compatible — [ADR-0003](docs/adr/0003-own-openai-compatible-http.md) — or native Anthropic Messages via `GATEWAY_API_FORMAT` — [ADR-0007](docs/adr/0007-llm-wire-format-enum.md)
 - **reqwest-first fetch, Obscura fallback** for JS/blocked pages — [ADR-0006](docs/adr/0006-web-search-tool-architecture.md)
 - **Transport stays `reqwest`**: no own Chrome-impersonation build, no `wreq`, no `primp` for now — [ADR-0008](docs/adr/0008-search-transport-reqwest.md)
@@ -32,7 +32,7 @@ CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build; `
 - `src/main.rs` — thin CLI shell over the lib
 - `src/lib.rs` — public interface: `run_research`
 - `src/web/` — search (Hits from DuckDuckGo, Brave, Yahoo, Bing, opt-in Startpage) + fetch (Evidence, delivered in parts); `src/llm/` — gateway; `src/research/` — agent loop, prompt, Synthesis, Session. Dependency rule: [ADR-0006](docs/adr/0006-web-search-tool-architecture.md)
-- `sessions/` — created at runtime, out of git. Search cache and `engines.json` live under `$SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `~/.cache/web-agent-research` (see `docs/harness.md`)
+- Two per-user roots, created at runtime, never the current directory (see `docs/harness.md`, "Data root and Sessions"): Sessions live under the data root, `$WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `~/.local/share/web-agent-research`, in `sessions/` (mode `0600`, capped by `SESSION_MAX_BYTES`, oldest evicted); the search cache and `engines.json` live under the cache root, `$SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `~/.cache/web-agent-research`
 - `CONTEXT.md` — domain glossary (Research, Session, Turn, Evidence)
 - `docs/adr/` — architecture decisions
 - `docs/agents/` — engineering skills config (issue tracker, domain docs)

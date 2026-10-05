@@ -23,10 +23,10 @@ enum Command {
         /// Total gateway calls allowed.
         #[arg(long, default_value_t = 8)]
         max_turns: u32,
-        /// Session id; defaults to `<unix-secs>-<pid>`.
+        /// Session id, `[A-Za-z0-9._-]{1,64}` without a leading dot; defaults to `<unix-secs>-<pid>`.
         #[arg(long)]
         session_id: Option<String>,
-        /// Session file; defaults to `sessions/<id>.jsonl`.
+        /// Session file; defaults to `<data root>/sessions/<id>.jsonl` (best-effort). An explicit path must be writable.
         #[arg(long)]
         session_out: Option<PathBuf>,
         /// Print the `ResearchResponse` verbatim as JSON.
