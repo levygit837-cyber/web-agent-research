@@ -5,11 +5,14 @@ A Harness calls Web Search as one shell command and reads one JSON object from s
 ## Command
 
 ```sh
-web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N]
+web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N]
 ```
 
 - `--size` (default `medium`): answer length.
-- `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`. The agent is told this budget up front and, after each tool turn or empty-reply repair, how many turns are left (#72).
+- `--max-turns` (default `10`): the base turn budget (LLM calls). Each successful `search` call after the first adds 5 turns, up to `--max-turns-cap` (#101). A run that reaches its budget without an answer exits `5`. The agent is told the base, the extension rule and the cap up front and, after each tool turn or empty-reply repair, how many turns are left (#72).
+- `--max-turns-cap` (default `25`): ceiling the turn budget can grow to. Below `--max-turns` exits `2`.
+- The last turn of the current budget is the final turn: it sends the same tool definitions with `tool_choice: none` (`{"type": "none"}` in the Anthropic format), so the reply must be the answer. Tool calls returned on it anyway are not run; they count as an empty-answer repair and the run ends (exit `5`, or `9` if the deadline made it final).
+- `--deadline-secs` (default `300`): wall-clock bound on the whole run (#100); `0` exits `2`. See "Run deadline and timeouts".
 - `--session-id`: optional, default `<unix-secs>-<pid>`. It becomes the file name and the `prompt_cache_key`, so it MUST match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` before any LLM call.
 - `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
 
@@ -19,20 +22,27 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 |---|---|---|---|
 | `GATEWAY_API_KEY` | yes | none | empty/missing exits `2` (`NotConfigured`) |
 | `GATEWAY_API_FORMAT` | no | `openai` | `openai` (Chat Completions, `POST {base}/chat/completions`, Bearer auth) or `anthropic` (Messages, `POST {base}/messages`, `x-api-key` + `anthropic-version: 2023-06-01`), case-insensitive; anything else exits `2` (`NotConfigured`) |
-| `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (the endpoint path is appended per `GATEWAY_API_FORMAT`) | n/a (any non-empty string accepted) |
+| `GATEWAY_BASE_URL` | no | `http://localhost:8317/v1` (the endpoint path is appended per `GATEWAY_API_FORMAT`) | must be an absolute `http`/`https` URL with a host; anything else (e.g. `localhost:8317/v1`, no scheme) exits `2` (`NotConfigured`) before any request |
 | `GATEWAY_MODEL` | no | `muse-spark-1.3` | n/a (any non-empty string accepted) |
 | `GATEWAY_REASONING_EFFORT` | no | unset (nothing sent) | must be one of `none\|minimal\|low\|medium\|high\|xhigh\|max`; anything else exits `2` (`NotConfigured`). OpenAI format: top-level `reasoning_effort`. Anthropic format: `output_config.effort`, and `none`/`minimal` exit `2` (no Messages equivalent) |
 | `GATEWAY_MAX_TOKENS` | no | OpenAI format: unset (no `max_completion_tokens` cap sent). Anthropic format: `8192` plus any enabled thinking budget (`max_tokens` is required there) | not a valid `u32` exits `2` (`NotConfigured`) |
 | `GATEWAY_THINKING_BUDGET` | no | unset (no `thinking` sent) | not a valid `u32` exits `2`; `0` sends `thinking: {"type": "disabled"}`; `> 0` sends `{"type": "enabled", "budget_tokens": n}`; if `GATEWAY_MAX_TOKENS` is also set and is `<=` this budget, exits `2` (reasoning tokens count against `max_tokens`). Anthropic format: `1..=1023` exits `2` (API minimum is 1024) |
 | `GATEWAY_PROMPT_CACHE_KEY` | no | enabled: every OpenAI-format request carries `prompt_cache_key` set to the run's Session id | `off` disables it (field omitted); any other value is ignored and caching stays enabled. Not sent in the Anthropic format, which caches through `cache_control` breakpoints instead |
 | `GATEWAY_EXTRA_BODY` | no | unset (no extra fields merged) | must be a JSON object; invalid JSON or a non-object value exits `2` (`NotConfigured`) |
-| `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout) | not a valid integer exits `2` (`NotConfigured`) |
-| `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try) | not a valid `u32` exits `2` (`NotConfigured`) |
+| `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout, clamped to the time left before `--deadline-secs`) | not a valid integer exits `2` (`NotConfigured`) |
+| `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try; a timed-out attempt is retried at most once) | not a valid `u32` exits `2` (`NotConfigured`) |
 | `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32`, or a window that leaves under 16000 characters of context after the reply reserve, exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
-`GATEWAY_EXTRA_BODY` merges into the wire request body (OpenAI SDK `extra_body` semantics) in both formats: useful for gateway-specific fields this client has no typed support for yet, e.g. `{"reasoning": {"effort": "high"}, "prompt_cache_retention": "24h", "verbosity": "low"}` (OpenAI) or `{"service_tier": "auto"}` (Anthropic). On a key collision, the typed fields this client sends (`model`, `messages`, `system`, `max_tokens`/`max_completion_tokens`, `reasoning_effort`/`output_config`, `thinking`, `prompt_cache_key`, `tools`, `tool_choice`) always win; `GATEWAY_EXTRA_BODY` only fills in keys this client does not otherwise send.
+`GATEWAY_EXTRA_BODY` merges into the wire request body (OpenAI SDK `extra_body` semantics) in both formats: useful for gateway-specific fields this client has no typed support for yet, e.g. `{"reasoning": {"effort": "high"}, "prompt_cache_retention": "24h", "verbosity": "low"}` (OpenAI) or `{"service_tier": "auto"}` (Anthropic). On a key collision, the typed fields this client sends (`model`, `messages`, `system`, `max_tokens`/`max_completion_tokens`, `reasoning_effort`/`output_config`, `thinking`, `prompt_cache_key`, `tools`, `tool_choice`, `stream`) always win; `GATEWAY_EXTRA_BODY` only fills in keys this client does not otherwise send. `stream` is always `false`: the client reads one JSON body, never an event stream.
+
+### Gateway retries
+
+- Retried (exit `3` once attempts run out): HTTP `429`, `5xx` except `501`/`505`, timeouts, transport errors, and a `2xx` body carrying a retryable error object (`overloaded_error`, `api_error`, `rate_limit_error`, `rate_limit_exceeded`, `server_error`).
+- Not retried (exit `8`): `401`, `403`, every other `4xx`, `501`, `505`, any other error object in a `2xx` body, an unparsable `2xx` body, empty `choices`, a refusal. The error message carries the upstream `error.message`, cut to 300 characters.
+- Backoff: a `Retry-After` header on `429`/`503`/`529` (delta-seconds or HTTP-date) wins, capped at 60 s; otherwise full jitter, a random delay up to 1 s, 2 s, 4 s, then 8 s. A retry whose backoff would end past the run deadline is not attempted.
+- `connect_timeout` is 10 s. Transport errors never print the request URL, so credentials in `GATEWAY_BASE_URL` do not reach stderr.
 
 ### Anthropic format
 
@@ -183,7 +193,14 @@ Measured tool numbers, not end-to-end run time:
 - Static fetch (reqwest + htmd, no browser): 0.25–0.96 s — docs.rs 0.25 s, react.dev 0.41 s, wikipedia 0.63 s, github.com 0.96 s.
 - Browser fallback (Obscura, JS shells/challenge pages): 1.5–8.2 s.
 
-End-to-end run time is dominated by LLM turns, bounded by `--max-turns`, not by search/fetch. Measured live (#33, `docs/e2e-evidence.md`): 7.7 s for a 2-turn run on `claude-haiku-4.5` that fetched 2 pages.
+End-to-end run time is dominated by LLM turns, bounded by the turn budget and `--deadline-secs`, not by search/fetch. Measured live (#33, `docs/e2e-evidence.md`): 7.7 s for a 2-turn run on `claude-haiku-4.5` that fetched 2 pages.
+
+## Run deadline and timeouts (#100)
+
+- `--deadline-secs` (default `300`) bounds the whole run, from gateway construction to the answer.
+- Final reserve: the time of one model call, `GATEWAY_TIMEOUT_SECS` but at most a quarter of the run (60 s by default; 7.5 s for `--deadline-secs 30`). Once less than the reserve is left, the next turn is the final turn (tools off), so the Evidence fetched so far still produces a Synthesis. Tool calls are cut at the start of the reserve, so they never eat into it.
+- Hard end: the deadline passing with no answer exits `9`. A gateway attempt is cut when the deadline passes, so a hung gateway exits `9` by the deadline rather than `3`.
+- Per tool call: 45 s. Static fetch: 10 s. Obscura fallback: 30 s, so a static attempt that times out plus a full browser fallback ends 5 s before the tool timeout.
 
 ## Browser profile bump (#59)
 
@@ -222,12 +239,14 @@ The framing and the rule reduce prompt injection; they do not make it impossible
     "verification": { "bullets": 6, "cited": 5, "exact": 3, "partial": 1, "none": 1 }
   },
   "turns_used": 4,
+  "turn_budget": 15,
   "evidence_urls": ["https://…"],
   "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "reasoning_tokens": 0, "cached_prompt_tokens": 0, "cache_creation_prompt_tokens": 0 }
 }
 ```
 
 - `content_trust`: always `untrusted-web` (#98).
+- `turns_used`: LLM calls made. `turn_budget`: the turn budget when the run ended, `--max-turns` plus any search extensions, at most `--max-turns-cap` (#101).
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
 - `synthesis` comes from the agent's final reply (its first reply with no tool call). The agent is asked to put its answer inside an `<answer>` … `</answer>` block, each tag on a line of its own, and only the text inside the last such block is parsed, so remarks about its own progress never reach `summary` (#72). A tag counts only when it is alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line is parsed whole. `summary` is the text before the first `## ` heading, each `## ` section is one theme, and its `- `/`* `/`N. ` bullets are its `points`. A bullet's trailing `(quote: "…")` is removed from its point and kept on its citations (see "Grounding check").
@@ -250,14 +269,16 @@ Citations are checked against the pages, without a model. The agent ends each bu
 | Code | Meaning | Harness action |
 |---|---|---|
 | 0 | Synthesis on stdout | use it |
-| 2 | Not configured: empty goal, missing key, `max_turns < 1`, an invalid `--session-id`, an invalid `GATEWAY_*` value, or a `GATEWAY_CONTEXT_WINDOW` too small to leave 16000 characters of context | fix env/args; do not retry |
-| 3 | Gateway exhausted: retries/rate limit, auth failed (`bad API key`, HTTP 401), or access refused (`refused access (HTTP 403): <upstream message>`) | 401: fix key; 403: the key works but the model/tier is gated upstream, pick another model; otherwise retry later |
+| 2 | Not configured: empty goal, missing key, `max_turns < 1`, `--max-turns-cap` below `--max-turns`, `--deadline-secs 0`, an invalid `--session-id`, an invalid `GATEWAY_*` value (including a malformed `GATEWAY_BASE_URL`), or a `GATEWAY_CONTEXT_WINDOW` too small to leave 16000 characters of context | fix env/args; do not retry |
+| 3 | Gateway unavailable after retries: `429` (incl. a credit wall), `5xx`, timeout, transport | retry later |
 | 4 | Tool failures exceeded the repair budget | retry, or rephrase the goal |
-| 5 | Turn budget exhausted | retry with a higher `--max-turns` |
+| 5 | Turn budget exhausted | raise `--max-turns` / `--max-turns-cap` |
 | 6 | Session I/O failed on an explicit `--session-out` (a defaulted Session path never exits `6`: it warns on stderr and exits `0`) | check the `--session-out` path, or omit it |
 | 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page, Startpage Anubis proof-of-work/CAPTCHA, Brave or Bing HTTP `429`, Bing `challenge/verify` gate, Yahoo consent redirect) or a skip of an engine already suspended *from* such a Challenge (#62). A `search` call narrowed by `recency` never counts, since the same search without `recency` could still reach the skipped engines (#81) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
+| 8 | Gateway rejected the request: `401` (`bad API key`), `403` (`refused access (HTTP 403): <upstream message>`, the model/tier is gated upstream), other `4xx`, an error object in a `2xx` body, an unparsable `2xx` body, empty choices, a refusal | fix key/model/env; do not retry |
+| 9 | Run deadline exceeded with no usable answer | raise `--deadline-secs` or narrow the goal |
 
-Errors are printed to stderr as `error: <message>`; stdout stays empty.
+stdout carries only the response: the JSON object with `--json`, the markdown otherwise. Logs (`RUST_LOG`) go to stderr, with ANSI colour only when stderr is a terminal. Errors are printed to stderr as `error: <message>`; stdout stays empty.
 
 ## Harness snippet
 

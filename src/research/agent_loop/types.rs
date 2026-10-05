@@ -11,8 +11,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::time::Instant;
+
 use crate::llm::{GatewayError, TokenUsage};
 use crate::research::synthesis::{Synthesis, SynthesisSize};
+use crate::web::fetch::fetcher::STATIC_TIMEOUT;
 use crate::web::fetch::{Evidence, FetchPath};
 
 #[derive(Debug, Clone)]
@@ -54,10 +57,22 @@ const PARTS_PER_CONTEXT: usize = 8;
 /// misconfiguration, not a budget.
 pub const MIN_CONTEXT_CHARS: usize = 16_000;
 
+/// Turns each successful `search` call after the first adds to the turn
+/// budget, up to `max_turns_cap` (#101).
+pub const SEARCH_TURN_BONUS: u32 = 5;
+
+/// Slack between the two fetch engines' timeouts and `tool_timeout`, so a
+/// static attempt that times out still leaves the Obscura fallback its
+/// whole window before the tool call itself is cut.
+const FETCH_TIMEOUT_MARGIN: Duration = Duration::from_secs(5);
+
 #[derive(Debug, Clone)]
 pub struct LoopBudget {
-    /// Total gateway calls allowed.
+    /// Base turn budget: gateway calls allowed before any extension.
     pub max_turns: u32,
+    /// Ceiling the budget can grow to through [`SEARCH_TURN_BONUS`].
+    /// Must be `>= max_turns`.
+    pub max_turns_cap: u32,
     /// Consecutive failure turns before abort.
     pub max_repairs: u32,
     /// Per-tool-call deadline, applied by the runner.
@@ -69,17 +84,27 @@ pub struct LoopBudget {
     pub max_context_chars: usize,
     /// Wire-call cap per turn.
     pub max_tools_per_turn: usize,
+    /// End of the whole run (#100); `None` runs unbounded. Past it the run
+    /// fails `DeadlineExceeded`.
+    pub deadline: Option<Instant>,
+    /// Time kept back for one final model call: once less than this is
+    /// left before `deadline`, the next turn is the final turn, and tool
+    /// calls are cut so they never eat into it.
+    pub final_reserve: Duration,
 }
 
 impl Default for LoopBudget {
     fn default() -> Self {
         Self {
-            max_turns: 8,
+            max_turns: 10,
+            max_turns_cap: 25,
             max_repairs: 2,
             tool_timeout: Duration::from_secs(45),
             max_part_chars: MAX_PART_CHARS,
             max_context_chars: 24_000,
             max_tools_per_turn: 3,
+            deadline: None,
+            final_reserve: Duration::from_secs(60),
         }
     }
 }
@@ -112,6 +137,56 @@ impl LoopBudget {
             ..Self::default()
         })
     }
+
+    /// Bound the run to `run_time` from now, keeping back the time of one
+    /// model call (`request_timeout`, at most a quarter of the run) for
+    /// the final answer.
+    pub fn with_deadline(mut self, run_time: Duration, request_timeout: Duration) -> Self {
+        self.deadline = Some(Instant::now() + run_time);
+        self.final_reserve = request_timeout.min(run_time / 4);
+        self
+    }
+
+    /// Turn budget after `successful_searches` successful `search` calls:
+    /// the base, plus [`SEARCH_TURN_BONUS`] per call after the first,
+    /// capped at `max_turns_cap`.
+    pub fn turn_budget(&self, successful_searches: u32) -> u32 {
+        let bonus = successful_searches
+            .saturating_sub(1)
+            .saturating_mul(SEARCH_TURN_BONUS);
+        self.max_turns
+            .saturating_add(bonus)
+            .min(self.max_turns_cap.max(self.max_turns))
+    }
+
+    /// Latest instant a tool call may run to: the deadline minus the final
+    /// reserve. `None` without a deadline.
+    pub fn work_cutoff(&self) -> Option<Instant> {
+        self.deadline
+            .map(|deadline| deadline.checked_sub(self.final_reserve).unwrap_or(deadline))
+    }
+
+    /// Whether the run's remaining time has dropped below the final
+    /// reserve, so the next turn must be the final one.
+    pub fn in_final_reserve(&self) -> bool {
+        self.work_cutoff()
+            .is_some_and(|cutoff| Instant::now() >= cutoff)
+    }
+
+    /// Whether the run deadline has passed.
+    pub fn deadline_passed(&self) -> bool {
+        self.deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+    }
+
+    /// Obscura's timeout, derived so a static attempt that times out
+    /// ([`STATIC_TIMEOUT`]) plus a full Obscura fallback still ends before
+    /// `tool_timeout` cuts the call (#100).
+    pub fn obscura_timeout(&self) -> Duration {
+        self.tool_timeout
+            .saturating_sub(STATIC_TIMEOUT)
+            .saturating_sub(FETCH_TIMEOUT_MARGIN)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -141,8 +216,11 @@ pub struct ToolEvidence {
 #[derive(Debug, Clone)]
 pub struct RunReport {
     pub synthesis: Synthesis,
-    /// Gateway calls made, `1..=max_turns`.
+    /// Gateway calls made, `1..=turn_budget`.
     pub turns_used: u32,
+    /// Turn budget when the run ended: `max_turns` plus any `search`
+    /// extensions, at most `max_turns_cap`.
+    pub turn_budget: u32,
     /// Total failure turns consumed in the run.
     pub failures_used: u32,
     /// Document order (turn ascending, then wire order).
@@ -164,17 +242,22 @@ pub struct RunReport {
 #[derive(Debug)]
 pub enum LoopError {
     /// Pre-flight: empty goal, unknown `allowed_tools` entry, missing key,
-    /// `max_turns == 0`, `max_context_chars == 0`. No I/O was attempted.
+    /// `max_turns == 0`, `max_turns_cap < max_turns`,
+    /// `max_context_chars == 0`. No I/O was attempted.
     NoStart(String),
-    /// Gateway `chat_with_tools`/`chat` returned `Err` (retries exhausted).
+    /// Gateway `chat_with_tools`/`chat` returned `Err` (retries exhausted
+    /// or the request was rejected).
     Gateway(GatewayError),
     /// Consecutive dispatch-kind failures exceeded `max_repairs`.
     /// Carries the last failure's reason.
     InvalidToolCall { reason: String },
     /// Consecutive tool-execution failures exceeded `max_repairs`.
     ToolFailed { reason: String },
-    /// `max_turns` consumed with no FINAL parsed.
+    /// The turn budget was consumed with no FINAL parsed; `turns` is the
+    /// budget reached.
     BudgetExhausted { turns: u32 },
+    /// The run deadline passed before a FINAL parsed.
+    DeadlineExceeded { turns: u32 },
 }
 
 impl std::fmt::Display for LoopError {
@@ -192,6 +275,12 @@ impl std::fmt::Display for LoopError {
                 write!(
                     f,
                     "turn budget exhausted after {turns} turns with no final answer"
+                )
+            }
+            Self::DeadlineExceeded { turns } => {
+                write!(
+                    f,
+                    "run deadline exceeded after {turns} turns with no final answer"
                 )
             }
         }
@@ -281,10 +370,59 @@ mod tests {
         assert!(LoopError::BudgetExhausted { turns: 2 }
             .to_string()
             .contains('2'));
+        assert!(LoopError::DeadlineExceeded { turns: 3 }
+            .to_string()
+            .contains("deadline"));
         let from_gateway: LoopError = GatewayError::Auth.into();
         assert!(matches!(
             from_gateway,
             LoopError::Gateway(GatewayError::Auth)
         ));
+    }
+
+    /// Every successful search after the first adds the bonus, and the
+    /// cap holds.
+    #[test]
+    fn turn_budget_grows_with_searches_up_to_the_cap() {
+        let budget = LoopBudget::default();
+        assert_eq!(budget.turn_budget(0), 10);
+        assert_eq!(budget.turn_budget(1), 10);
+        assert_eq!(budget.turn_budget(2), 15);
+        assert_eq!(budget.turn_budget(3), 20);
+        assert_eq!(budget.turn_budget(4), 25);
+        assert_eq!(budget.turn_budget(40), 25);
+        let flat = LoopBudget {
+            max_turns: 6,
+            max_turns_cap: 6,
+            ..LoopBudget::default()
+        };
+        assert_eq!(flat.turn_budget(5), 6);
+    }
+
+    /// A static fetch that times out plus a full Obscura fallback ends
+    /// before the tool call is cut.
+    #[test]
+    fn fetch_timeouts_fit_inside_the_tool_timeout() {
+        let budget = LoopBudget::default();
+        assert!(STATIC_TIMEOUT + budget.obscura_timeout() < budget.tool_timeout);
+        assert_eq!(
+            budget.obscura_timeout(),
+            crate::web::fetch::Obscura::default().timeout
+        );
+    }
+
+    /// The final reserve is one model call, but never more than a quarter
+    /// of a short run.
+    #[test]
+    fn final_reserve_is_one_call_capped_at_a_quarter_of_the_run() {
+        let long =
+            LoopBudget::default().with_deadline(Duration::from_secs(300), Duration::from_secs(60));
+        assert_eq!(long.final_reserve, Duration::from_secs(60));
+        assert!(!long.in_final_reserve());
+        let short =
+            LoopBudget::default().with_deadline(Duration::from_secs(30), Duration::from_secs(60));
+        assert_eq!(short.final_reserve, Duration::from_millis(7_500));
+        assert!(!LoopBudget::default().in_final_reserve());
+        assert!(!LoopBudget::default().deadline_passed());
     }
 }

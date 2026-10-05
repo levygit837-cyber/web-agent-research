@@ -8,6 +8,7 @@
 //! rationale (#72): `docs/research/agent-prompt.md`.
 
 use crate::research::agent_loop::answer::{ANSWER_CLOSE, ANSWER_OPEN};
+use crate::research::agent_loop::types::SEARCH_TURN_BONUS;
 use crate::research::agent_loop::LoopBudget;
 use crate::research::synthesis::SynthesisSize;
 use crate::web::fetch::tool::FETCH_TOOL_NAME;
@@ -74,13 +75,22 @@ fn workflow(size: SynthesisSize, budget: &LoopBudget) -> String {
     )
 }
 
-fn budget_rules(budget: &LoopBudget, reads_pages: bool) -> String {
+fn budget_rules(budget: &LoopBudget, reads_pages: bool, extends: bool) -> String {
     let mut text = format!(
         "<budget>
-- This run has {turns} turns (model replies), counting the reply that writes the final answer. After each tool turn, the newest tool result says how many turns are left. A reply that still calls a tool on the last turn ends the run with no answer at all, so answer by the last turn at the latest.
+- This run starts with {turns} turns (model replies), counting the reply that writes the final answer. After each tool turn, the newest tool result says how many turns are left.
+- The last turn is the final turn: tools are off on it, and a reply on it must be the final answer. A tool call there is not run and the run can end with no answer, so answer by the final turn at the latest.
 ",
         turns = budget.max_turns,
     );
+    if extends && budget.max_turns_cap > budget.max_turns {
+        text.push_str(&format!(
+            "- Each successful search after the first adds {bonus} turns, up to {cap} turns in total. Spend them on reading pages, not on more searches.
+",
+            bonus = SEARCH_TURN_BONUS,
+            cap = budget.max_turns_cap,
+        ));
+    }
     if reads_pages {
         text.push_str(&format!(
             "- A failed fetch is not Evidence: fetch a different Hit rather than retrying the same URL.
@@ -174,7 +184,11 @@ pub fn build_system_prompt(
         prompt.push_str(&workflow(size, budget));
     }
     if !tool_roster.is_empty() {
-        prompt.push_str(&budget_rules(budget, reads_pages));
+        prompt.push_str(&budget_rules(
+            budget,
+            reads_pages,
+            offered(SEARCH_TOOL_NAME),
+        ));
     }
     prompt.push_str(&answer_format(size, reads_pages));
     prompt

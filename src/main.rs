@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -20,9 +21,15 @@ enum Command {
         /// Synthesis size (`deep` reserves vocabulary; rejected at parse).
         #[arg(long, value_enum, default_value_t = SizeArg::Medium)]
         size: SizeArg,
-        /// Total gateway calls allowed.
-        #[arg(long, default_value_t = 8)]
+        /// Base turn budget (gateway calls); each successful search after the first adds 5, up to `--max-turns-cap`.
+        #[arg(long, default_value_t = 10)]
         max_turns: u32,
+        /// Ceiling the turn budget can grow to; must be >= `--max-turns`.
+        #[arg(long, default_value_t = 25)]
+        max_turns_cap: u32,
+        /// Wall-clock bound on the whole run, in seconds; must be >= 1.
+        #[arg(long, default_value_t = 300)]
+        deadline_secs: u64,
         /// Session id, `[A-Za-z0-9._-]{1,64}` without a leading dot; defaults to `<unix-secs>-<pid>`.
         #[arg(long)]
         session_id: Option<String>,
@@ -61,13 +68,19 @@ fn exit_for(err: &ResearchError) -> i32 {
         ResearchError::BudgetExhausted { .. } => 5,
         ResearchError::Io(_) => 6,
         ResearchError::SearchBlocked(_) => 7,
+        ResearchError::GatewayRejected(_) => 8,
+        ResearchError::DeadlineExceeded { .. } => 9,
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // stdout carries only the response (`--json` must parse as one JSON
+    // object); logs go to stderr, with ANSI colour only on a terminal.
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .with_writer(std::io::stderr)
+        .with_ansi(std::io::stderr().is_terminal())
         .init();
 
     let cli = Cli::parse();
@@ -75,6 +88,8 @@ async fn main() -> Result<()> {
         goal,
         size,
         max_turns,
+        max_turns_cap,
+        deadline_secs,
         session_id,
         session_out,
         json,
@@ -83,6 +98,8 @@ async fn main() -> Result<()> {
         goal,
         size: size.as_size(),
         max_turns,
+        max_turns_cap,
+        deadline_secs,
         session_id,
         session_out,
     };
@@ -147,6 +164,45 @@ mod tests {
         assert_eq!(session_id.as_deref(), Some("s-1"));
         assert!(json);
     }
+
+    /// The CLI defaults are the request defaults a JSON caller gets.
+    #[test]
+    fn cli_defaults_match_request_defaults() {
+        let Command::Research {
+            max_turns,
+            max_turns_cap,
+            deadline_secs,
+            ..
+        } = parse(&["web-agent-research", "research", "goal"]).command;
+        let req: ResearchRequest =
+            serde_json::from_str(r#"{"goal":"goal"}"#).expect("request deserializes");
+        assert_eq!((max_turns, max_turns_cap, deadline_secs), (10, 25, 300));
+        assert_eq!(
+            (req.max_turns, req.max_turns_cap, req.deadline_secs),
+            (max_turns, max_turns_cap, deadline_secs)
+        );
+    }
+
+    #[test]
+    fn budget_and_deadline_flags_parse() {
+        let Command::Research {
+            max_turns_cap,
+            deadline_secs,
+            ..
+        } = parse(&[
+            "web-agent-research",
+            "research",
+            "goal",
+            "--max-turns-cap",
+            "12",
+            "--deadline-secs",
+            "30",
+        ])
+        .command;
+        assert_eq!(max_turns_cap, 12);
+        assert_eq!(deadline_secs, 30);
+    }
+
     #[test]
     fn bare_invocation_prints_help_without_research() {
         let err = Cli::try_parse_from(["web-agent-research"])
@@ -185,6 +241,8 @@ mod tests {
         assert_eq!(exit_for(&ResearchError::BudgetExhausted { turns: 8 }), 5);
         assert_eq!(exit_for(&ResearchError::Io("x".to_owned())), 6);
         assert_eq!(exit_for(&ResearchError::SearchBlocked("x".to_owned())), 7);
+        assert_eq!(exit_for(&ResearchError::GatewayRejected("x".to_owned())), 8);
+        assert_eq!(exit_for(&ResearchError::DeadlineExceeded { turns: 2 }), 9);
     }
 
     #[test]
@@ -214,6 +272,7 @@ mod tests {
                 verification: VerificationDTO::default(),
             },
             turns_used: 1,
+            turn_budget: 10,
             evidence_urls: vec!["https://example.com/t".to_owned()],
             usage: UsageDTO {
                 prompt_tokens: 1,

@@ -39,6 +39,8 @@ async fn live_research_terminates_within_budget() -> anyhow::Result<()> {
         goal: "what is the Obscura headless browser?".to_owned(),
         size: SynthesisSize::Small,
         max_turns: 4,
+        max_turns_cap: 25,
+        deadline_secs: 300,
         session_id: None,
         session_out: None,
     };
