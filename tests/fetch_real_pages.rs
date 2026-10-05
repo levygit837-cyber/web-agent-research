@@ -13,7 +13,7 @@ use std::time::Duration;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use web_agent_research::web::fetch::tool::fetch_tool;
-use web_agent_research::web::fetch::{FetchPath, Fetcher, Obscura};
+use web_agent_research::web::fetch::{EgressPolicy, FetchPath, Fetcher, Obscura};
 
 const BBC: &str = include_str!("fixtures/bbc-news-excerpt.html");
 const GITHUB: &str = include_str!("fixtures/github-htmd-excerpt.html");
@@ -49,10 +49,14 @@ async fn serve() -> String {
 /// the browser binary does not exist, so a fallback would fail the fetch.
 async fn evidence_markdown(route: &str) -> String {
     let base = serve().await;
-    let fetcher = Fetcher::with_obscura(Obscura::new(
-        PathBuf::from("/nonexistent/obscura"),
-        Duration::from_secs(1),
-    ));
+    // The excerpt server binds 127.0.0.1: opt out of the egress policy (#97).
+    let fetcher = Fetcher::with_policy(
+        Obscura::new(
+            PathBuf::from("/nonexistent/obscura"),
+            Duration::from_secs(1),
+        ),
+        EgressPolicy::AllowPrivate,
+    );
     let evidence = fetch_tool(&json!({ "url": format!("{base}{route}") }), &fetcher)
         .await
         .unwrap();

@@ -194,10 +194,13 @@ async fn already_fetched_hit_gets_marker_others_dont() {
             &format!("{search_base}/search"),
             &format!("{search_base}/search"),
         ),
-        Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-            "/nonexistent/obscura".into(),
-            std::time::Duration::from_secs(1),
-        )),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::AllowPrivate,
+        ),
     );
 
     let fetched = registry
@@ -250,10 +253,13 @@ async fn full_run_dedups_repeat_fetch_into_one_evidence_url() {
             "http://127.0.0.1:9/",
             "http://127.0.0.1:9/",
         ),
-        Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-            "/nonexistent/obscura".into(),
-            std::time::Duration::from_secs(1),
-        )),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::AllowPrivate,
+        ),
     );
 
     let llm = spawn_llm(vec![

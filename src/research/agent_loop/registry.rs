@@ -80,10 +80,13 @@ impl ToolRegistry {
         let dead = "http://127.0.0.1:9/";
         Self::new(
             Searcher::with_bases(dead, dead, dead, dead, dead, dead),
-            Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-                "/nonexistent/obscura".into(),
-                std::time::Duration::from_secs(1),
-            )),
+            Fetcher::with_policy(
+                crate::web::fetch::Obscura::new(
+                    "/nonexistent/obscura".into(),
+                    std::time::Duration::from_secs(1),
+                ),
+                crate::web::fetch::EgressPolicy::AllowPrivate,
+            ),
         )
     }
 

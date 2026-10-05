@@ -77,6 +77,41 @@ async fn unreachable_endpoints_are_execution_failures() {
     assert!(reason(fetch).starts_with("fetch failed"));
 }
 
+/// #97: a refused private-network target reaches the model as a failed
+/// `fetch` (Execution, so it counts against the repair budget like any
+/// other unreadable page) carrying the typed refusal, with no I/O.
+#[tokio::test]
+async fn private_target_is_a_typed_fetch_failure_the_model_sees() {
+    let dead = "http://127.0.0.1:9/";
+    let registry = ToolRegistry::new(
+        Searcher::with_bases(dead, dead, dead, dead, dead, dead),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::PublicOnly,
+        ),
+    );
+    let result = registry
+        .execute(
+            &call(
+                "fetch",
+                r#"{"url": "http://169.254.169.254/latest/meta-data/"}"#,
+            ),
+            TEST_PART_CHARS,
+        )
+        .await;
+    assert_eq!(kind(&result), FailureKind::Execution);
+    assert!(
+        result.render("n").starts_with(
+            "FAILED: fetch failed: refused private-network target: http://169.254.169.254/"
+        ),
+        "{}",
+        result.render("n")
+    );
+}
+
 /// Regression (#53): both provider legs walled with a bot-detection
 /// challenge -> `searcher.search` returns
 /// `SearchProviderError::AllFailed { all_challenged: true, .. }`, and
@@ -112,10 +147,13 @@ async fn all_challenged_search_becomes_search_blocked() {
             &yahoo_stub.base(),
             &bing_stub.base(),
         ),
-        Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-            "/nonexistent/obscura".into(),
-            std::time::Duration::from_secs(1),
-        )),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::AllowPrivate,
+        ),
     );
     let result = registry
         .execute(&call("search", r#"{"queries": ["q"]}"#), TEST_PART_CHARS)

@@ -14,21 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A failed write to the defaulted Session path warns on stderr and exits `0`; exit `6` is only for an explicit `--session-out` (#102).
 - `--json` adds `content_trust: "untrusted-web"`; the Harness snippet now treats the Synthesis as untrusted web content (#98).
 - `--json` citations add `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`; the Synthesis adds `verification` counts (#106).
+- `fetch` refuses loopback, private, link-local and other reserved addresses, incl. via DNS and redirects (#97).
+- New `FetchError::Egress` variant; `Fetcher::with_policy` and `Obscura::with_egress` take an `EgressPolicy` (#97).
 
 ### Added
 
 - Session files are created with mode `0600`; `SESSION_MAX_BYTES` (default 256 MiB) evicts the oldest Sessions (#102).
 - Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
 - Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
+- `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
 
 ### Changed
 
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
+- Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
 
 ### Fixed
 
 - `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
+- Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
 
 ## [0.3.0] - 2026-10-04
 

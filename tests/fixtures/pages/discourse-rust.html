@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>What&#39;s the difference between &amp;String and &amp;str? - help - The Rust Programming Language Forum</title>
+  = 40rem)" rel="stylesheet" data-target="discourse-ai_desktop"  />
+  = 40rem)" rel="stylesheet" data-target="discourse-events_desktop"  />
+  = 40rem)" rel="stylesheet" data-target="poll_desktop"  />
+    <script type="application/ld+json"></script>
+  </head>
+  <body class="crawler ">
+    <header>
+  <a href="/">The Rust Programming Language Forum</a>
+</header>
+    <div id="main-outlet" class="wrap" role="main">
+        <div id="topic-title">
+    <h1>
+      <a href="/t/whats-the-difference-between-string-and-str/10177">What&#39;s the difference between &amp;String and &amp;str?</a>
+    </h1>
+      <div class="topic-category" itemscope itemtype="http://schema.org/BreadcrumbList">
+          <span itemprop="itemListElement" itemscope itemtype="http://schema.org/ListItem">
+            <a href="/c/help/5" class="badge-wrapper bullet" itemprop="item">
+              <span class='badge-category-bg'></span>
+              <span class='badge-category clear-badge'>
+                <span class='category-name' itemprop='name'>help</span>
+              </span>
+            </a>
+          </span>
+      </div>
+  </div>
+    <div itemscope="itemscope" itemtype="https://schema.org/QAPage">
+        <div itemprop="mainEntity" itemscope="itemscope" itemtype="https://schema.org/Question">
+          <div id='post_1' class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/mariosangiorgio'><span itemprop="name">mariosangiorgio</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time datetime='2017-04-01T14:32:22Z' class='post-time'>
+                    April 1, 2017,  2:32pm
+                  </time>
+              <span itemprop="position">1</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>Hello, I'm a bit confused by why we need both String and &amp;str.</p>
+<p>I understand that String is an owned string while &amp;str represents a borrowed string.</p>
+<p>I also read that I can pass &amp;String  to a function that wants an &amp;str and it will get coerced but it's not clear why they are different types. What's the difference between the two?</p>
+<p>Is str alone (without being a reference) used anywhere or is it something that's only ever created and owned by the compiler?</p>
+<p>Finally, if I write a function that takes a string reference, what should it's type be? I feel that the answer it's &amp;str but I'm not entirely sure why</p>
+            </div>
+          </div>
+          <div id='post_2' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/steveklabnik'><span itemprop="name">steveklabnik</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T14:46:30Z' class='post-time'>
+                    April 1, 2017,  2:46pm
+                  </time>
+              <span itemprop="position">2</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>Check out Chapter 4 of the second edition of the Rust book:</p>
+<p><a href="https://doc.rust-lang.org/nightly/book/second-edition/ch04-00-understanding-ownership.html" class="onebox">https://doc.rust-lang.org/nightly/book/second-edition/ch04-00-understanding-ownership.html</a></p>
+<p>It goes into all of this in a lot of detail, including diagrams.</p>
+<p>(This hasn't hit stable yet, so it's totally reasonable to have missed it!)</p>
+<aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar"> mariosangiorgio:</div>
+<blockquote>
+<p>Is str alone (without being a reference) used anywhere or is it something that's only ever created and owned by the compiler?</p>
+</blockquote>
+</aside>
+<p>This is the one part that isn't covered there. <code>str</code> on its own is an "unsized" or "dynamically sized" type; you can't ever create <code>str</code> values directly, they must be created behind some kind of pointer; <code>&amp;str</code>, <code>Box&lt;str&gt;</code>, <code>Rc&lt;str&gt;</code>, that kind of thing.</p>
+            </div>
+          </div>
+          <div id='post_3' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/troplin'><span itemprop="name">troplin</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T15:00:27Z' class='post-time'>
+                    April 1, 2017,  3:00pm
+                  </time>
+              <span itemprop="position">3</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>Basically a <code>String</code> wraps and manages a dynamically allocated <code>str</code> as backing storage.<br>
+Since <code>str</code> cannot be resized, <code>String</code> will dynamically allocate/deallocate memory.</p>
+<p>A <code>&amp;str</code> is thus a reference directly into the backing storage of the <code>String</code>, while <code>&amp;String</code> is a reference to the "wrapper" object.<br>
+Additionaly,  <code>&amp;str</code> can be used for substrings, i.e. they are slices. A <code>&amp;String</code> references always the whole string.</p>
+            </div>
+          </div>
+          <div id='post_4' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/kornel'><span itemprop="name">kornel</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T15:43:59Z' class='post-time'>
+                    April 1, 2017,  3:43pm
+                  </time>
+              <span itemprop="position">4</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>For C programmers:</p>
+<pre><code class="lang-plaintext">struct str {
+   char text[]; // unknown number of bytes, which is why `str` as such is not used
+}
+// &amp;str looks like a pointer, but it's not!
+struct &amp;str {
+   size_t length;
+   const char *text; // not owned
+};
+// like &amp;str, this is a fat pointer.
+struct Box&lt;str&gt; {
+   size_t length;
+   char *text; // malloc()'ed
+};
+struct String {
+   size_t used_length;
+   size_t size_of_allocation;
+   char *text; // malloc()'ed
+}
+</code></pre>
+            </div>
+          </div>
+          <div id='post_5' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/steveklabnik'><span itemprop="name">steveklabnik</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T15:52:50Z' class='post-time'>
+                    April 1, 2017,  3:52pm
+                  </time>
+              <span itemprop="position">5</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar"> troplin:</div>
+<blockquote>
+<p>Basically a String wraps and manages a dynamically allocated str as backing storage.</p>
+</blockquote>
+</aside>
+<p>This feels backwards to me, and contradicts</p>
+<aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar"> troplin:</div>
+<blockquote>
+<p>A &amp;str is thus a reference directly into the backing storage of the String</p>
+</blockquote>
+</aside>
+<p>Which is more accurate.</p>
+            </div>
+          </div>
+          <div id='post_6' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/troplin'><span itemprop="name">troplin</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T15:59:50Z' class='post-time'>
+                    April 1, 2017,  3:59pm
+                  </time>
+              <span itemprop="position">6</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar"> steveklabnik:</div>
+<blockquote>
+<p>This feels backwards to me, and contradicts</p>
+</blockquote>
+</aside>
+<p>How so?<br>
+I did write a dynamically allocated <code>str</code>, not <code>&amp;str</code>.<br>
+A <code>String</code> is essentially a <code>Box&lt;str&gt;</code> with additional bookkeeping to allow resizing.</p>
+            </div>
+          </div>
+          <div id='post_7' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/steveklabnik'><span itemprop="name">steveklabnik</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T16:12:17Z' class='post-time'>
+                    April 1, 2017,  4:12pm
+                  </time>
+              <span itemprop="position">7</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <aside class="quote no-group">
+<div class="title">
+<div class="quote-controls"></div>
+<img alt="" class="avatar"> troplin:</div>
+<blockquote>
+<p>How so?</p>
+</blockquote>
+</aside>
+<p>Because a <code>String</code> doesn't contain any <code>str</code>s; it's a <code>Vec&lt;u8&gt;</code> internally. Just like a <code>str</code> is a <code>[u8]</code> internally.</p>
+<p>"The owning type contains a borrowed type inside it" feels wrong; "a borrowed type refers to some owning type" feels right.</p>
+            </div>
+          </div>
+          <div id='post_8' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/troplin'><span itemprop="name">troplin</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T16:19:30Z' class='post-time'>
+                    April 1, 2017,  4:19pm
+                  </time>
+              <span itemprop="position">8</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p><code>str</code> is not a borrowed type, <code>&amp;str</code> is.</p>
+<p><code>String</code> containing a <code>Vec&lt;u8&gt;</code> internally is an implementation detail. Conceptually, it must contain a <code>str</code>, because otherwise how could you borrow a <code>&amp;str</code> from it?</p>
+<p>EDIT:<br>
+To elaborate a bit more, you cannot have a reference without something it references. So a <code>&amp;str</code> must point to a <code>str</code>, and where should that <code>str</code> live if not in the <code>String</code>?</p>
+            </div>
+          </div>
+          <div id='post_9' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/mbrubeck'><span itemprop="name">mbrubeck</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T20:36:50Z' class='post-time'>
+                    April 1, 2017,  8:36pm
+                  </time>
+              <span itemprop="position">9</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p><code>String</code> implements <code>Deref&lt;Target=str&gt;</code>, making it conceptually an owning pointer to a <code>str</code>, even though it doesn't literally have a <code>*mut str</code> field.  Similarly, a <code>Vec&lt;T&gt;</code> is a type of (smart) pointer to <code>[T]</code>.</p>
+            </div>
+          </div>
+          <div id='post_10' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/U007D'><span itemprop="name">U007D</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-01T21:51:20Z' class='post-time'>
+                    April 1, 2017,  9:51pm
+                  </time>
+              <span itemprop="position">10</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>While we're on the topic, I always hear the 'resizable/heap vs fixed-size/stack' explanations (and that's helpful), but I'm more curious as to why the Rust didn't just go with, say, String and give the implementation a small-string optimization to avoid unnecessary heap allocations for the typical use cases?</p>
+<p>I have my own theory, but I'm wondering if anyone knows the real reason(s)?</p>
+            </div>
+          </div>
+          <div id='post_11' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/steveklabnik'><span itemprop="name">steveklabnik</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-02T15:28:04Z' class='post-time'>
+                    April 2, 2017,  3:28pm
+                  </time>
+              <span itemprop="position">11</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>See here <a href="https://internals.rust-lang.org/t/small-string-optimization-remove-as-mut-vec/1320" class="inline-onebox">Small string optimization: remove as_mut_vec - libs - Rust Internals</a></p>
+            </div>
+          </div>
+          <div id='post_12' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/bluss'><span itemprop="name">bluss</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-02T15:33:33Z' class='post-time'>
+                    April 2, 2017,  3:33pm
+                  </time>
+              <span itemprop="position">12</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>I think of <code>String</code> as a specific allocation and grow policy for string data. Slice / owner separation is very powerful that way, though of course what we enjoy as power makes a hill that learners have to climb.</p>
+            </div>
+          </div>
+          <div id='post_13' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/U007D'><span itemprop="name">U007D</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-04-03T14:31:31Z' class='post-time'>
+                    April 3, 2017,  2:31pm
+                  </time>
+              <span itemprop="position">13</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p><a class="mention" href="/u/bluss">@bluss</a>, yes, it's the slice / owner separation pattern that the Programming Rust book I'm reading called out in &amp;[T]/Vec, Path/PathBuf and one other place that escapes me at  the moment.  Anyway, that enabled me to see S/OS as a pattern employed throughout Rust, not just  as a one-of (er, two-of) thing for &amp;str/String and &amp;[T]/Vec.</p>
+<p>You've captured both the motivation and the cost very succinctly--that's helpful, thank you!</p>
+            </div>
+          </div>
+          <div id='post_14' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/graphsay'><span itemprop="name">graphsay</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-10-06T02:28:57Z' class='post-time'>
+                    October 6, 2017,  2:28am
+                  </time>
+              <span itemprop="position">14</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>this is helpful.what I am confused is ,what kind of struct should <code>str</code>(not &amp;str) to be.thanks!</p>
+            </div>
+          </div>
+          <div id='post_15' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/Michael-F-Bryan'><span itemprop="name">Michael-F-Bryan</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-10-06T04:32:19Z' class='post-time'>
+                    October 6, 2017,  4:32am
+                  </time>
+              <span itemprop="position">15</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <blockquote>
+<p>what kind of struct should str(not &amp;str) to be</p>
+</blockquote>
+<p>It would be a <a href="https://doc.rust-lang.org/stable/nomicon/exotic-sizes.html#dynamically-sized-types-dsts">dynamically sized type</a> looking something like this:</p>
+<pre><code class="lang-rust">struct str {
+  contents: [u8],
+}
+</code></pre>
+<p>Notice how the contents contains a slice directly, not a reference to a slice. The nomicon explains this pretty well if you want to find out more.</p>
+<blockquote>
+<p>Due to their lack of a statically known size, these types can only exist behind some kind of pointer. Any pointer to a DST consequently becomes a fat pointer consisting of the pointer and the information that "completes" them (more on this below).</p>
+</blockquote>
+            </div>
+          </div>
+          <div id='post_16' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/kornel'><span itemprop="name">kornel</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2017-10-06T09:48:50Z' class='post-time'>
+                    October 6, 2017,  9:48am
+                  </time>
+              <span itemprop="position">16</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>It would be just the raw bytes of the string.</p>
+<p>But because the length is held in the reference, not str itself, such type is mostly an unusable abstract concept in Rust.</p>
+            </div>
+          </div>
+          <div id='post_17' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/mayurdzk'><span itemprop="name">mayurdzk</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2018-06-27T03:44:06Z' class='post-time'>
+                    June 27, 2018,  3:44am
+                  </time>
+              <span itemprop="position">17</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>I've got a question related to this one: Why does a <code>String</code> slice have a special type <code>&amp;str</code>, whereas a slice of a vec of integers doesn't? (There the slice type is <code>&amp;[i32]</code>).</p>
+            </div>
+          </div>
+          <div id='post_18' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/ExpHP'><span itemprop="name">ExpHP</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2018-06-27T03:53:05Z' class='post-time'>
+                    June 27, 2018,  3:53am
+                  </time>
+              <span itemprop="position">18</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>What are you looking for? Why doesn't <code>&amp;[T]</code> fit the bill?</p>
+<p><code>[T]</code> is as special as you can get. <code>[T]</code> and <code>str</code> are both primitive, unsized types you can't construct.  I mean, <code>str</code> is basically just <code>[u8]</code> with a UTF8 invariant.</p>
+<p>And one time, long, long ago, <code>Vec&lt;T&gt;</code> and <code>String</code> were known as <code>~[T]</code> and <code>~str</code>.</p>
+            </div>
+          </div>
+          <div id='post_19' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/U007D'><span itemprop="name">U007D</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2018-06-27T04:00:17Z' class='post-time'>
+                    June 27, 2018,  4:00am
+                  </time>
+              <span itemprop="position">19</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>If you think of <code>str</code> and <code>[]</code> as the fundamental types, their owned forms are <strong>both</strong> different than these, namely <code>String</code> and <code>Vec</code>, respectively.  This seems consistent, unless I am misunderstanding your question?</p>
+            </div>
+          </div>
+          <div id='post_20' itemprop="suggestedAnswer" itemscope="itemscope" itemtype="https://schema.org/Answer" class='topic-body crawler-post'>
+            <div class='crawler-post-meta'>
+              <span class="creator" itemprop="author" itemscope="itemscope" itemtype="http://schema.org/Person">
+                <a href='https://users.rust-lang.org/u/DanielKeep'><span itemprop="name">DanielKeep</span></a>
+              </span>
+              <span class="crawler-post-infos">
+                  <time itemprop="datePublished" datetime='2018-06-27T04:14:20Z' class='post-time'>
+                    June 27, 2018,  4:14am
+                  </time>
+              <span itemprop="position">20</span>
+              </span>
+            </div>
+            <div class='post' itemprop="text">
+              <p>Because <code>[u8]</code> doesn't have to be valid UTF-8, <code>str</code> does.</p>
+            </div>
+          </div>
+        </div>
+    </div>
+      <div role='navigation' itemscope itemtype='http://schema.org/SiteNavigationElement' class="topic-body crawler-post">
+            <span itemprop='name'><b><a itemprop="url" href="/t/whats-the-difference-between-string-and-str/10177?page=2">next page →</a></b></span>
+      </div>
+    <div id="related-topics" class="more-topics__list " role="complementary">
+  <h3 id="related-topics-title" class="more-topics__list-title">
+    Related topics
+  </h3>
+  <div class="topic-list-container" itemscope itemtype='http://schema.org/ItemList'>
+    <table class='topic-list'>
+      <thead>
+        <tr>
+          <th>Topic</th>
+          <th></th>
+          <th class="replies">Replies</th>
+          <th class="views">Views</th>
+          <th>Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="topic-list-item" id="topic-list-item-41479">
+            <td class="main-link" itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
+              <span class="link-top-line">
+                <a itemprop='url' href='https://users.rust-lang.org/t/basic-topic-string-and-string-slice/41479' class='title raw-link raw-topic-link'>Basic-Topic-String-and-string-Slice</a>
+              </span>
+              <div class="link-bottom-line">
+                  <div class="discourse-tags">
+                  </div>
+              </div>
+            </td>
+            <td class="replies">
+              <span class='posts' title='posts'>17</span>
+            </td>
+            <td class="views">
+              <span class='views' title='views'>1989</span>
+            </td>
+            <td>
+              April 26, 2020
+            </td>
+          </tr>
+          <tr class="topic-list-item" id="topic-list-item-28519">
+            <td class="main-link" itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
+              <span class="link-top-line">
+                <a itemprop='url' href='https://users.rust-lang.org/t/what-are-string-and-str/28519' class='title raw-link raw-topic-link'>What are String and str?</a>
+              </span>
+              <div class="link-bottom-line">
+                  <a href='/c/help/5' class='badge-wrapper bullet'>
+                    <span class='badge-category-bg'></span>
+                    <span class='badge-category clear-badge'>
+                      <span class='category-name'>help</span>
+                    </span>
+                  </a>
+                  <div class="discourse-tags">
+                  </div>
+              </div>
+            </td>
+            <td class="replies">
+              <span class='posts' title='posts'>12</span>
+            </td>
+            <td class="views">
+              <span class='views' title='views'>9201</span>
+            </td>
+            <td>
+              May 23, 2019
+            </td>
+          </tr>
+          <tr class="topic-list-item" id="topic-list-item-61334">
+            <td class="main-link" itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
+              <span class="link-top-line">
+                <a itemprop='url' href='https://users.rust-lang.org/t/string-vs-str-why/61334' class='title raw-link raw-topic-link'>String vs &amp;str - why?</a>
+              </span>
+              <div class="link-bottom-line">
+                  <a href='/c/help/5' class='badge-wrapper bullet'>
+                    <span class='badge-category-bg'></span>
+                    <span class='badge-category clear-badge'>
+                      <span class='category-name'>help</span>
+                    </span>
+                  </a>
+                  <div class="discourse-tags">
+                  </div>
+              </div>
+            </td>
+            <td class="replies">
+              <span class='posts' title='posts'>30</span>
+            </td>
+            <td class="views">
+              <span class='views' title='views'>6840</span>
+            </td>
+            <td>
+              June 21, 2021
+            </td>
+          </tr>
+          <tr class="topic-list-item" id="topic-list-item-98765">
+            <td class="main-link" itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
+              <span class="link-top-line">
+                <a itemprop='url' href='https://users.rust-lang.org/t/str-is-same-with-slice/98765' class='title raw-link raw-topic-link'>&amp;str is same with slice?</a>
+              </span>
+              <div class="link-bottom-line">
+                  <a href='/c/help/5' class='badge-wrapper bullet'>
+                    <span class='badge-category-bg'></span>
+                    <span class='badge-category clear-badge'>
+                      <span class='category-name'>help</span>
+                    </span>
+                  </a>
+                  <div class="discourse-tags">
+                  </div>
+              </div>
+            </td>
+            <td class="replies">
+              <span class='posts' title='posts'>19</span>
+            </td>
+            <td class="views">
+              <span class='views' title='views'>3526</span>
+            </td>
+            <td>
+              August 23, 2023
+            </td>
+          </tr>
+          <tr class="topic-list-item" id="topic-list-item-36990">
+            <td class="main-link" itemprop='itemListElement' itemscope itemtype='http://schema.org/ListItem'>
+              <span class="link-top-line">
+                <a itemprop='url' href='https://users.rust-lang.org/t/noob-question-why-str/36990' class='title raw-link raw-topic-link'>Noob question: why &quot;&amp;str&quot;?</a>
+              </span>
+              <div class="link-bottom-line">
+                  <a href='/c/help/5' class='badge-wrapper bullet'>
+                    <span class='badge-category-bg'></span>
+                    <span class='badge-category clear-badge'>
+                      <span class='category-name'>help</span>
+                    </span>
+                  </a>
+                  <div class="discourse-tags">
+                  </div>
+              </div>
+            </td>
+            <td class="replies">
+              <span class='posts' title='posts'>22</span>
+            </td>
+            <td class="views">
+              <span class='views' title='views'>3632</span>
+            </td>
+            <td>
+              January 18, 2020
+            </td>
+          </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+    </div>
+    <footer class="container wrap">
+  <nav class='crawler-nav'>
+    <ul>
+      <li itemscope itemtype='http://schema.org/SiteNavigationElement'>
+        <span itemprop='name'>
+          <a href='/' itemprop="url">Home </a>
+        </span>
+      </li>
+      <li itemscope itemtype='http://schema.org/SiteNavigationElement'>
+        <span itemprop='name'>
+          <a href='/categories' itemprop="url">Categories </a>
+        </span>
+      </li>
+      <li itemscope itemtype='http://schema.org/SiteNavigationElement'>
+        <span itemprop='name'>
+          <a href='/guidelines' itemprop="url">Guidelines </a>
+        </span>
+      </li>
+        <li itemscope itemtype='http://schema.org/SiteNavigationElement'>
+          <span itemprop='name'>
+            <a href='/tos' itemprop="url">Terms of Service </a>
+          </span>
+        </li>
+    </ul>
+  </nav>
+  <p class='powered-by-link'>Powered by <a href="https://www.discourse.org">Discourse</a>, best viewed with JavaScript enabled</p>
+</footer>
+  </body>
+</html>

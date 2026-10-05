@@ -1,0 +1,1724 @@
+
+<!DOCTYPE html>
+<html lang="en" class="theme-device ">
+<head>
+    <title>A half-hour to learn Rust</title>
+    <style></style>
+    <script></script>
+<script type="module"></script></head>
+<body>
+<div class="body-inner">
+<div class="content">
+  <a id="home-page-top" href="#home-page-top"></a>
+  <div id="page-topnav" class="page-topnav"></div>
+  <main>
+    <div class="page-html has-toc">
+  <div class="page-html-padded markup-container page-markup">
+    <h1 class="page-title">
+        A half-hour to learn Rust
+    </h1>
+    <div class="page-metadata with-reading-time">
+        <span>Jan 27, 2020</span>
+        <span class="reading-time">
+        <svg id="clock-icon" class="inline-icon" alt="clock icon"></svg>
+        <abbr title="Estimated reading time, at 220 words per minute, where one word = 5 characters">
+                27 min
+        </abbr>
+    </span>
+    <span class="tags">
+                <span><a href="/tags/rust">#rust</a></span>
+    </span>
+        <span class="indicators">
+</span>
+    </div>
+<p id="sponsor-list" class="sponsor-list">
+    Thanks to my sponsors:
+    <span id="visible-sponsors">
+    kuerbsikakteen, Ronen Cohen, Mark Tomlin, psentee, Brooke, Miguel Raz Guzmán Macedo, Ryan, Lena Schönburg, Mario Fleischhacker, Tabitha, jatescher, Dylan Anthony, Guillaume E, Marcin Kołodziej, Astrid, Justin Smith, pinkhatbeard, anichno, Valentin Mariette, Carson Page
+        and <a href="#" id="show-all-sponsors"><span id="more-sponsors-count">239</span> more</a>
+    </span>
+    <span id="all-sponsors">kuerbsikakteen, Ronen Cohen, Mark Tomlin, psentee, Brooke, Miguel Raz Guzmán Macedo, Ryan, Lena Schönburg, Mario Fleischhacker, Tabitha, jatescher, Dylan Anthony, Guillaume E, Marcin Kołodziej, Astrid, Justin Smith, pinkhatbeard, anichno, Valentin Mariette, Carson Page, Jim, David Smith, The0x539, Marcus Griep, budrick, Makoto Nakashima, Lyssieth, Anna M, Tyler Bloom, Ross Williams, James Rhodes, C J Silverio, Christopher Valerio, playest, ZacJW, Marty Penner, Malik Bougacha, old.woman.josiah, Marco Carmosino, Em Sharnoff, Egor Ternovoi, Guilherme Neubaner, compwhizii, René Ribaud, Marcus Griep, avborhanian, Blake Johnson, villem, Philipp Hatt, Borys Minaiev, Daniel Strittmatter, Vladimir, Tanner Muro, Kevin Murphy, ShikChen, RedstoneWizard08, AdrianEddy, Christian Bourjau, Pete LeVasseur, David Cornu, Guy Waldman, Adam Lassek, Hazel Duvall, Sung Jeon, Max von Forell, Max Bruckner, Dominik Wagner, clement, Yufan Lou, Anson VanDoren, Ben Wishovich, Lach, Alan O&#x27;Donnell, Paige Ruten, Hadrien G., Tom Forbes, Dimitri Merejkowsky, Olivia Crain, Geoff Cant, Jan-Stefan Janetzky, Zachary Thomas, Taneli Kaivola, Julien Roncaglia, Ripta Pasay, me, Diego Roig, Integer 32, LLC, Timothée Gerber, Senyo Simpson, James Leitch, genny, Raphaël Thériault, Zac Harrold, Marc-Andre Giroux, Braidon Whatley, qrpth, Julian Schmid, Colin VanDervoort, Luke Konopka, Chris, Beat Scherrer, jalciné, Niels Abildgaard, Yuriy Taraday, Eugene Bulkin, Thehbadger, Jeff Crocker, std__mpa, Mike English, Henrik Tudborg, Luis, Geoffroy Couprie, Ben Mitchell, Gorazd Brumen, Aiden Scandella, Yann Schwartz, Björn Marschollek, Richard Stephens, Joshua Roesslein, Zaki, callym, Sawyer Knoblich, Johnathan Pagnutti, Lucille Blumire, Victor Song, Enrico Zschemisch, Mattia Valzelli, Daniel Wagner-Hall, Matt Jadczak, Romain Ruetschi, Mateusz Wykurz, Nyefan, Mathias Brossard, Steven Pham, Horváth-Lázár Péter, SeniorMars, Dom, Daniel Silverstone, Mathew Haji, Nicolas Riebesel, Chris Sims, Zeeger Lubsen, Torben Clasen, Xirvik Servers, Reto Trappitsch, Dave Minter, Brian L. Troutwine, Matt Campbell, notryanb, Kyle Lacy, Jean-David Gadina, Antoine Rouaze, traxys, Antoine PESTEL-ROPARS, Menno Finlay-Smits, Richard Pringle, Matt Jackson, Chris Walker, zoey, Philipp Angerer, Michał Bartoszkiewicz, Ian McLinden, Corey Alexander, Neil Blakey-Milner, xd009642, Radu Matei, Nicolas Coulange, Lyrenhex, Xavier Groleau, Wyatt Herkamp, eliferrous, Laine Taffin Altman, ofrighil, Justy, Peter Shih, Scott Sanderson, Mason Ginter, frankwang, Geoffrey Thomas, Mark, Lawrence Bethlenfalvy, Santiago Lema, Brandon Piña, L0r3m1p5um, milan, Ives van Hoorne, Olivier Peyrusse, Alexandra Østermark, hgranthorner, Matthias Zepper, Jesse Luehrs, Jake Demarest-Mays, Kai Kaufman, Alex Rudy, rektide, Stephan Buys, Angelo, Twan Walpot, Vincent Mutolo, David Barsky, Justin Ossevoort, Hamilton Chapman, Tomáš Šedovič, Simon Menke, Jonathan Adams, Pete Bevin, asaaki, Andy F, Michal Hošna, Romain Kelifa, Kamran Khan, Andy Gocke, Samit Basu, Mark Old, David White, prairiewolf, belzael, James Brown, Matej Volf, you got maiL, Nereuxofficial, Jörn Huxhorn, FELIX, Tobias Bahls, knutwalker, Jelle Besseling, Boris Dolgov, Romet Tagobert, Zoran Zaric, Sean Bryant, Adam Gutglick, Zalán Bálint Lévai, xales, Tiziano Santoro, Yves, Chris Thackrey, Marie Janssen, Toon Willems, WeblWabl, Andrew Henshaw, Mikkel Rasmussen, Jimmy Hartzell, Sam Leonard, Josh Triplett, Matt Heise, Luke Yue, Benjamin Röjder Delnavaz, Raine Godmaire, Michael, Édomaur odéon, Dirkjan Ochtman, Chris Emery, John VanEnk, Olly Swanson, Vinay Mehta, Gioele Pannetto, Bob Ippolito, Aleksandre Khokhiashvili, Isak Sunde Singh</span>
+</p>
+<script></script>
+    <div class="after-page-metadata-spacer"></div>
+            <div class="disclosure paragraph-like">
+                <p>
+                    👋 This page was last updated ~7 years ago. Just so you know.
+                </p>
+            </div>
+    <p>In order to increase fluency in a programming language, one has to read a lot of
+it.</p>
+<p>But how can you read a lot of it if you don’t know what it means?</p>
+<p>In this article, instead of focusing on one or two concepts, I’ll try to go
+through as many Rust snippets as I can, and explain what the keywords and
+symbols they contain mean.</p>
+<p>Ready? Go!</p>
+<a id="variable-bindings" href="#variable-bindings" class="anchor"><h2>Variable bindings</h2></a>
+<a id="the-let-keyword" href="#the-let-keyword" class="anchor"><h3>The <code>let</code> keyword</h3></a>
+<p><code>let</code> introduces a variable binding:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x<a-p>;</a-p> <a-c>// declare &quot;x&quot;</a-c>
+x = <a-co>42</a-co><a-p>;</a-p> <a-c>// assign 42 to &quot;x&quot;</a-c>
+</code></figure><p>This can also be written as a single line:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+</code></figure><a id="type-annotation" href="#type-annotation" class="anchor"><h3>Type annotation</h3></a>
+<p>You can specify the variable’s type explicitly with <code>:</code>, that’s a type annotation:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t><a-p>;</a-p> <a-c>// `i32` is a signed 32-bit integer</a-c>
+x = <a-co>42</a-co><a-p>;</a-p>
+<a-c>// there&#39;s i8, i16, i32, i64, i128</a-c>
+<a-c>//    also u8, u16, u32, u64, u128 for unsigned</a-c>
+</code></figure><p>This can also be written as a single line:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t> = <a-co>42</a-co><a-p>;</a-p>
+</code></figure><a id="uninitialized-variables" href="#uninitialized-variables" class="anchor"><h3>Uninitialized variables</h3></a>
+<p>If you declare a name and initialize it later, the compiler will prevent you
+from using it before it’s initialized.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x<a-p>;</a-p>
+<a-f>foobar</a-f><a-p>(</a-p>x<a-p>);</a-p> <a-c>// error: borrow of possibly-uninitialized variable: `x`</a-c>
+x = <a-co>42</a-co><a-p>;</a-p>
+</code></figure><p>However, doing this is completely fine:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x<a-p>;</a-p>
+x = <a-co>42</a-co><a-p>;</a-p>
+<a-f>foobar</a-f><a-p>(</a-p>x<a-p>);</a-p> <a-c>// the type of `x` will be inferred from here</a-c>
+</code></figure><a id="throwing-values-away" href="#throwing-values-away" class="anchor"><h3>Throwing values away</h3></a>
+<p>The underscore <code>_</code> is a special name - or rather, a “lack of name”. It
+basically means to throw away something:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// this does *nothing* because 42 is a constant</a-c>
+<a-k>let</a-k> _ = <a-co>42</a-co><a-p>;</a-p>
+<a-c>// this calls `get_thing` but throws away its result</a-c>
+<a-k>let</a-k> _ = <a-f>get_thing</a-f><a-p>();</a-p>
+</code></figure><p>Names that <em>start</em> with an underscore are regular names, it’s just that
+the compiler won’t warn about them being unused:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// we may use `_x` eventually, but our code is a work-in-progress</a-c>
+<a-c>// and we just wanted to get rid of a compiler warning for now.</a-c>
+<a-k>let</a-k> _x = <a-co>42</a-co><a-p>;</a-p>
+</code></figure><a id="shadowing-bindings" href="#shadowing-bindings" class="anchor"><h3>Shadowing bindings</h3></a>
+<p>Separate bindings with the same name can be introduced - you can <em>shadow</em>
+a variable binding:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-co>13</a-co><a-p>;</a-p>
+<a-k>let</a-k> x = x + <a-co>3</a-co><a-p>;</a-p>
+<a-c>// using `x` after that line only refers to the second `x`,</a-c>
+<a-c>//</a-c>
+<a-c>// although the first `x` still exists (it&#39;ll be dropped</a-c>
+<a-c>// when going out of scope), you can no longer refer to it.</a-c>
+</code></figure><a id="tuples" href="#tuples" class="anchor"><h2>Tuples</h2></a>
+<p>Rust has tuples, which you can think of as “fixed-length collections
+of values of different types”.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> pair = <a-p>(</a-p><a-s>&#39;a&#39;</a-s><a-p>,</a-p> <a-co>17</a-co><a-p>);</a-p>
+pair<a-p>.</a-p><a-co>0</a-co><a-p>;</a-p> <a-c>// this is &#39;a&#39;</a-c>
+pair<a-p>.</a-p><a-co>1</a-co><a-p>;</a-p> <a-c>// this is 17</a-c>
+</code></figure><p>If we really wanted to annotate the type of <code>pair</code>, we would write:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> pair<a-p>:</a-p> <a-p>(</a-p><a-t>char</a-t><a-p>,</a-p> <a-t>i32</a-t><a-p>)</a-p> = <a-p>(</a-p><a-s>&#39;a&#39;</a-s><a-p>,</a-p> <a-co>17</a-co><a-p>);</a-p>
+</code></figure><a id="destructuring-tuples" href="#destructuring-tuples" class="anchor"><h3>Destructuring tuples</h3></a>
+<p>Tuples can be <em>destructured</em> when doing an assignment, which means
+they’re broken down into their individual fields:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> <a-p>(</a-p>some_char<a-p>,</a-p> some_int<a-p>)</a-p> = <a-p>(</a-p><a-s>&#39;a&#39;</a-s><a-p>,</a-p> <a-co>17</a-co><a-p>);</a-p>
+<a-c>// now, `some_char` is &#39;a&#39;, and `some_int` is 17</a-c>
+</code></figure><p>This is especially useful when a function returns a tuple:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> <a-p>(</a-p>left<a-p>,</a-p> right<a-p>)</a-p> = slice<a-p>.</a-p><a-pr>split_at</a-pr><a-p>(</a-p>middle<a-p>);</a-p>
+</code></figure><p>Of course, when destructuring a tuple, <code>_</code> can be used to throw away part of it:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> <a-p>(</a-p>_<a-p>,</a-p> right<a-p>)</a-p> = slice<a-p>.</a-p><a-pr>split_at</a-pr><a-p>(</a-p>middle<a-p>);</a-p>
+</code></figure><a id="statements" href="#statements" class="anchor"><h2>Statements</h2></a>
+<p>The semi-colon marks the end of a statement:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-co>3</a-co><a-p>;</a-p>
+<a-k>let</a-k> y = <a-co>5</a-co><a-p>;</a-p>
+<a-k>let</a-k> z = y + x<a-p>;</a-p>
+</code></figure><p>Which means statements can span multiple lines:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-m>vec!</a-m><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>,</a-p> <a-co>4</a-co><a-p>,</a-p> <a-co>5</a-co><a-p>,</a-p> <a-co>6</a-co><a-p>,</a-p> <a-co>7</a-co><a-p>,</a-p> <a-co>8</a-co><a-p>]</a-p>
+    <a-p>.</a-p><a-pr>iter</a-pr><a-p>()</a-p>
+    <a-p>.</a-p><a-pr>map</a-pr><a-p>(</a-p>|x| x + <a-co>3</a-co><a-p>)</a-p>
+    <a-p>.</a-p><a-pr>fold</a-pr><a-p>(</a-p><a-co>0</a-co><a-p>,</a-p> |x<a-p>,</a-p> y| x + y<a-p>);</a-p>
+</code></figure><p>(We’ll go over what those actually mean later).</p>
+<a id="functions" href="#functions" class="anchor"><h2>Functions</h2></a>
+<p><code>fn</code> declares a function.</p>
+<p>Here’s a void function:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>greet</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Hi there!&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>And here’s a function that returns a 32-bit signed integer. The
+arrow indicates its return type:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>fair_dice_roll</a-f><a-p>()</a-p> -&gt; <a-t>i32</a-t> <a-p>{</a-p>
+    <a-co>4</a-co>
+<a-p>}</a-p>
+</code></figure><a id="blocks" href="#blocks" class="anchor"><h2>Blocks</h2></a>
+<p>A pair of brackets declares a block, which has its own scope:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// This prints &quot;in&quot;, then &quot;out&quot;</a-c>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x = <a-s>&quot;out&quot;</a-s><a-p>;</a-p>
+    <a-p>{</a-p>
+        <a-c>// this is a different `x`</a-c>
+        <a-k>let</a-k> x = <a-s>&quot;in&quot;</a-s><a-p>;</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> x<a-p>);</a-p>
+    <a-p>}</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> x<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><a id="blocks-are-expressions" href="#blocks-are-expressions" class="anchor"><h3>Blocks are expressions</h3></a>
+<p>Blocks are also expressions, which mean they evaluate to a value.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// this:</a-c>
+<a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+<a-c>// is equivalent to this:</a-c>
+<a-k>let</a-k> x = <a-p>{</a-p> <a-co>42</a-co> <a-p>};</a-p>
+</code></figure><p>Inside a block, there can be multiple statements:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-p>{</a-p>
+    <a-k>let</a-k> y = <a-co>1</a-co><a-p>;</a-p> <a-c>// first statement</a-c>
+    <a-k>let</a-k> z = <a-co>2</a-co><a-p>;</a-p> <a-c>// second statement</a-c>
+    y + z <a-c>// this is the *tail* - what the whole block will evaluate to</a-c>
+<a-p>};</a-p>
+</code></figure><a id="implicit-return" href="#implicit-return" class="anchor"><h3>Implicit return</h3></a>
+<p>And that’s why “omitting the semicolon at the end of a function” is the same
+as returning, ie. these are equivalent:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>fair_dice_roll</a-f><a-p>()</a-p> -&gt; <a-t>i32</a-t> <a-p>{</a-p>
+    <a-k>return</a-k> <a-co>4</a-co><a-p>;</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>fair_dice_roll</a-f><a-p>()</a-p> -&gt; <a-t>i32</a-t> <a-p>{</a-p>
+    <a-co>4</a-co>
+<a-p>}</a-p>
+</code></figure><a id="everything-is-an-expression" href="#everything-is-an-expression" class="anchor"><h3>Everything is an expression</h3></a>
+<p><code>if</code> conditionals are also expressions:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>fair_dice_roll</a-f><a-p>()</a-p> -&gt; <a-t>i32</a-t> <a-p>{</a-p>
+    <a-k>if</a-k> feeling_lucky <a-p>{</a-p>
+        <a-co>6</a-co>
+    <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p>
+        <a-co>4</a-co>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>A <code>match</code> is also an expression:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>fair_dice_roll</a-f><a-p>()</a-p> -&gt; <a-t>i32</a-t> <a-p>{</a-p>
+    <a-k>match</a-k> feeling_lucky <a-p>{</a-p>
+        <a-co>true</a-co> =&gt; <a-co>6</a-co><a-p>,</a-p>
+        <a-co>false</a-co> =&gt; <a-co>4</a-co><a-p>,</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><a id="field-access-and-method-calling" href="#field-access-and-method-calling" class="anchor"><h2>Field access and method calling</h2></a>
+<p>Dots are typically used to access fields of a value:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> a = <a-p>(</a-p><a-co>10</a-co><a-p>,</a-p> <a-co>20</a-co><a-p>);</a-p>
+a<a-p>.</a-p><a-co>0</a-co><a-p>;</a-p> <a-c>// this is 10</a-c>
+<a-k>let</a-k> amos = <a-f>get_some_struct</a-f><a-p>();</a-p>
+amos<a-p>.</a-p><a-pr>nickname</a-pr><a-p>;</a-p> <a-c>// this is &quot;fasterthanlime&quot;</a-c>
+</code></figure><p>Or call a method on a value:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> nick = <a-s>&quot;fasterthanlime&quot;</a-s><a-p>;</a-p>
+nick<a-p>.</a-p><a-pr>len</a-pr><a-p>();</a-p> <a-c>// this is 14</a-c>
+</code></figure><a id="modules-use-syntax" href="#modules-use-syntax" class="anchor"><h2>Modules, <code>use</code> syntax</h2></a>
+<p>The double-colon, <code>::</code>, is similar but it operates on namespaces.</p>
+<p>In this example, <code>std</code> is a <em>crate</em> (~ a library), <code>cmp</code> is a <em>module</em>
+(~ a source file), and <code>min</code> is a <em>function</em>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> least = std<a-p>::</a-p>cmp<a-p>::</a-p><a-f>min</a-f><a-p>(</a-p><a-co>3</a-co><a-p>,</a-p> <a-co>8</a-co><a-p>);</a-p> <a-c>// this is 3</a-c>
+</code></figure><p><code>use</code> directives can be used to “bring in scope” names from other
+namespace:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>use</a-k> std<a-p>::</a-p>cmp<a-p>::</a-p>min<a-p>;</a-p>
+<a-k>let</a-k> least = <a-f>min</a-f><a-p>(</a-p><a-co>7</a-co><a-p>,</a-p> <a-co>1</a-co><a-p>);</a-p> <a-c>// this is 1</a-c>
+</code></figure><p>Within <code>use</code> directives, curly brackets have another meaning: they’re
+“globs”. If we want to import both <code>min</code> and <code>max</code>, we can do any
+of these:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// this works:</a-c>
+<a-k>use</a-k> std<a-p>::</a-p>cmp<a-p>::</a-p>min<a-p>;</a-p>
+<a-k>use</a-k> std<a-p>::</a-p>cmp<a-p>::</a-p>max<a-p>;</a-p>
+<a-c>// this also works:</a-c>
+<a-k>use</a-k> std<a-p>::</a-p>cmp<a-p>::{</a-p>min<a-p>,</a-p> max<a-p>};</a-p>
+<a-c>// this also works!</a-c>
+<a-k>use</a-k> std<a-p>::{</a-p>cmp<a-p>::</a-p>min<a-p>,</a-p> cmp<a-p>::</a-p>max<a-p>};</a-p>
+</code></figure><p>A wildcard (<code>*</code>) lets you import every symbol from a namespace:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// this brings `min` and `max` in scope, and many other things</a-c>
+<a-k>use</a-k> std<a-p>::</a-p>cmp<a-p>::</a-p><a-o>*</a-o><a-p>;</a-p>
+</code></figure><a id="types-are-namespaces-too" href="#types-are-namespaces-too" class="anchor"><h3>Types are namespaces too</h3></a>
+<p>Types are namespaces too, and methods can be called as regular functions:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> x = <a-s>&quot;amos&quot;</a-s><a-p>.</a-p><a-pr>len</a-pr><a-p>();</a-p> <a-c>// this is 4</a-c>
+<a-k>let</a-k> x = str<a-p>::</a-p><a-f>len</a-f><a-p>(</a-p><a-s>&quot;amos&quot;</a-s><a-p>);</a-p> <a-c>// this is also 4</a-c>
+</code></figure><a id="the-libstd-prelude" href="#the-libstd-prelude" class="anchor"><h3>The libstd prelude</h3></a>
+<p><code>str</code> is a primitive type, but many non-primitive types are also in scope
+by default.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// `Vec` is a regular struct, not a primitive type</a-c>
+<a-k>let</a-k> v = <a-cr>Vec</a-cr><a-p>::</a-p><a-f>new</a-f><a-p>();</a-p>
+<a-c>// this is exactly the same code, but with the *full* path to `Vec`</a-c>
+<a-k>let</a-k> v = std<a-p>::</a-p>vec<a-p>::</a-p><a-cr>Vec</a-cr><a-p>::</a-p><a-f>new</a-f><a-p>();</a-p>
+</code></figure><p>This works because Rust inserts this at the beginning of every module:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>use</a-k> std<a-p>::</a-p>prelude<a-p>::</a-p>v1<a-p>::</a-p><a-o>*</a-o><a-p>;</a-p>
+</code></figure><p>(Which in turns re-exports a lot of symbols, like <code>Vec</code>, <code>String</code>, <code>Option</code> and <code>Result</code>).</p>
+<a id="structs" href="#structs" class="anchor"><h2>Structs</h2></a>
+<p>Structs are declared with the <code>struct</code> keyword:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Vec2</a-t> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p> <a-c>// 64-bit floating point, aka &quot;double precision&quot;</a-c>
+    <a-pr>y</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+</code></figure><p>They can be initialized using <em>struct literals</em>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> v1 = <a-t>Vec2</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>1.0</a-co><a-p>,</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>3.0</a-co> <a-p>};</a-p>
+<a-k>let</a-k> v2 = <a-t>Vec2</a-t> <a-p>{</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>2.0</a-co><a-p>,</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>4.0</a-co> <a-p>};</a-p>
+<a-c>// the order does not matter, only the names do</a-c>
+</code></figure><a id="struct-update-syntax" href="#struct-update-syntax" class="anchor"><h3>Struct update syntax</h3></a>
+<p>There is a shortcut for initializing the <em>rest of the fields</em> from
+another struct:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> v3 = <a-t>Vec2</a-t> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-co>14.0</a-co><a-p>,</a-p>
+    ..v2
+<a-p>};</a-p>
+</code></figure><p>This is called “struct update syntax”, can only happen in last position,
+and cannot be followed by a comma.</p>
+<p>Note that <em>the rest of the fields</em> can mean <em>all the fields</em>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> v4 = <a-t>Vec2</a-t> <a-p>{</a-p> ..v3 <a-p>};</a-p>
+</code></figure><a id="destructuring-structs" href="#destructuring-structs" class="anchor"><h3>Destructuring structs</h3></a>
+<p>Structs, like tuples, can be destructured.</p>
+<p>Just like this is a valid <code>let</code> pattern:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> <a-p>(</a-p>left<a-p>,</a-p> right<a-p>)</a-p> = slice<a-p>.</a-p><a-pr>split_at</a-pr><a-p>(</a-p>middle<a-p>);</a-p>
+</code></figure><p>So is this:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> v = <a-t>Vec2</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>3.0</a-co><a-p>,</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>6.0</a-co> <a-p>};</a-p>
+<a-k>let</a-k> <a-t>Vec2</a-t> <a-p>{</a-p> x<a-p>,</a-p> y <a-p>}</a-p> = v<a-p>;</a-p>
+<a-c>// `x` is now 3.0, `y` is now `6.0`</a-c>
+</code></figure><p>And this:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> <a-t>Vec2</a-t> <a-p>{</a-p> x<a-p>,</a-p> .. <a-p>}</a-p> = v<a-p>;</a-p>
+<a-c>// this throws away `v.y`</a-c>
+</code></figure><a id="patterns-and-destructuring" href="#patterns-and-destructuring" class="anchor"><h2>Patterns and destructuring</h2></a>
+<a id="destructuring-with-if-let" href="#destructuring-with-if-let" class="anchor"><h3>Destructuring with <code>if let</code></h3></a>
+<p><code>let</code> patterns can be used as conditions in <code>if</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-pr>odd</a-pr><a-p>:</a-p> <a-t>bool</a-t><a-p>,</a-p>
+    <a-pr>value</a-pr><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> one = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>1</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> two = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>2</a-co> <a-p>};</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p>one<a-p>);</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p>two<a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-k>if</a-k> <a-k>let</a-k> <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> value <a-p>}</a-p> = n <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Odd number: {}&quot;</a-s><a-p>,</a-p> value<a-p>);</a-p>
+    <a-p>}</a-p> <a-k>else</a-k> <a-k>if</a-k> <a-k>let</a-k> <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p> value <a-p>}</a-p> = n <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Even number: {}&quot;</a-s><a-p>,</a-p> value<a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-c>// this prints:</a-c>
+<a-c>// Odd number: 1</a-c>
+<a-c>// Even number: 2</a-c>
+</code></figure><a id="match-arms-are-patterns" href="#match-arms-are-patterns" class="anchor"><h3>Match arms are patterns</h3></a>
+<p><code>match</code> arms are also patterns, just like <code>if let</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-k>match</a-k> n <a-p>{</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> value <a-p>}</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Odd number: {}&quot;</a-s><a-p>,</a-p> value<a-p>),</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p> value <a-p>}</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Even number: {}&quot;</a-s><a-p>,</a-p> value<a-p>),</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-c>// this prints the same as before</a-c>
+</code></figure><a id="exhaustive-matches" href="#exhaustive-matches" class="anchor"><h3>Exhaustive matches</h3></a>
+<p>A <code>match</code> has to be exhaustive: at least one arm needs to match.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-k>match</a-k> n <a-p>{</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>1</a-co><a-p>,</a-p> .. <a-p>}</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;One&quot;</a-s><a-p>),</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>2</a-co><a-p>,</a-p> .. <a-p>}</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Two&quot;</a-s><a-p>),</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p> value<a-p>,</a-p> .. <a-p>}</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> value<a-p>),</a-p>
+        <a-c>// if that last arm didn&#39;t exist, we would get a compile-time error</a-c>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>If that’s hard, <code>_</code> can be used as a “catch-all” pattern:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-k>match</a-k> n<a-p>.</a-p><a-pr>value</a-pr> <a-p>{</a-p>
+        <a-co>1</a-co> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;One&quot;</a-s><a-p>),</a-p>
+        <a-co>2</a-co> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Two&quot;</a-s><a-p>),</a-p>
+        _ =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> n<a-p>.</a-p><a-pr>value</a-pr><a-p>),</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><a id="methods" href="#methods" class="anchor"><h2>Methods</h2></a>
+<p>You can declare methods on your own types:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-pr>odd</a-pr><a-p>:</a-p> <a-t>bool</a-t><a-p>,</a-p>
+    <a-pr>value</a-pr><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>impl</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>is_strictly_positive</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>bool</a-t> <a-p>{</a-p>
+        <a-v>self</a-v><a-p>.</a-p><a-pr>value</a-pr> &gt; <a-co>0</a-co>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>And use them like usual:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> minus_two = <a-t>Number</a-t> <a-p>{</a-p>
+        <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p>
+        <a-pr>value</a-pr><a-p>:</a-p> -<a-co>2</a-co><a-p>,</a-p>
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;positive? {}&quot;</a-s><a-p>,</a-p> minus_two<a-p>.</a-p><a-pr>is_strictly_positive</a-pr><a-p>());</a-p>
+    <a-c>// this prints &quot;positive? false&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><a id="immutability" href="#immutability" class="anchor"><h2>Immutability</h2></a>
+<p>Variable bindings are immutable by default, which means their
+interior can’t be mutated:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p>
+        <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p>
+        <a-pr>value</a-pr><a-p>:</a-p> <a-co>17</a-co><a-p>,</a-p>
+    <a-p>};</a-p>
+    n<a-p>.</a-p><a-pr>odd</a-pr> = <a-co>false</a-co><a-p>;</a-p> <a-c>// error: cannot assign to `n.odd`,</a-c>
+                   <a-c>// as `n` is not declared to be mutable</a-c>
+<a-p>}</a-p>
+</code></figure><p>And also that they cannot be assigned to:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p>
+        <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p>
+        <a-pr>value</a-pr><a-p>:</a-p> <a-co>17</a-co><a-p>,</a-p>
+    <a-p>};</a-p>
+    n = <a-t>Number</a-t> <a-p>{</a-p>
+        <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p>
+        <a-pr>value</a-pr><a-p>:</a-p> <a-co>22</a-co><a-p>,</a-p>
+    <a-p>};</a-p> <a-c>// error: cannot assign twice to immutable variable `n`</a-c>
+<a-p>}</a-p>
+</code></figure><p><code>mut</code> makes a variable binding mutable:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> n = <a-t>Number</a-t> <a-p>{</a-p>
+        <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p>
+        <a-pr>value</a-pr><a-p>:</a-p> <a-co>17</a-co><a-p>,</a-p>
+    <a-p>}</a-p>
+    n<a-p>.</a-p><a-pr>value</a-pr> = <a-co>19</a-co><a-p>;</a-p> <a-c>// all good</a-c>
+<a-p>}</a-p>
+</code></figure><a id="traits" href="#traits" class="anchor"><h2>Traits</h2></a>
+<p>Traits are something multiple types can have in common:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>trait</a-k> <a-t>Signed</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>is_strictly_negative</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>bool</a-t><a-p>;</a-p>
+<a-p>}</a-p>
+</code></figure><a id="orphan-rules" href="#orphan-rules" class="anchor"><h3>Orphan rules</h3></a>
+<p>You can implement:</p>
+<ul><li>one of your traits on anyone’s type</li>
+<li>anyone’s trait on one of your types</li>
+<li>but not a foreign trait on a foreign type</li>
+</ul>
+<p>These are called the “orphan rules”.</p>
+<p>Here’s an implementation of our trait on our type:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k> <a-t>Signed</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>is_strictly_negative</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>bool</a-t> <a-p>{</a-p>
+        <a-v>self</a-v><a-p>.</a-p><a-pr>value</a-pr> &lt; <a-co>0</a-co>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>false</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> -<a-co>44</a-co> <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> n<a-p>.</a-p><a-pr>is_strictly_negative</a-pr><a-p>());</a-p> <a-c>// prints &quot;true&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><p>Our trait on a foreign type (a primitive type, even):</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k> <a-t>Signed</a-t> <a-k>for</a-k> <a-t>i32</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>is_strictly_negative</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>bool</a-t> <a-p>{</a-p>
+        <a-v>self</a-v> &lt; <a-co>0</a-co>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n<a-p>:</a-p> <a-t>i32</a-t> = -<a-co>44</a-co><a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> n<a-p>.</a-p><a-pr>is_strictly_negative</a-pr><a-p>());</a-p> <a-c>// prints &quot;true&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><p>A foreign trait on our type:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// the `Neg` trait is used to overload `-`, the</a-c>
+<a-c>// unary minus operator.</a-c>
+<a-k>impl</a-k> std<a-p>::</a-p>ops<a-p>::</a-p><a-t>Neg</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>type</a-k> <a-t>Output</a-t> = <a-t>Number</a-t><a-p>;</a-p>
+    <a-k>fn</a-k> <a-f>neg</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>Number</a-t> <a-p>{</a-p>
+        <a-t>Number</a-t> <a-p>{</a-p>
+            <a-pr>value</a-pr><a-p>:</a-p> -<a-v>self</a-v><a-p>.</a-p><a-pr>value</a-pr><a-p>,</a-p>
+            <a-pr>odd</a-pr><a-p>:</a-p> <a-v>self</a-v><a-p>.</a-p><a-pr>odd</a-pr><a-p>,</a-p>
+        <a-p>}</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>987</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> m = -n<a-p>;</a-p> <a-c>// this is only possible because we implemented `Neg`</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> m<a-p>.</a-p><a-pr>value</a-pr><a-p>);</a-p> <a-c>// prints &quot;-987&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><a id="the-self-type" href="#the-self-type" class="anchor"><h3>The <code>Self</code> type</h3></a>
+<p>An <code>impl</code> block is always <em>for</em> a type, so, inside that block, <code>Self</code>
+means that type:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k> std<a-p>::</a-p>ops<a-p>::</a-p><a-t>Neg</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>type</a-k> <a-t>Output</a-t> = <a-t>Self</a-t><a-p>;</a-p>
+    <a-k>fn</a-k> <a-f>neg</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>Self</a-t> <a-p>{</a-p>
+        <a-t>Self</a-t> <a-p>{</a-p>
+            <a-pr>value</a-pr><a-p>:</a-p> -<a-v>self</a-v><a-p>.</a-p><a-pr>value</a-pr><a-p>,</a-p>
+            <a-pr>odd</a-pr><a-p>:</a-p> <a-v>self</a-v><a-p>.</a-p><a-pr>odd</a-pr><a-p>,</a-p>
+        <a-p>}</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><a id="marker-traits" href="#marker-traits" class="anchor"><h3>Marker traits</h3></a>
+<p>Some traits are <em>markers</em> - they don’t say that a type implements
+some methods, they say that certain things can be done with a type.</p>
+<p>For example, <code>i32</code> implements trait <code>Copy</code> (in short, <code>i32</code> <em>is</em> <code>Copy</code>),
+so this works:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> a<a-p>:</a-p> <a-t>i32</a-t> = <a-co>15</a-co><a-p>;</a-p>
+    <a-k>let</a-k> b = a<a-p>;</a-p> <a-c>// `a` is copied</a-c>
+    <a-k>let</a-k> c = a<a-p>;</a-p> <a-c>// `a` is copied again</a-c>
+<a-p>}</a-p>
+</code></figure><p>And this also works:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_i32</a-f><a-p>(</a-p><a-v>x</a-v><a-p>:</a-p> <a-t>i32</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x = {}&quot;</a-s><a-p>,</a-p> x<a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> a<a-p>:</a-p> <a-t>i32</a-t> = <a-co>15</a-co><a-p>;</a-p>
+    <a-f>print_i32</a-f><a-p>(</a-p>a<a-p>);</a-p> <a-c>// `a` is copied</a-c>
+    <a-f>print_i32</a-f><a-p>(</a-p>a<a-p>);</a-p> <a-c>// `a` is copied again</a-c>
+<a-p>}</a-p>
+</code></figure><p>But the <code>Number</code> struct is not <code>Copy</code>, so this doesn’t work:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> m = n<a-p>;</a-p> <a-c>// `n` is moved into `m`</a-c>
+    <a-k>let</a-k> o = n<a-p>;</a-p> <a-c>// error: use of moved value: `n`</a-c>
+<a-p>}</a-p>
+</code></figure><p>And neither does this:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{} number {}&quot;</a-s><a-p>,</a-p> <a-k>if</a-k> n<a-p>.</a-p><a-pr>odd</a-pr> <a-p>{</a-p> <a-s>&quot;odd&quot;</a-s> <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p> <a-s>&quot;even&quot;</a-s> <a-p>},</a-p> n<a-p>.</a-p><a-pr>value</a-pr><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p>n<a-p>);</a-p> <a-c>// `n` is moved</a-c>
+    <a-f>print_number</a-f><a-p>(</a-p>n<a-p>);</a-p> <a-c>// error: use of moved value: `n`</a-c>
+<a-p>}</a-p>
+</code></figure><p>But it works if <code>print_number</code> takes an immutable reference instead:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{} number {}&quot;</a-s><a-p>,</a-p> <a-k>if</a-k> n<a-p>.</a-p><a-pr>odd</a-pr> <a-p>{</a-p> <a-s>&quot;odd&quot;</a-s> <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p> <a-s>&quot;even&quot;</a-s> <a-p>},</a-p> n<a-p>.</a-p><a-pr>value</a-pr><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p> <a-c>// `n` is borrowed for the time of the call</a-c>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p> <a-c>// `n` is borrowed again</a-c>
+<a-p>}</a-p>
+</code></figure><p>It also works if a function takes a <em>mutable</em> reference - but only
+if our variable binding is also <code>mut</code>.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>invert</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-k>mut</a-k> <a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    n<a-p>.</a-p><a-pr>value</a-pr> = -n<a-p>.</a-p><a-pr>value</a-pr><a-p>;</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>print_number</a-f><a-p>(</a-p><a-v>n</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>Number</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{} number {}&quot;</a-s><a-p>,</a-p> <a-k>if</a-k> n<a-p>.</a-p><a-pr>odd</a-pr> <a-p>{</a-p> <a-s>&quot;odd&quot;</a-s> <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p> <a-s>&quot;even&quot;</a-s> <a-p>},</a-p> n<a-p>.</a-p><a-pr>value</a-pr><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// this time, `n` is mutable</a-c>
+    <a-k>let</a-k> <a-k>mut</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p>
+    <a-f>invert</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-k>mut</a-k> n<a-p>);</a-p> <a-c>// `n is borrowed mutably - everything is explicit</a-c>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><a id="trait-method-receivers" href="#trait-method-receivers" class="anchor"><h3>Trait method receivers</h3></a>
+<p>Trait methods can also take <code>self</code> by reference or mutable reference:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k> std<a-p>::</a-p>clone<a-p>::</a-p><a-t>Clone</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>clone</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>Self</a-t> <a-p>{</a-p>
+        <a-t>Self</a-t> <a-p>{</a-p> ..<a-o>*</a-o><a-v>self</a-v> <a-p>}</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>When invoking trait methods, the receiver is borrowed implicitly:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> m = n<a-p>.</a-p><a-pr>clone</a-pr><a-p>();</a-p>
+    m<a-p>.</a-p><a-pr>value</a-pr> += <a-co>100</a-co><a-p>;</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p>
+    <a-f>print_number</a-f><a-p>(</a-p><a-o>&amp;</a-o>m<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>To highlight this: these are equivalent:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>let</a-k> m = n<a-p>.</a-p><a-pr>clone</a-pr><a-p>();</a-p>
+<a-k>let</a-k> m = std<a-p>::</a-p>clone<a-p>::</a-p><a-cr>Clone</a-cr><a-p>::</a-p><a-f>clone</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p>
+</code></figure><p>Marker traits like <code>Copy</code> have no methods:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// note: `Copy` requires that `Clone` is implemented too</a-c>
+<a-k>impl</a-k> std<a-p>::</a-p>clone<a-p>::</a-p><a-t>Clone</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>clone</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>Self</a-t> <a-p>{</a-p>
+        <a-t>Self</a-t> <a-p>{</a-p> ..<a-o>*</a-o><a-v>self</a-v> <a-p>}</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>impl</a-k> std<a-p>::</a-p>marker<a-p>::</a-p><a-t>Copy</a-t> <a-k>for</a-k> <a-t>Number</a-t> <a-p>{}</a-p>
+</code></figure><p>Now, <code>Clone</code> can still be used:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> m = n<a-p>.</a-p><a-pr>clone</a-pr><a-p>();</a-p>
+    <a-k>let</a-k> o = n<a-p>.</a-p><a-pr>clone</a-pr><a-p>();</a-p>
+<a-p>}</a-p>
+</code></figure><p>But <code>Number</code> values will no longer be moved:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>odd</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>51</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> m = n<a-p>;</a-p> <a-c>// `m` is a copy of `n`</a-c>
+    <a-k>let</a-k> o = n<a-p>;</a-p> <a-c>// same. `n` is neither moved nor borrowed.</a-c>
+<a-p>}</a-p>
+</code></figure><a id="deriving-traits" href="#deriving-traits" class="anchor"><h3>Deriving traits</h3></a>
+<p>Some traits are so common, they can be implemented automatically
+by using the <code>derive</code> attribute:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-at>#</a-at><a-p>[</a-p><a-at>derive</a-at><a-p>(</a-p><a-cr>Clone</a-cr><a-p>,</a-p><a-at> </a-at><a-cr>Copy</a-cr><a-p>)]</a-p>
+<a-k>struct</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-pr>odd</a-pr><a-p>:</a-p> <a-t>bool</a-t><a-p>,</a-p>
+    <a-pr>value</a-pr><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-c>// this expands to `impl Clone for Number` and `impl Copy for Number` blocks.</a-c>
+</code></figure><a id="generics" href="#generics" class="anchor"><h2>Generics</h2></a>
+<a id="generic-functions" href="#generic-functions" class="anchor"><h3>Generic functions</h3></a>
+<p>Functions can be generic:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;(</a-p><a-v>arg</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-c>// do something with `arg`</a-c>
+<a-p>}</a-p>
+</code></figure><p>They can have multiple <em>type parameters</em>, which can then be used in the
+function’s declaration and its body, instead of concrete types:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>L</a-t><a-p>,</a-p> <a-t>R</a-t><a-p>&gt;(</a-p><a-v>left</a-v><a-p>:</a-p> <a-t>L</a-t><a-p>,</a-p> <a-v>right</a-v><a-p>:</a-p> <a-t>R</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-c>// do something with `left` and `right`</a-c>
+<a-p>}</a-p>
+</code></figure><a id="type-parameter-constraints-trait-bounds" href="#type-parameter-constraints-trait-bounds" class="anchor"><h3>Type parameter constraints (trait bounds)</h3></a>
+<p>Type parameters usually have <em>constraints</em>, so you can actually
+do something with them.</p>
+<p>The simplest constraints are just trait names:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>:</a-p> <a-t>Display</a-t><a-p>&gt;(</a-p><a-v>value</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;value = {}&quot;</a-s><a-p>,</a-p> value<a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>print</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>:</a-p> <a-t>Debug</a-t><a-p>&gt;(</a-p><a-v>value</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;value = {:?}&quot;</a-s><a-p>,</a-p> value<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>There’s a longer syntax for type parameter constraints:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;(</a-p><a-v>value</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>)</a-p>
+<a-k>where</a-k>
+    <a-t>T</a-t><a-p>:</a-p> <a-t>Display</a-t><a-p>,</a-p>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;value = {}&quot;</a-s><a-p>,</a-p> value<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>Constraints can be more complicated: they can require a type parameter
+to implement multiple traits:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>use</a-k> std<a-p>::</a-p>fmt<a-p>::</a-p><a-cr>Debug</a-cr><a-p>;</a-p>
+<a-k>fn</a-k> <a-f>compare</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;(</a-p><a-v>left</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>,</a-p> <a-v>right</a-v><a-p>:</a-p> <a-t>T</a-t><a-p>)</a-p>
+<a-k>where</a-k>
+    <a-t>T</a-t><a-p>:</a-p> <a-t>Debug</a-t> + <a-t>PartialEq</a-t><a-p>,</a-p>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?} {} {:?}&quot;</a-s><a-p>,</a-p> left<a-p>,</a-p> <a-k>if</a-k> left == right <a-p>{</a-p> <a-s>&quot;==&quot;</a-s> <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p> <a-s>&quot;!=&quot;</a-s> <a-p>},</a-p> right<a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>compare</a-f><a-p>(</a-p><a-s>&quot;tea&quot;</a-s><a-p>,</a-p> <a-s>&quot;coffee&quot;</a-s><a-p>);</a-p>
+    <a-c>// prints: &quot;tea&quot; != &quot;coffee&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><a id="monomorphization" href="#monomorphization" class="anchor"><h3>Monomorphization</h3></a>
+<p>Generic functions can be thought of as namespaces, containing an infinity
+of functions with different concrete types.</p>
+<p>Same as with crates, and modules, and types, generic functions can be “explored”
+(navigated?) using <code>::</code></p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>use</a-k> std<a-p>::</a-p>any<a-p>::</a-p>type_name<a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>type_name</a-f><a-p>::&lt;</a-p><a-t>i32</a-t><a-p>&gt;());</a-p> <a-c>// prints &quot;i32&quot;</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>type_name</a-f><a-p>::&lt;(</a-p><a-t>f64</a-t><a-p>,</a-p> <a-t>char</a-t><a-p>)&gt;());</a-p> <a-c>// prints &quot;(f64, char)&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><p>This is lovingly called <a href="https://turbo.fish/">turbofish syntax</a>, because
+<code>::&lt;&gt;</code> looks like a fish.</p>
+<a id="generic-structs" href="#generic-structs" class="anchor"><h3>Generic structs</h3></a>
+<p>Structs can be generic too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Pair</a-t><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-pr>a</a-pr><a-p>:</a-p> <a-t>T</a-t><a-p>,</a-p>
+    <a-pr>b</a-pr><a-p>:</a-p> <a-t>T</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>print_type_name</a-f><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;(</a-p><a-v>_val</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>T</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> std<a-p>::</a-p>any<a-p>::</a-p><a-f>type_name</a-f><a-p>::&lt;</a-p><a-t>T</a-t><a-p>&gt;());</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> p1 = <a-t>Pair</a-t> <a-p>{</a-p> <a-pr>a</a-pr><a-p>:</a-p> <a-co>3</a-co><a-p>,</a-p> <a-pr>b</a-pr><a-p>:</a-p> <a-co>9</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> p2 = <a-t>Pair</a-t> <a-p>{</a-p> <a-pr>a</a-pr><a-p>:</a-p> <a-co>true</a-co><a-p>,</a-p> <a-pr>b</a-pr><a-p>:</a-p> <a-co>false</a-co> <a-p>};</a-p>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>p1<a-p>);</a-p> <a-c>// prints &quot;Pair&lt;i32&gt;&quot;</a-c>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>p2<a-p>);</a-p> <a-c>// prints &quot;Pair&lt;bool&gt;&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><a id="example-vec-t" href="#example-vec-t" class="anchor"><h3>Example: <code>Vec&lt;T&gt;</code></h3></a>
+<p>The standard library type <code>Vec</code> (~ a heap-allocated array), is generic:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> v1 = <a-cr>Vec</a-cr><a-p>::</a-p><a-f>new</a-f><a-p>();</a-p>
+    v1<a-p>.</a-p><a-pr>push</a-pr><a-p>(</a-p><a-co>1</a-co><a-p>);</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> v2 = <a-cr>Vec</a-cr><a-p>::</a-p><a-f>new</a-f><a-p>();</a-p>
+    v2<a-p>.</a-p><a-pr>push</a-pr><a-p>(</a-p><a-co>false</a-co><a-p>);</a-p>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>v1<a-p>);</a-p> <a-c>// prints &quot;Vec&lt;i32&gt;&quot;</a-c>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>v2<a-p>);</a-p> <a-c>// prints &quot;Vec&lt;bool&gt;&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><p>Speaking of <code>Vec</code>, it comes with a macro that gives more or less “vec literals”:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> v1 = <a-m>vec!</a-m><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>];</a-p>
+    <a-k>let</a-k> v2 = <a-m>vec!</a-m><a-p>[</a-p><a-co>true</a-co><a-p>,</a-p> <a-co>false</a-co><a-p>,</a-p> <a-co>true</a-co><a-p>];</a-p>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>v1<a-p>);</a-p> <a-c>// prints &quot;Vec&lt;i32&gt;&quot;</a-c>
+    <a-f>print_type_name</a-f><a-p>(</a-p><a-o>&amp;</a-o>v2<a-p>);</a-p> <a-c>// prints &quot;Vec&lt;bool&gt;&quot;</a-c>
+<a-p>}</a-p>
+</code></figure><a id="macros" href="#macros" class="anchor"><h2>Macros</h2></a>
+<p>All of <code>name!()</code>, <code>name![]</code> or <code>name!{}</code> invoke a macro. Macros just expand to
+regular code.</p>
+<p>In fact, <code>println</code> is a macro:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-s>&quot;Hello there!&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>This expands to something that has the same effect as:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>use</a-k> std<a-p>::</a-p>io<a-p>::{</a-p><a-v>self</a-v><a-p>,</a-p> <a-cr>Write</a-cr><a-p>};</a-p>
+    io<a-p>::</a-p><a-f>stdout</a-f><a-p>().</a-p><a-pr>lock</a-pr><a-p>().</a-p><a-pr>write_all</a-pr><a-p>(</a-p><a-s>b&quot;Hello there!\n&quot;</a-s><a-p>).</a-p><a-pr>unwrap</a-pr><a-p>();</a-p>
+<a-p>}</a-p>
+</code></figure><a id="the-panic-macro" href="#the-panic-macro" class="anchor"><h2>The <code>panic!</code> macro</h2></a>
+<p><code>panic</code> is also a macro. It violently stops execution with an error
+message, and the file name &#x2F; line number of the error, if enabled:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-m>panic!</a-m><a-p>(</a-p><a-s>&quot;This panics&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+<a-c>// output: thread &#39;main&#39; panicked at &#39;This panics&#39;, src/main.rs:3:5</a-c>
+</code></figure><a id="functions-that-panic" href="#functions-that-panic" class="anchor"><h2>Functions that panic</h2></a>
+<p>Some methods also panic. For example, the <code>Option</code> type can contain something,
+or it can contain nothing. If <code>.unwrap()</code> is called on it, and it contains
+nothing, it panics:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> o1<a-p>:</a-p> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>i32</a-t><a-p>&gt;</a-p> = <a-cr>Some</a-cr><a-p>(</a-p><a-co>128</a-co><a-p>);</a-p>
+    o1<a-p>.</a-p><a-pr>unwrap</a-pr><a-p>();</a-p> <a-c>// this is fine</a-c>
+    <a-k>let</a-k> o2<a-p>:</a-p> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>i32</a-t><a-p>&gt;</a-p> = <a-cr>None</a-cr><a-p>;</a-p>
+    o2<a-p>.</a-p><a-pr>unwrap</a-pr><a-p>();</a-p> <a-c>// this panics!</a-c>
+<a-p>}</a-p>
+<a-c>// output: thread &#39;main&#39; panicked at &#39;called `Option::unwrap()` on a `None` value&#39;, src/libcore/option.rs:378:21</a-c>
+</code></figure><a id="enums-sum-types" href="#enums-sum-types" class="anchor"><h2>Enums (sum types)</h2></a>
+<p><code>Option</code> is not a struct - it’s an <code>enum</code>, with two variants.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>enum</a-k> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-cr>None</a-cr><a-p>,</a-p>
+    <a-cr>Some</a-cr><a-p>(</a-p><a-t>T</a-t><a-p>),</a-p>
+<a-p>}</a-p>
+<a-k>impl</a-k><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;</a-p> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>T</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>unwrap</a-f><a-p>(</a-p><a-v>self</a-v><a-p>)</a-p> -&gt; <a-t>T</a-t> <a-p>{</a-p>
+        <a-c>// enums variants can be used in patterns:</a-c>
+        <a-k>match</a-k> <a-v>self</a-v> <a-p>{</a-p>
+            <a-cr>Self</a-cr><a-p>::</a-p><a-cr>Some</a-cr><a-p>(</a-p>t<a-p>)</a-p> =&gt; t<a-p>,</a-p>
+            <a-cr>Self</a-cr><a-p>::</a-p><a-cr>None</a-cr> =&gt; <a-m>panic!</a-m><a-p>(</a-p><a-s>&quot;.unwrap() called on a None option&quot;</a-s><a-p>),</a-p>
+        <a-p>}</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>use</a-k> <a-v>self</a-v><a-p>::</a-p><a-cr>Option</a-cr><a-p>::{</a-p><a-cr>None</a-cr><a-p>,</a-p> <a-cr>Some</a-cr><a-p>};</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> o1<a-p>:</a-p> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>i32</a-t><a-p>&gt;</a-p> = <a-cr>Some</a-cr><a-p>(</a-p><a-co>128</a-co><a-p>);</a-p>
+    o1<a-p>.</a-p><a-pr>unwrap</a-pr><a-p>();</a-p> <a-c>// this is fine</a-c>
+    <a-k>let</a-k> o2<a-p>:</a-p> <a-t>Option</a-t><a-p>&lt;</a-p><a-t>i32</a-t><a-p>&gt;</a-p> = <a-cr>None</a-cr><a-p>;</a-p>
+    o2<a-p>.</a-p><a-pr>unwrap</a-pr><a-p>();</a-p> <a-c>// this panics!</a-c>
+<a-p>}</a-p>
+<a-c>// output: thread &#39;main&#39; panicked at &#39;.unwrap() called on a None option&#39;, src/main.rs:11:27</a-c>
+</code></figure><p><code>Result</code> is also an enum, it can either contain something, or an error:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>enum</a-k> <a-t>Result</a-t><a-p>&lt;</a-p><a-t>T</a-t><a-p>,</a-p> <a-t>E</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-cr>Ok</a-cr><a-p>(</a-p><a-t>T</a-t><a-p>),</a-p>
+    <a-cr>Err</a-cr><a-p>(</a-p><a-t>E</a-t><a-p>),</a-p>
+<a-p>}</a-p>
+</code></figure><p>It also panics when unwrapped and containing an error.</p>
+<a id="lifetimes" href="#lifetimes" class="anchor"><h2>Lifetimes</h2></a>
+<p>Variables bindings have a “lifetime”:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// `x` doesn&#39;t exist yet</a-c>
+    <a-p>{</a-p>
+        <a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p> <a-c>// `x` starts existing</a-c>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x = {}&quot;</a-s><a-p>,</a-p> x<a-p>);</a-p>
+        <a-c>// `x` stops existing</a-c>
+    <a-p>}</a-p>
+    <a-c>// `x` no longer exists</a-c>
+<a-p>}</a-p>
+</code></figure><p>Similarly, references have a lifetime:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// `x` doesn&#39;t exist yet</a-c>
+    <a-p>{</a-p>
+        <a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p> <a-c>// `x` starts existing</a-c>
+        <a-k>let</a-k> x_ref = <a-o>&amp;</a-o>x<a-p>;</a-p> <a-c>// `x_ref` starts existing - it borrows `x`</a-c>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x_ref = {}&quot;</a-s><a-p>,</a-p> x_ref<a-p>);</a-p>
+        <a-c>// `x_ref` stops existing</a-c>
+        <a-c>// `x` stops existing</a-c>
+    <a-p>}</a-p>
+    <a-c>// `x` no longer exists</a-c>
+<a-p>}</a-p>
+</code></figure><p>The lifetime of a reference cannot exceed the lifetime of the variable
+binding it borrows:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x_ref = <a-p>{</a-p>
+        <a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+        <a-o>&amp;</a-o>x
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x_ref = {}&quot;</a-s><a-p>,</a-p> x_ref<a-p>);</a-p>
+    <a-c>// error: `x` does not live long enough</a-c>
+<a-p>}</a-p>
+</code></figure><a id="borrowing-rules-one-or-more-immutable-borrows-xor-one-mutable-borrow" href="#borrowing-rules-one-or-more-immutable-borrows-xor-one-mutable-borrow" class="anchor"><h3>Borrowing rules (one or more immutable borrows XOR one mutable borrow)</h3></a>
+<p>A variable binding can be immutably borrowed multiple times:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref1 = <a-o>&amp;</a-o>x<a-p>;</a-p>
+    <a-k>let</a-k> x_ref2 = <a-o>&amp;</a-o>x<a-p>;</a-p>
+    <a-k>let</a-k> x_ref3 = <a-o>&amp;</a-o>x<a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{} {} {}&quot;</a-s><a-p>,</a-p> x_ref1<a-p>,</a-p> x_ref2<a-p>,</a-p> x_ref3<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>While borrowed, a variable binding cannot be mutated:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref = <a-o>&amp;</a-o>x<a-p>;</a-p>
+    x = <a-co>13</a-co><a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x_ref = {}&quot;</a-s><a-p>,</a-p> x_ref<a-p>);</a-p>
+    <a-c>// error: cannot assign to `x` because it is borrowed</a-c>
+<a-p>}</a-p>
+</code></figure><p>While immutably borrowed, a variable cannot be <em>mutably borrowed</em>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> x = <a-co>42</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref1 = <a-o>&amp;</a-o>x<a-p>;</a-p>
+    <a-k>let</a-k> x_ref2 = <a-o>&amp;</a-o><a-k>mut</a-k> x<a-p>;</a-p>
+    <a-c>// error: cannot borrow `x` as mutable because it is also borrowed as immutable</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;x_ref1 = {}&quot;</a-s><a-p>,</a-p> x_ref1<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><a id="functions-generic-over-lifetimes" href="#functions-generic-over-lifetimes" class="anchor"><h3>Functions generic over lifetimes</h3></a>
+<p>References in function arguments also have lifetimes:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>print</a-f><a-p>(</a-p><a-v>x</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>i32</a-t><a-p>)</a-p> <a-p>{</a-p>
+    <a-c>// `x` is borrowed (from the outside) for the</a-c>
+    <a-c>// entire time this function is called.</a-c>
+<a-p>}</a-p>
+</code></figure><p>Functions with reference arguments can be called with borrows
+that have different lifetimes, so:</p>
+<ul><li>All functions that take references are generic</li>
+<li>Lifetimes are generic parameters</li>
+</ul>
+<p>Lifetimes’ names start with a single quote, <code>&#x27;</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// elided (non-named) lifetimes:</a-c>
+<a-k>fn</a-k> <a-f>print</a-f><a-p>(</a-p><a-v>x</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>i32</a-t><a-p>)</a-p> <a-p>{}</a-p>
+<a-c>// named lifetimes:</a-c>
+<a-k>fn</a-k> <a-f>print</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>x</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t><a-p>)</a-p> <a-p>{}</a-p>
+</code></figure><p>This allows returning references whose lifetime depend on the
+lifetime of the arguments:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Number</a-t> <a-p>{</a-p>
+    <a-pr>value</a-pr><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>number_value</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>num</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>Number</a-t><a-p>)</a-p> -&gt; <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t> <a-p>{</a-p>
+    <a-o>&amp;</a-o>num<a-p>.</a-p><a-pr>value</a-pr>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> n = <a-t>Number</a-t> <a-p>{</a-p> <a-pr>value</a-pr><a-p>:</a-p> <a-co>47</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> v = <a-f>number_value</a-f><a-p>(</a-p><a-o>&amp;</a-o>n<a-p>);</a-p>
+    <a-c>// `v` borrows `n` (immutably), thus: `v` cannot outlive `n`.</a-c>
+    <a-c>// While `v` exists, `n` cannot be mutably borrowed, mutated, moved, etc.</a-c>
+<a-p>}</a-p>
+</code></figure><a id="lifetime-elision" href="#lifetime-elision" class="anchor"><h3>Lifetime elision</h3></a>
+<p>When there is a <em>single</em> input lifetime, it doesn’t need to be named,
+and everything has the same lifetime, so the two functions below are
+equivalent:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>number_value</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>num</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>Number</a-t><a-p>)</a-p> -&gt; <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t> <a-p>{</a-p>
+    <a-o>&amp;</a-o>num<a-p>.</a-p><a-pr>value</a-pr>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>number_value</a-f><a-p>(</a-p><a-v>num</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>Number</a-t><a-p>)</a-p> -&gt; <a-o>&amp;</a-o><a-t>i32</a-t> <a-p>{</a-p>
+    <a-o>&amp;</a-o>num<a-p>.</a-p><a-pr>value</a-pr>
+<a-p>}</a-p>
+</code></figure><a id="structs-generic-over-lifetimes" href="#structs-generic-over-lifetimes" class="anchor"><h3>Structs generic over lifetimes</h3></a>
+<p>Structs can also be <em>generic over lifetimes</em>, which allows them to
+hold references:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t> = <a-co>99</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref = <a-t>NumRef</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>x <a-p>};</a-p>
+    <a-c>// `x_ref` cannot outlive `x`, etc.</a-c>
+<a-p>}</a-p>
+</code></figure><p>The same code, but with an additional function:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>as_num_ref</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>x</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-t>NumRef</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>x <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t> = <a-co>99</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref = <a-f>as_num_ref</a-f><a-p>(</a-p><a-o>&amp;</a-o>x<a-p>);</a-p>
+    <a-c>// `x_ref` cannot outlive `x`, etc.</a-c>
+<a-p>}</a-p>
+</code></figure><p>The same code, but with “elided” lifetimes:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>as_num_ref</a-f><a-p>(</a-p><a-v>x</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>_</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-t>NumRef</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>x <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t> = <a-co>99</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_ref = <a-f>as_num_ref</a-f><a-p>(</a-p><a-o>&amp;</a-o>x<a-p>);</a-p>
+    <a-c>// `x_ref` cannot outlive `x`, etc.</a-c>
+<a-p>}</a-p>
+</code></figure><a id="implementations-generic-over-lifetimes" href="#implementations-generic-over-lifetimes" class="anchor"><h3>Implementations generic over lifetimes</h3></a>
+<p><code>impl</code> blocks can be generic over lifetimes too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>as_i32_ref</a-f><a-p>(</a-p><a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-v>self</a-v><a-p>)</a-p> -&gt; <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>i32</a-t> <a-p>{</a-p>
+        <a-v>self</a-v><a-p>.</a-p><a-pr>x</a-pr>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x<a-p>:</a-p> <a-t>i32</a-t> = <a-co>99</a-co><a-p>;</a-p>
+    <a-k>let</a-k> x_num_ref = <a-t>NumRef</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>x <a-p>};</a-p>
+    <a-k>let</a-k> x_i32_ref = x_num_ref<a-p>.</a-p><a-pr>as_i32_ref</a-pr><a-p>();</a-p>
+    <a-c>// neither ref can outlive `x`</a-c>
+<a-p>}</a-p>
+</code></figure><p>But you can do elision (“to elide”) there too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>as_i32_ref</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-v>self</a-v><a-p>)</a-p> -&gt; <a-o>&amp;</a-o><a-t>i32</a-t> <a-p>{</a-p>
+        <a-v>self</a-v><a-p>.</a-p><a-pr>x</a-pr>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>You can elide even harder, if you never need the name:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>impl</a-k> <a-t>NumRef</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>_</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>fn</a-k> <a-f>as_i32_ref</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-v>self</a-v><a-p>)</a-p> -&gt; <a-o>&amp;</a-o><a-t>i32</a-t> <a-p>{</a-p>
+        <a-v>self</a-v><a-p>.</a-p><a-pr>x</a-pr>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><a id="the-static-lifetime" href="#the-static-lifetime" class="anchor"><h2>The <code>&#x27;static</code> lifetime</h2></a>
+<p>There is a special lifetime, named <code>&#x27;static</code>, which is valid for the
+entire program’s lifetime.</p>
+<p>String literals are <code>&#x27;static</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Person</a-t> <a-p>{</a-p>
+    <a-pr>name</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>static</a-l> <a-t>str</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p>
+        <a-pr>name</a-pr><a-p>:</a-p> <a-s>&quot;fasterthanlime&quot;</a-s><a-p>,</a-p>
+    <a-p>};</a-p>
+<a-p>}</a-p>
+</code></figure><p>But references to a <code>String</code> are not static:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Person</a-t> <a-p>{</a-p>
+    <a-pr>name</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>static</a-l> <a-t>str</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> name = <a-m>format!</a-m><a-p>(</a-p><a-s>&quot;fasterthan{}&quot;</a-s><a-p>,</a-p> <a-s>&quot;lime&quot;</a-s><a-p>);</a-p>
+    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p> <a-pr>name</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>name <a-p>};</a-p>
+    <a-c>// error: `name` does not live long enough</a-c>
+<a-p>}</a-p>
+</code></figure><p>In that last example, the local <code>name</code> is not a <code>&amp;&#x27;static str</code>, it’s a
+<code>String</code>. It’s been allocated dynamically, and it will be freed. Its lifetime
+is <em>less</em> than the whole program (even though it happens to be in <code>main</code>).</p>
+<p>To store a non-<code>&#x27;static</code> string in <code>Person</code>, it needs to either:</p>
+<p>A) Be generic over a lifetime:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Person</a-t><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-pr>name</a-pr><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>str</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> name = <a-m>format!</a-m><a-p>(</a-p><a-s>&quot;fasterthan{}&quot;</a-s><a-p>,</a-p> <a-s>&quot;lime&quot;</a-s><a-p>);</a-p>
+    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p> <a-pr>name</a-pr><a-p>:</a-p> <a-o>&amp;</a-o>name <a-p>};</a-p>
+    <a-c>// `p` cannot outlive `name`</a-c>
+<a-p>}</a-p>
+</code></figure><p>or</p>
+<p>B) Take ownership of the string</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Person</a-t> <a-p>{</a-p>
+    <a-pr>name</a-pr><a-p>:</a-p> <a-t>String</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> name = <a-m>format!</a-m><a-p>(</a-p><a-s>&quot;fasterthan{}&quot;</a-s><a-p>,</a-p> <a-s>&quot;lime&quot;</a-s><a-p>);</a-p>
+    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p> <a-pr>name</a-pr><a-p>:</a-p> name <a-p>};</a-p>
+    <a-c>// `name` was moved into `p`, their lifetimes are no longer tied.</a-c>
+<a-p>}</a-p>
+</code></figure><a id="struct-literal-assignment-shorthand" href="#struct-literal-assignment-shorthand" class="anchor"><h2>Struct literal assignment shorthand</h2></a>
+<p>Speaking of: in a struct literal, when a field is set to a variable binding of
+the same name:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper">    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p> <a-pr>name</a-pr><a-p>:</a-p> name <a-p>};</a-p>
+</code></figure><p>It can be shortened like this:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper">    <a-k>let</a-k> p = <a-t>Person</a-t> <a-p>{</a-p> name <a-p>};</a-p>
+</code></figure><p>Tools like <a href="https://doc.rust-lang.org/stable/clippy/usage.html">clippy</a> will
+suggest making those changes, and even apply the fix programmatically if you let
+it.</p>
+<a id="owned-types-vs-reference-types" href="#owned-types-vs-reference-types" class="anchor"><h2>Owned types vs reference types</h2></a>
+<p>For many types in Rust, there are owned and non-owned variants:</p>
+<ul><li>Strings: <code>String</code> is owned, <code>&amp;str</code> is a reference.</li>
+<li>Paths: <code>PathBuf</code> is owned, <code>&amp;Path</code> is a reference.</li>
+<li>Collections: <code>Vec&lt;T&gt;</code> is owned, <code>&amp;[T]</code> is a reference.</li>
+</ul>
+<a id="slices" href="#slices" class="anchor"><h3>Slices</h3></a>
+<p>Rust has slices - they’re a reference to multiple contiguous elements.</p>
+<p>You can borrow a slice of a vector, for example:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> v = <a-m>vec!</a-m><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>,</a-p> <a-co>4</a-co><a-p>,</a-p> <a-co>5</a-co><a-p>];</a-p>
+    <a-k>let</a-k> v2 = <a-o>&amp;</a-o>v<a-p>[</a-p><a-co>2</a-co>..<a-co>4</a-co><a-p>];</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;v2 = {:?}&quot;</a-s><a-p>,</a-p> v2<a-p>);</a-p>
+<a-p>}</a-p>
+<a-c>// output:</a-c>
+<a-c>// v2 = [3, 4]</a-c>
+</code></figure><a id="operator-overloading" href="#operator-overloading" class="anchor"><h3>Operator overloading</h3></a>
+<p>The above is not magical. The indexing operator (<code>foo[index]</code>) is
+overloaded with the <code>Index</code> and <code>IndexMut</code> traits.</p>
+<p>The <code>..</code> syntax is just range literals. Ranges are just a few
+structs defined in the standard library.</p>
+<p>They can be open-ended, and their rightmost bound can be inclusive,
+if it’s preceded by <code>=</code>.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// 0 or greater</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> <a-p>(</a-p><a-co>0</a-co>..<a-p>).</a-p><a-pr>contains</a-pr><a-p>(</a-p><a-o>&amp;</a-o><a-co>100</a-co><a-p>));</a-p> <a-c>// true</a-c>
+    <a-c>// strictly less than 20</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> <a-p>(</a-p>..<a-co>20</a-co><a-p>).</a-p><a-pr>contains</a-pr><a-p>(</a-p><a-o>&amp;</a-o><a-co>20</a-co><a-p>));</a-p> <a-c>// false</a-c>
+    <a-c>// 20 or less than 20</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> <a-p>(</a-p>..=<a-co>20</a-co><a-p>).</a-p><a-pr>contains</a-pr><a-p>(</a-p><a-o>&amp;</a-o><a-co>20</a-co><a-p>));</a-p> <a-c>// true</a-c>
+    <a-c>// only 3, 4, 5</a-c>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> <a-p>(</a-p><a-co>3</a-co>..<a-co>6</a-co><a-p>).</a-p><a-pr>contains</a-pr><a-p>(</a-p><a-o>&amp;</a-o><a-co>4</a-co><a-p>));</a-p> <a-c>// true</a-c>
+<a-p>}</a-p>
+</code></figure><a id="borrowing-rules-and-slices" href="#borrowing-rules-and-slices" class="anchor"><h3>Borrowing rules and slices</h3></a>
+<p>Borrowing rules apply to slices.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>tail</a-f><a-p>(</a-p><a-v>s</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-p>[</a-p><a-t>u8</a-t><a-p>])</a-p> -&gt; <a-o>&amp;</a-o><a-p>[</a-p><a-t>u8</a-t><a-p>]</a-p> <a-p>{</a-p>
+  <a-o>&amp;</a-o>s<a-p>[</a-p><a-co>1</a-co>..<a-p>]</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> x = <a-o>&amp;</a-o><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>,</a-p> <a-co>4</a-co><a-p>,</a-p> <a-co>5</a-co><a-p>];</a-p>
+    <a-k>let</a-k> y = <a-f>tail</a-f><a-p>(</a-p>x<a-p>);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;y = {:?}&quot;</a-s><a-p>,</a-p> y<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>This is the same as:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>tail</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>s</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-p>[</a-p><a-t>u8</a-t><a-p>])</a-p> -&gt; <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-p>[</a-p><a-t>u8</a-t><a-p>]</a-p> <a-p>{</a-p>
+  <a-o>&amp;</a-o>s<a-p>[</a-p><a-co>1</a-co>..<a-p>]</a-p>
+<a-p>}</a-p>
+</code></figure><p>This is legal:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> y = <a-p>{</a-p>
+        <a-k>let</a-k> x = <a-o>&amp;</a-o><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>,</a-p> <a-co>4</a-co><a-p>,</a-p> <a-co>5</a-co><a-p>];</a-p>
+        <a-f>tail</a-f><a-p>(</a-p>x<a-p>)</a-p>
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;y = {:?}&quot;</a-s><a-p>,</a-p> y<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>…but only because <code>[1, 2, 3, 4, 5]</code> is a <code>&#x27;static</code> array.</p>
+<p>So, this is illegal:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> y = <a-p>{</a-p>
+        <a-k>let</a-k> v = <a-m>vec!</a-m><a-p>[</a-p><a-co>1</a-co><a-p>,</a-p> <a-co>2</a-co><a-p>,</a-p> <a-co>3</a-co><a-p>,</a-p> <a-co>4</a-co><a-p>,</a-p> <a-co>5</a-co><a-p>];</a-p>
+        <a-f>tail</a-f><a-p>(</a-p><a-o>&amp;</a-o>v<a-p>)</a-p>
+        <a-c>// error: `v` does not live long enough</a-c>
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;y = {:?}&quot;</a-s><a-p>,</a-p> y<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>…because a vector is heap-allocated, and it has a non-<code>&#x27;static</code> lifetime.</p>
+<a id="string-slices-str" href="#string-slices-str" class="anchor"><h3>String slices (<code>&amp;str</code>)</h3></a>
+<p><code>&amp;str</code> values are really slices.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>file_ext</a-f><a-p>(</a-p><a-v>name</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>str</a-t><a-p>)</a-p> -&gt; <a-t>Option</a-t><a-p>&lt;</a-p><a-o>&amp;</a-o><a-t>str</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-c>// this does not create a new string - it returns</a-c>
+    <a-c>// a slice of the argument.</a-c>
+    name<a-p>.</a-p><a-pr>split</a-pr><a-p>(</a-p><a-s>&quot;.&quot;</a-s><a-p>).</a-p><a-pr>last</a-pr><a-p>()</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> name = <a-s>&quot;Read me. Or don&#39;t.txt&quot;</a-s><a-p>;</a-p>
+    <a-k>if</a-k> <a-k>let</a-k> <a-cr>Some</a-cr><a-p>(</a-p>ext<a-p>)</a-p> = <a-f>file_ext</a-f><a-p>(</a-p>name<a-p>)</a-p> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;file extension: {}&quot;</a-s><a-p>,</a-p> ext<a-p>);</a-p>
+    <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;no file extension&quot;</a-s><a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>…so the borrow rules apply here too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> ext = <a-p>{</a-p>
+        <a-k>let</a-k> name = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;Read me. Or don&#39;t.txt&quot;</a-s><a-p>);</a-p>
+        <a-f>file_ext</a-f><a-p>(</a-p><a-o>&amp;</a-o>name<a-p>).</a-p><a-pr>unwrap_or</a-pr><a-p>(</a-p><a-s>&quot;&quot;</a-s><a-p>)</a-p>
+        <a-c>// error: `name` does not live long enough</a-c>
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;extension: {:?}&quot;</a-s><a-p>,</a-p> ext<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><a id="fallible-functions-result-t-e" href="#fallible-functions-result-t-e" class="anchor"><h2>Fallible functions (<code>Result&lt;T, E&gt;</code>)</h2></a>
+<p>Functions that can fail typically return a <code>Result</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>]);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> s<a-p>);</a-p>
+    <a-c>// prints: Ok(&quot;🍉&quot;)</a-c>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>195</a-co><a-p>,</a-p> <a-co>40</a-co><a-p>]);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> s<a-p>);</a-p>
+    <a-c>// prints: Err(Utf8Error { valid_up_to: 0, error_len: Some(1) })</a-c>
+<a-p>}</a-p>
+</code></figure><p>If you want to panic in case of failure, you can <code>.unwrap()</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>]).</a-p><a-pr>unwrap</a-pr><a-p>();</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{:?}&quot;</a-s><a-p>,</a-p> s<a-p>);</a-p>
+    <a-c>// prints: &quot;🍉&quot;</a-c>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>195</a-co><a-p>,</a-p> <a-co>40</a-co><a-p>]).</a-p><a-pr>unwrap</a-pr><a-p>();</a-p>
+    <a-c>// prints: thread &#39;main&#39; panicked at &#39;called `Result::unwrap()`</a-c>
+    <a-c>// on an `Err` value: Utf8Error { valid_up_to: 0, error_len: Some(1) }&#39;,</a-c>
+    <a-c>// src/libcore/result.rs:1165:5</a-c>
+<a-p>}</a-p>
+</code></figure><p>Or <code>.expect()</code>, for a custom message:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>195</a-co><a-p>,</a-p> <a-co>40</a-co><a-p>]).</a-p><a-pr>expect</a-pr><a-p>(</a-p><a-s>&quot;valid utf-8&quot;</a-s><a-p>);</a-p>
+    <a-c>// prints: thread &#39;main&#39; panicked at &#39;valid utf-8: Utf8Error</a-c>
+    <a-c>// { valid_up_to: 0, error_len: Some(1) }&#39;, src/libcore/result.rs:1165:5</a-c>
+<a-p>}</a-p>
+</code></figure><p>Or, you can <code>match</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>match</a-k> std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>])</a-p> <a-p>{</a-p>
+        <a-cr>Ok</a-cr><a-p>(</a-p>s<a-p>)</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> s<a-p>),</a-p>
+        <a-cr>Err</a-cr><a-p>(</a-p>e<a-p>)</a-p> =&gt; <a-m>panic!</a-m><a-p>(</a-p>e<a-p>),</a-p>
+    <a-p>}</a-p>
+    <a-c>// prints 🍉</a-c>
+<a-p>}</a-p>
+</code></figure><p>Or you can <code>if let</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>if</a-k> <a-k>let</a-k> <a-cr>Ok</a-cr><a-p>(</a-p>s<a-p>)</a-p> = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>])</a-p> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> s<a-p>);</a-p>
+    <a-p>}</a-p>
+    <a-c>// prints 🍉</a-c>
+<a-p>}</a-p>
+</code></figure><p>Or you can bubble up the error:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> -&gt; <a-t>Result</a-t><a-p>&lt;(),</a-p> std<a-p>::</a-p>str<a-p>::</a-p><a-t>Utf8Error</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>match</a-k> std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>])</a-p> <a-p>{</a-p>
+        <a-cr>Ok</a-cr><a-p>(</a-p>s<a-p>)</a-p> =&gt; <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> s<a-p>),</a-p>
+        <a-cr>Err</a-cr><a-p>(</a-p>e<a-p>)</a-p> =&gt; <a-k>return</a-k> <a-cr>Err</a-cr><a-p>(</a-p>e<a-p>),</a-p>
+    <a-p>}</a-p>
+    <a-cr>Ok</a-cr><a-p>(())</a-p>
+<a-p>}</a-p>
+</code></figure><p>Or you can use <code>?</code> to do it the concise way:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> -&gt; <a-t>Result</a-t><a-p>&lt;(),</a-p> std<a-p>::</a-p>str<a-p>::</a-p><a-t>Utf8Error</a-t><a-p>&gt;</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = std<a-p>::</a-p>str<a-p>::</a-p><a-f>from_utf8</a-f><a-p>(</a-p><a-o>&amp;</a-o><a-p>[</a-p><a-co>240</a-co><a-p>,</a-p> <a-co>159</a-co><a-p>,</a-p> <a-co>141</a-co><a-p>,</a-p> <a-co>137</a-co><a-p>])</a-p>?<a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> s<a-p>);</a-p>
+    <a-cr>Ok</a-cr><a-p>(())</a-p>
+<a-p>}</a-p>
+</code></figure><a id="dereferencing" href="#dereferencing" class="anchor"><h2>Dereferencing</h2></a>
+<p>The <code>*</code> operator can be used to <em>dereference</em>, but you don’t need to do
+that to access fields or call methods:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Point</a-t> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+    <a-pr>y</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> p = <a-t>Point</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>1.0</a-co><a-p>,</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>3.0</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> p_ref = <a-o>&amp;</a-o>p<a-p>;</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;({}, {})&quot;</a-s><a-p>,</a-p> p_ref<a-p>.</a-p><a-pr>x</a-pr><a-p>,</a-p> p_ref<a-p>.</a-p><a-pr>y</a-pr><a-p>);</a-p>
+<a-p>}</a-p>
+<a-c>// prints `(1, 3)`</a-c>
+</code></figure><p>And you can only do it if the type is <code>Copy</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>struct</a-k> <a-t>Point</a-t> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+    <a-pr>y</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>negate</a-f><a-p>(</a-p><a-v>p</a-v><a-p>:</a-p> <a-t>Point</a-t><a-p>)</a-p> -&gt; <a-t>Point</a-t> <a-p>{</a-p>
+    <a-t>Point</a-t> <a-p>{</a-p>
+        <a-pr>x</a-pr><a-p>:</a-p> -p<a-p>.</a-p><a-pr>x</a-pr><a-p>,</a-p>
+        <a-pr>y</a-pr><a-p>:</a-p> -p<a-p>.</a-p><a-pr>y</a-pr><a-p>,</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> p = <a-t>Point</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>1.0</a-co><a-p>,</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>3.0</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> p_ref = <a-o>&amp;</a-o>p<a-p>;</a-p>
+    <a-f>negate</a-f><a-p>(</a-p><a-o>*</a-o>p_ref<a-p>);</a-p>
+    <a-c>// error: cannot move out of `*p_ref` which is behind a shared reference</a-c>
+<a-p>}</a-p>
+</code></figure><figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-c>// now `Point` is `Copy`</a-c>
+<a-at>#</a-at><a-p>[</a-p><a-at>derive</a-at><a-p>(</a-p><a-cr>Clone</a-cr><a-p>,</a-p><a-at> </a-at><a-cr>Copy</a-cr><a-p>)]</a-p>
+<a-k>struct</a-k> <a-t>Point</a-t> <a-p>{</a-p>
+    <a-pr>x</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+    <a-pr>y</a-pr><a-p>:</a-p> <a-t>f64</a-t><a-p>,</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>negate</a-f><a-p>(</a-p><a-v>p</a-v><a-p>:</a-p> <a-t>Point</a-t><a-p>)</a-p> -&gt; <a-t>Point</a-t> <a-p>{</a-p>
+    <a-t>Point</a-t> <a-p>{</a-p>
+        <a-pr>x</a-pr><a-p>:</a-p> -p<a-p>.</a-p><a-pr>x</a-pr><a-p>,</a-p>
+        <a-pr>y</a-pr><a-p>:</a-p> -p<a-p>.</a-p><a-pr>y</a-pr><a-p>,</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> p = <a-t>Point</a-t> <a-p>{</a-p> <a-pr>x</a-pr><a-p>:</a-p> <a-co>1.0</a-co><a-p>,</a-p> <a-pr>y</a-pr><a-p>:</a-p> <a-co>3.0</a-co> <a-p>};</a-p>
+    <a-k>let</a-k> p_ref = <a-o>&amp;</a-o>p<a-p>;</a-p>
+    <a-f>negate</a-f><a-p>(</a-p><a-o>*</a-o>p_ref<a-p>);</a-p> <a-c>// ...and now this works</a-c>
+<a-p>}</a-p>
+</code></figure><a id="function-types-closures" href="#function-types-closures" class="anchor"><h2>Function types, closures</h2></a>
+<p>Closures are just functions of type <code>Fn</code>, <code>FnMut</code> or <code>FnOnce</code> with some captured context.</p>
+<p>Their parameters are a comma-separated list of names within a pair of pipes
+(<code>|</code>). They don’t <em>need</em> curly braces, unless you want to have multiple statements.</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>for_each_planet</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;&#39;</a-o><a-l>static</a-l> <a-t>str</a-t><a-p>)</a-p>
+<a-p>{</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Earth&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Mars&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Jupiter&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>for_each_planet</a-f><a-p>(</a-p>|planet| <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Hello, {}&quot;</a-s><a-p>,</a-p> planet<a-p>));</a-p>
+<a-p>}</a-p>
+<a-c>// prints:</a-c>
+<a-c>// Hello, Earth</a-c>
+<a-c>// Hello, Mars</a-c>
+<a-c>// Hello, Jupiter</a-c>
+</code></figure><p>The borrow rules apply to them too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>for_each_planet</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;&#39;</a-o><a-l>static</a-l> <a-t>str</a-t><a-p>)</a-p>
+<a-p>{</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Earth&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Mars&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Jupiter&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> greeting = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;Good to see you&quot;</a-s><a-p>);</a-p>
+    <a-f>for_each_planet</a-f><a-p>(</a-p>|planet| <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}, {}&quot;</a-s><a-p>,</a-p> greeting<a-p>,</a-p> planet<a-p>));</a-p>
+    <a-c>// our closure borrows `greeting`, so it cannot outlive it</a-c>
+<a-p>}</a-p>
+</code></figure><p>For example, this would not work:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>for_each_planet</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;&#39;</a-o><a-l>static</a-l> <a-t>str</a-t><a-p>)</a-p> + <a-o>&#39;</a-o><a-l>static</a-l> <a-c>// `F` must now have &quot;&#39;static&quot; lifetime</a-c>
+<a-p>{</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Earth&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Mars&quot;</a-s><a-p>);</a-p>
+    <a-f>f</a-f><a-p>(</a-p><a-s>&quot;Jupiter&quot;</a-s><a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> greeting = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;Good to see you&quot;</a-s><a-p>);</a-p>
+    <a-f>for_each_planet</a-f><a-p>(</a-p>|planet| <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}, {}&quot;</a-s><a-p>,</a-p> greeting<a-p>,</a-p> planet<a-p>));</a-p>
+    <a-c>// error: closure may outlive the current function, but it borrows</a-c>
+    <a-c>// `greeting`, which is owned by the current function</a-c>
+<a-p>}</a-p>
+</code></figure><p>But this would:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> greeting = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;You&#39;re doing great&quot;</a-s><a-p>);</a-p>
+    <a-f>for_each_planet</a-f><a-p>(</a-p><a-k>move</a-k> |planet| <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}, {}&quot;</a-s><a-p>,</a-p> greeting<a-p>,</a-p> planet<a-p>));</a-p>
+    <a-c>// `greeting` is no longer borrowed, it is *moved* into</a-c>
+    <a-c>// the closure.</a-c>
+<a-p>}</a-p>
+</code></figure><a id="fnmut-and-borrowing-rules" href="#fnmut-and-borrowing-rules" class="anchor"><h3>FnMut and borrowing rules</h3></a>
+<p>An <code>FnMut</code> needs to be mutably borrowed to be called, so it can
+only be called once at a time.</p>
+<p>This is legal:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>i32</a-t>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>(</a-p><a-f>f</a-f><a-p>(</a-p><a-co>2</a-co><a-p>)));</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|x| x <a-o>*</a-o> <a-co>2</a-co><a-p>);</a-p>
+<a-p>}</a-p>
+<a-c>// output: 8</a-c>
+</code></figure><p>This isn’t:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-k>mut</a-k> <a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>FnMut</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>i32</a-t>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>(</a-p><a-f>f</a-f><a-p>(</a-p><a-co>2</a-co><a-p>)));</a-p>
+    <a-c>// error: cannot borrow `f` as mutable more than once at a time</a-c>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|x| x <a-o>*</a-o> <a-co>2</a-co><a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>This is legal again:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-k>mut</a-k> <a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>FnMut</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>i32</a-t>
+<a-p>{</a-p>
+    <a-k>let</a-k> tmp = <a-f>f</a-f><a-p>(</a-p><a-co>2</a-co><a-p>);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>(</a-p>tmp<a-p>));</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|x| x <a-o>*</a-o> <a-co>2</a-co><a-p>);</a-p>
+<a-p>}</a-p>
+<a-c>// output: 8</a-c>
+</code></figure><p><code>FnMut</code> exists because some closures <em>mutably borrow</em> local variables:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-k>mut</a-k> <a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>FnMut</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>i32</a-t>
+<a-p>{</a-p>
+    <a-k>let</a-k> tmp = <a-f>f</a-f><a-p>(</a-p><a-co>2</a-co><a-p>);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>(</a-p>tmp<a-p>));</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> acc = <a-co>2</a-co><a-p>;</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|x| <a-p>{</a-p>
+        acc += <a-co>1</a-co><a-p>;</a-p>
+        x <a-o>*</a-o> acc
+    <a-p>});</a-p>
+<a-p>}</a-p>
+<a-c>// output: 24</a-c>
+</code></figure><p>Those closures cannot be passed to functions expecting <code>Fn</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>i32</a-t>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>(</a-p><a-f>f</a-f><a-p>(</a-p><a-co>2</a-co><a-p>)));</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> <a-k>mut</a-k> acc = <a-co>2</a-co><a-p>;</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|x| <a-p>{</a-p>
+        acc += <a-co>1</a-co><a-p>;</a-p>
+        <a-c>// error: cannot assign to `acc`, as it is a</a-c>
+        <a-c>// captured variable in a `Fn` closure.</a-c>
+        <a-c>// the compiler suggests &quot;changing foobar</a-c>
+        <a-c>// to accept closures that implement `FnMut`&quot;</a-c>
+        x <a-o>*</a-o> acc
+    <a-p>});</a-p>
+<a-p>}</a-p>
+</code></figure><p><code>FnOnce</code> closures can only be called once. They exist because some closure
+move out variables that have been moved when captured:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>FnOnce</a-t><a-p>()</a-p> -&gt; <a-t>String</a-t>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>());</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;alright&quot;</a-s><a-p>);</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p><a-k>move</a-k> || s<a-p>);</a-p>
+    <a-c>// `s` was moved into our closure, and our</a-c>
+    <a-c>// closures moves it to the caller by returning</a-c>
+    <a-c>// it. Remember that `String` is not `Copy`.</a-c>
+<a-p>}</a-p>
+</code></figure><p>This is enforced naturally, as <code>FnOnce</code> closures need to be <em>moved</em>
+in order to be called.</p>
+<p>So, for example, this is illegal:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>f</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>FnOnce</a-t><a-p>()</a-p> -&gt; <a-t>String</a-t>
+<a-p>{</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>());</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>f</a-f><a-p>());</a-p>
+    <a-c>// error: use of moved value: `f`</a-c>
+<a-p>}</a-p>
+</code></figure><p>And, if you need convincing that our closure <em>does</em> move <code>s</code>,
+this is illegal too:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;alright&quot;</a-s><a-p>);</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p><a-k>move</a-k> || s<a-p>);</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p><a-k>move</a-k> || s<a-p>);</a-p>
+    <a-c>// use of moved value: `s`</a-c>
+<a-p>}</a-p>
+</code></figure><p>But this is fine:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> s = <a-cr>String</a-cr><a-p>::</a-p><a-f>from</a-f><a-p>(</a-p><a-s>&quot;alright&quot;</a-s><a-p>);</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|| s<a-p>.</a-p><a-pr>clone</a-pr><a-p>());</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p>|| s<a-p>.</a-p><a-pr>clone</a-pr><a-p>());</a-p>
+<a-p>}</a-p>
+</code></figure><p>Here’s a closure with two arguments:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>foobar</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>x</a-v><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p> <a-v>y</a-v><a-p>:</a-p> <a-t>i32</a-t><a-p>,</a-p> <a-v>is_greater</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-t>i32</a-t><a-p>,</a-p> <a-t>i32</a-t><a-p>)</a-p> -&gt; <a-t>bool</a-t>
+<a-p>{</a-p>
+    <a-k>let</a-k> <a-p>(</a-p>greater<a-p>,</a-p> smaller<a-p>)</a-p> = <a-k>if</a-k> <a-f>is_greater</a-f><a-p>(</a-p>x<a-p>,</a-p> y<a-p>)</a-p> <a-p>{</a-p>
+        <a-p>(</a-p>x<a-p>,</a-p> y<a-p>)</a-p>
+    <a-p>}</a-p> <a-k>else</a-k> <a-p>{</a-p>
+        <a-p>(</a-p>y<a-p>,</a-p> x<a-p>)</a-p>
+    <a-p>};</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{} is greater than {}&quot;</a-s><a-p>,</a-p> greater<a-p>,</a-p> smaller<a-p>);</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p><a-co>32</a-co><a-p>,</a-p> <a-co>64</a-co><a-p>,</a-p> |x<a-p>,</a-p> y| x &gt; y<a-p>);</a-p>
+<a-p>}</a-p>
+</code></figure><p>Here’s a closure ignoring both its arguments:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>foobar</a-f><a-p>(</a-p><a-co>32</a-co><a-p>,</a-p> <a-co>64</a-co><a-p>,</a-p> |_<a-p>,</a-p> _| <a-m>panic!</a-m><a-p>(</a-p><a-s>&quot;Comparing is futile!&quot;</a-s><a-p>));</a-p>
+<a-p>}</a-p>
+</code></figure><p>Here’s a slightly worrying closure:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>countdown</a-f><a-p>&lt;</a-p><a-t>F</a-t><a-p>&gt;(</a-p><a-v>count</a-v><a-p>:</a-p> <a-t>usize</a-t><a-p>,</a-p> <a-v>tick</a-v><a-p>:</a-p> <a-t>F</a-t><a-p>)</a-p>
+    <a-k>where</a-k> <a-t>F</a-t><a-p>:</a-p> <a-t>Fn</a-t><a-p>(</a-p><a-t>usize</a-t><a-p>)</a-p>
+<a-p>{</a-p>
+    <a-k>for</a-k> i <a-k>in</a-k> <a-p>(</a-p><a-co>1</a-co>..=count<a-p>).</a-p><a-pr>rev</a-pr><a-p>()</a-p> <a-p>{</a-p>
+        <a-f>tick</a-f><a-p>(</a-p>i<a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>countdown</a-f><a-p>(</a-p><a-co>3</a-co><a-p>,</a-p> |i| <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;tick {}...&quot;</a-s><a-p>,</a-p> i<a-p>));</a-p>
+<a-p>}</a-p>
+<a-c>// output:</a-c>
+<a-c>// tick 3...</a-c>
+<a-c>// tick 2...</a-c>
+<a-c>// tick 1...</a-c>
+</code></figure><a id="the-toilet-closure" href="#the-toilet-closure" class="anchor"><h3>The toilet closure</h3></a>
+<p>And here’s a toilet closure:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-f>countdown</a-f><a-p>(</a-p><a-co>3</a-co><a-p>,</a-p> |_| <a-p>());</a-p>
+<a-p>}</a-p>
+</code></figure><p>It’s called that because <code>|_| ()</code> looks like a toilet.</p>
+<a id="loops-iterators" href="#loops-iterators" class="anchor"><h2>Loops, iterators</h2></a>
+<p>Anything that is iterable can be used in a <code>for in</code> loop.</p>
+<p>We’ve just seen a range being used, but it also works with a <code>Vec</code>:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>for</a-k> i <a-k>in</a-k> <a-m>vec!</a-m><a-p>[</a-p><a-co>52</a-co><a-p>,</a-p> <a-co>49</a-co><a-p>,</a-p> <a-co>21</a-co><a-p>]</a-p> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;I like the number {}&quot;</a-s><a-p>,</a-p> i<a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><p>Or a slice:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>for</a-k> i <a-k>in</a-k> <a-o>&amp;</a-o><a-p>[</a-p><a-co>52</a-co><a-p>,</a-p> <a-co>49</a-co><a-p>,</a-p> <a-co>21</a-co><a-p>]</a-p> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;I like the number {}&quot;</a-s><a-p>,</a-p> i<a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-c>// output:</a-c>
+<a-c>// I like the number 52</a-c>
+<a-c>// I like the number 49</a-c>
+<a-c>// I like the number 21</a-c>
+</code></figure><p>Or an actual iterator:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// note: `&amp;str` also has a `.bytes()` iterator.</a-c>
+    <a-c>// Rust&#39;s `char` type is a &quot;Unicode scalar value&quot;</a-c>
+    <a-k>for</a-k> c <a-k>in</a-k> <a-s>&quot;rust&quot;</a-s><a-p>.</a-p><a-pr>chars</a-pr><a-p>()</a-p> <a-p>{</a-p>
+        <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;Give me a {}&quot;</a-s><a-p>,</a-p> c<a-p>);</a-p>
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-c>// output:</a-c>
+<a-c>// Give me a r</a-c>
+<a-c>// Give me a u</a-c>
+<a-c>// Give me a s</a-c>
+<a-c>// Give me a t</a-c>
+</code></figure><p>Even if the iterator items are filtered and mapped and flattened:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>for</a-k> c <a-k>in</a-k> <a-s>&quot;SuRPRISE INbOUND&quot;</a-s>
+        <a-p>.</a-p><a-pr>chars</a-pr><a-p>()</a-p>
+        <a-p>.</a-p><a-pr>filter</a-pr><a-p>(</a-p>|c| c<a-p>.</a-p><a-pr>is_lowercase</a-pr><a-p>())</a-p>
+        <a-p>.</a-p><a-pr>flat_map</a-pr><a-p>(</a-p>|c| c<a-p>.</a-p><a-pr>to_uppercase</a-pr><a-p>())</a-p>
+    <a-p>{</a-p>
+        <a-m>print!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> c<a-p>);</a-p>
+    <a-p>}</a-p>
+    <a-m>println!</a-m><a-p>();</a-p>
+<a-p>}</a-p>
+<a-c>// output: UB</a-c>
+</code></figure><a id="returning-closures" href="#returning-closures" class="anchor"><h2>Returning closures</h2></a>
+<p>You can return a closure from a function:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>make_tester</a-f><a-p>(</a-p><a-v>answer</a-v><a-p>:</a-p> <a-t>String</a-t><a-p>)</a-p> -&gt; <a-k>impl</a-k> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;</a-o><a-t>str</a-t><a-p>)</a-p> -&gt; <a-t>bool</a-t> <a-p>{</a-p>
+    <a-k>move</a-k> |challenge| <a-p>{</a-p>
+        challenge == answer
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-c>// you can use `.into()` to perform conversions</a-c>
+    <a-c>// between various types, here `&amp;&#39;static str` and `String`</a-c>
+    <a-k>let</a-k> test = <a-f>make_tester</a-f><a-p>(</a-p><a-s>&quot;hunter2&quot;</a-s><a-p>.</a-p><a-pr>into</a-pr><a-p>());</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>test</a-f><a-p>(</a-p><a-s>&quot;******&quot;</a-s><a-p>));</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>test</a-f><a-p>(</a-p><a-s>&quot;hunter2&quot;</a-s><a-p>));</a-p>
+<a-p>}</a-p>
+</code></figure><a id="capturing-into-a-closure" href="#capturing-into-a-closure" class="anchor"><h3>Capturing into a closure</h3></a>
+<p>You can even move a reference to some of a function’s arguments,
+into a closure it returns:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>make_tester</a-f><a-p>&lt;</a-p><a-o>&#39;</a-o><a-l>a</a-l><a-p>&gt;(</a-p><a-v>answer</a-v><a-p>:</a-p> <a-o>&amp;&#39;</a-o><a-l>a</a-l> <a-t>str</a-t><a-p>)</a-p> -&gt; <a-k>impl</a-k> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;</a-o><a-t>str</a-t><a-p>)</a-p> -&gt; <a-t>bool</a-t> + <a-o>&#39;</a-o><a-l>a</a-l> <a-p>{</a-p>
+    <a-k>move</a-k> |challenge| <a-p>{</a-p>
+        challenge == answer
+    <a-p>}</a-p>
+<a-p>}</a-p>
+<a-k>fn</a-k> <a-f>main</a-f><a-p>()</a-p> <a-p>{</a-p>
+    <a-k>let</a-k> test = <a-f>make_tester</a-f><a-p>(</a-p><a-s>&quot;hunter2&quot;</a-s><a-p>);</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>test</a-f><a-p>(</a-p><a-s>&quot;*******&quot;</a-s><a-p>));</a-p>
+    <a-m>println!</a-m><a-p>(</a-p><a-s>&quot;{}&quot;</a-s><a-p>,</a-p> <a-f>test</a-f><a-p>(</a-p><a-s>&quot;hunter2&quot;</a-s><a-p>));</a-p>
+<a-p>}</a-p>
+<a-c>// output:</a-c>
+<a-c>// false</a-c>
+<a-c>// true</a-c>
+</code></figure><p>Or, with elided lifetimes:</p>
+<figure role="region" class="code-block has-language-tag"><span class="language-tag" title="Rust"></span><code class="scroll-wrapper"><a-k>fn</a-k> <a-f>make_tester</a-f><a-p>(</a-p><a-v>answer</a-v><a-p>:</a-p> <a-o>&amp;</a-o><a-t>str</a-t><a-p>)</a-p> -&gt; <a-k>impl</a-k> <a-t>Fn</a-t><a-p>(</a-p><a-o>&amp;</a-o><a-t>str</a-t><a-p>)</a-p> -&gt; <a-t>bool</a-t> + <a-o>&#39;</a-o><a-l>_</a-l> <a-p>{</a-p>
+    <a-k>move</a-k> |challenge| <a-p>{</a-p>
+        challenge == answer
+    <a-p>}</a-p>
+<a-p>}</a-p>
+</code></figure><a id="conclusion" href="#conclusion" class="anchor"><h2>Conclusion</h2></a>
+<p>And with that, we hit the 30-minute estimated reading time mark, and you
+should be able to read <em>most</em> of the Rust code you find online.</p>
+<p>Writing Rust is a very different experience from reading Rust. On one hand,
+you’re not reading the <em>solution</em> to a problem, you’re actually solving it.
+On the other hand, the Rust compiler helps out a <em>lot</em>.</p>
+<p>The Rust compiler has high-quality diagnostics (which include suggestions) for
+all the mistakes featured in this article.</p>
+<p>And when there’s a hint missing, the compiler team is <a href="https://github.com/rust-lang/rust/pull/68267">not afraid to add it</a>.</p>
+<p>For more Rust material, you may want to check out:</p>
+<ul><li><a href="https://doc.rust-lang.org/book/">The Rust Book</a></li>
+<li><a href="https://doc.rust-lang.org/stable/rust-by-example/">Rust By Example</a></li>
+<li><a href="https://readrust.net/">Read Rust</a></li>
+<li><a href="https://this-week-in-rust.org/">This Week In Rust</a></li>
+</ul>
+<p>I also <a href="/tags/rust/">blog about Rust</a> and post a lot about Rust on
+<a href="https://hachyderm.io/@fasterthanlime">Mastodon</a> and
+<a href="https://twitter.com/fasterthanlime">Twitter</a> a lot, so if you liked this
+article, you know what to do!</p>
+<p>Have fun!</p>
+    <aside>
+        Discuss this page on
+        <a href="https://fasterthanli.me/api/comments?url=https%3A%2F%2Ffasterthanli.me%2Farticles%2Fa-half-hour-to-learn-rust&title=A+half-hour+to+learn+Rust">Reddit</a> .
+    </aside>
+        <div class="gentle-nudge-island">
+            (JavaScript is required to see this. Or maybe my stuff broke)
+        </div>
+    <div class="bottom-nav">
+        <p>
+            Did you know I also make videos? Check them out on <a href="https://youtube.com/@fasterthanlime">YouTube</a>!
+        </p>
+            <p>
+                Here's another article just for you:
+            </p>
+<div class="post-list-item random">
+    <div class="post-list-item-inner">
+        <h2 class="post-list-title">
+            <a class="post-link" href="https://fasterthanli.me/articles/getting-in-and-out-of-trouble-with-rust-futures">
+                    Getting in and out of trouble with Rust futures
+            </a>
+         </h2>
+          <div class="post-blocks">
+              <div class="post-block small">
+                  <div class="post-metadata">
+                      <div class="post-date">Jul 07, 2020</div>
+                      <span class="reading-time">
+        <svg id="clock-icon" class="inline-icon" alt="clock icon"></svg>
+        <abbr title="Estimated reading time, at 220 words per minute, where one word = 5 characters">
+                14 min
+        </abbr>
+    </span>
+    <span class="tags">
+                <span><a href="/tags/rust">#rust</a></span>
+                <span>&middot;</span>
+                <span><a href="/tags/async">#async</a></span>
+    </span>
+                      <span class="indicators">
+</span>
+                  </div>
+              </div>
+              <div class="post-block big">
+                  <a class="post-block-link" href="https://fasterthanli.me/articles/getting-in-and-out-of-trouble-with-rust-futures">
+                    <div class="post-summary markup-container "><p>I started experimenting with asynchronous Rust code back when <code>futures 0.1</code>
+was all we had - before <code>async&#x2F;await</code>. I was a Rust baby then (I’m <em>at least</em>
+a toddler now), so I quickly drowned in a sea of <code>.and_then</code>, <code>.map_err</code>
+and <code>Either&lt;A, B&gt;</code>.</p>
+<p>But that’s all in the past! I guess!</p>
+<p>Now everything is <em>fine</em>, and things go smoothly. For the most part. But even
+with <code>async&#x2F;await</code>, there are still some cases where the compiler diagnostics are,
+just, <strong>so much</strong>.</p>
+<a id="idealized-http-requests" href="#idealized-http-requests" class="anchor"></a>
+<a id="real-world-http-requests-in-the-paleoproterozoic-era" href="#real-world-http-requests-in-the-paleoproterozoic-era" class="anchor"></a>
+<a id="if-at-first-you-don-t-succeed-back-off" href="#if-at-first-you-don-t-succeed-back-off" class="anchor"></a>
+<a id="a-futures-related-problem" href="#a-futures-related-problem" class="anchor"></a>
+<a id="closing-words" href="#closing-words" class="anchor"></a>
+</div>
+                  </a>
+                  <div class="read-more">
+                      <a href="https://fasterthanli.me/articles/getting-in-and-out-of-trouble-with-rust-futures">
+                          Read more
+                      </a>
+                  </div>
+              </div>
+          </div>
+    </div>
+</div>
+    </div>
+  </div>
+    </div>
+    <nav class="table-of-contents">
+        <menu>
+            <a href="#home-page-top" class="toc-entry">
+              <h2 class="toc-header">
+                  Contents
+              </h2>
+            </a>
+            <li>
+              <a class="toc-entry" href="#variable-bindings">Variable bindings</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-let-keyword">The let keyword</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#type-annotation">Type annotation</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#uninitialized-variables">Uninitialized variables</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#throwing-values-away">Throwing values away</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#shadowing-bindings">Shadowing bindings</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#tuples">Tuples</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#destructuring-tuples">Destructuring tuples</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#statements">Statements</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#functions">Functions</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#blocks">Blocks</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#blocks-are-expressions">Blocks are expressions</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#implicit-return">Implicit return</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#everything-is-an-expression">Everything is an expression</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#field-access-and-method-calling">Field access and method calling</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#modules-use-syntax">Modules, use syntax</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#types-are-namespaces-too">Types are namespaces too</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-libstd-prelude">The libstd prelude</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#structs">Structs</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#struct-update-syntax">Struct update syntax</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#destructuring-structs">Destructuring structs</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#patterns-and-destructuring">Patterns and destructuring</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#destructuring-with-if-let">Destructuring with if let</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#match-arms-are-patterns">Match arms are patterns</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#exhaustive-matches">Exhaustive matches</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#methods">Methods</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#immutability">Immutability</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#traits">Traits</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#orphan-rules">Orphan rules</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-self-type">The Self type</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#marker-traits">Marker traits</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#trait-method-receivers">Trait method receivers</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#deriving-traits">Deriving traits</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#generics">Generics</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#generic-functions">Generic functions</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#type-parameter-constraints-trait-bounds">Type parameter constraints (trait bounds)</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#monomorphization">Monomorphization</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#generic-structs">Generic structs</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#example-vec-t">Example: Vec&lt;T&gt;</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#macros">Macros</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-panic-macro">The panic! macro</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#functions-that-panic">Functions that panic</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#enums-sum-types">Enums (sum types)</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#lifetimes">Lifetimes</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#borrowing-rules-one-or-more-immutable-borrows-xor-one-mutable-borrow">Borrowing rules (one or more immutable borrows XOR one mutable borrow)</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#functions-generic-over-lifetimes">Functions generic over lifetimes</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#lifetime-elision">Lifetime elision</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#structs-generic-over-lifetimes">Structs generic over lifetimes</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#implementations-generic-over-lifetimes">Implementations generic over lifetimes</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-static-lifetime">The &#x27;static lifetime</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#struct-literal-assignment-shorthand">Struct literal assignment shorthand</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#owned-types-vs-reference-types">Owned types vs reference types</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#slices">Slices</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#operator-overloading">Operator overloading</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#borrowing-rules-and-slices">Borrowing rules and slices</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#string-slices-str">String slices (&amp;str)</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#fallible-functions-result-t-e">Fallible functions (Result&lt;T, E&gt;)</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#dereferencing">Dereferencing</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#function-types-closures">Function types, closures</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#fnmut-and-borrowing-rules">FnMut and borrowing rules</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#the-toilet-closure">The toilet closure</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#loops-iterators">Loops, iterators</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#returning-closures">Returning closures</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#capturing-into-a-closure">Capturing into a closure</a>
+            </li>
+            <li>
+              <a class="toc-entry" href="#conclusion">Conclusion</a>
+            </li>
+        </menu>
+    </nav>
+  </main>
+</div>
+<div class="nav-bottom">
+    <div class="nav-content">
+        <div class="nav-outlinks icons">
+            <a href="/discord" title="Discord">
+                <span class="inline-icon-container">
+                    <svg id="fi_5968898"></svg>
+                </span>
+                Discord
+            </a>
+            <a href="https://github.com/sponsors/fasterthanlime" title="GitHub Sponsors">
+                <span class="inline-icon-container">
+                    <svg></svg>
+                </span>
+                GitHub Sponsors
+            </a>
+            <a href="https://patreon.com/fasterthanlime" title="Patreon">
+                <span class="inline-icon-container">
+                    <?xml version="1.0" encoding="utf-8"?>
+<svg id="Layer_1"></svg>
+                </span>
+                Patreon
+            </a>
+        </div>
+        <div class="nav-outlinks icons">
+            <a href="https://bsky.app/profile/fasterthanli.me" title="Bluesky">
+                <span class="inline-icon-container">
+                    <svg></svg>
+                </span>
+                Bluesky
+            </a>
+            <a href="https://hachyderm.io/@fasterthanlime" title="Mastodon">
+                <span class="inline-icon-container">
+                    <svg></svg>
+                </span>
+                Mastodon
+            </a>
+            <a href="https://youtube.com/@fasterthanlime" title="YouTube">
+                <span class="inline-icon-container">
+                    <svg></svg>
+                </span>
+                YouTube
+            </a>
+        </div>
+        <div class="nav-outlinks icons">
+            <a href="https://www.tiktok.com/@fasterthanlime" title="TikTok">
+                <span class="inline-icon-container">
+                    <svg id="fi_3046120"></svg>
+                </span>
+                TikTok
+            </a>
+            <a href="https://www.instagram.com/fasterthanlime" title="Instagram">
+                <span class="inline-icon-container">
+                    <svg id="fi_1384031"></svg>
+                </span>
+                Instagram
+            </a>
+            <a href="/index.xml" title="RSS">
+                <span class="inline-icon-container">
+                    <svg></svg>
+                </span>
+                RSS
+            </a>
+        </div>
+    </div>
+    <div class="nav-content">
+        <div class="nav-outlinks">
+            <a href="/about">About</a>
+            <a href="/legal-notice">Legal Notice</a>
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/terms-and-conditions">Terms and Conditions</a>
+        </div>
+    </div>
+</div>
+</div>
+</body>
+</html>

@@ -147,7 +147,7 @@ pub(crate) fn clean_markdown(markdown: &str) -> String {
 
 /// `Some((char, run))` when `trimmed` opens a fenced code block (3+ of `` ` ``
 /// or `~`; a backtick fence's info string cannot contain a backtick).
-fn fence_open(trimmed: &str) -> Option<(char, usize)> {
+pub(super) fn fence_open(trimmed: &str) -> Option<(char, usize)> {
     let ch = trimmed.chars().next()?;
     if ch != '`' && ch != '~' {
         return None;
@@ -160,7 +160,7 @@ fn fence_open(trimmed: &str) -> Option<(char, usize)> {
 }
 
 /// A closing fence is only `ch` repeated at least `min` times.
-fn is_fence_close(trimmed: &str, ch: char, min: usize) -> bool {
+pub(super) fn is_fence_close(trimmed: &str, ch: char, min: usize) -> bool {
     let run = trimmed.chars().take_while(|&c| c == ch).count();
     run >= min && trimmed[run..].trim().is_empty()
 }

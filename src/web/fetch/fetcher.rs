@@ -18,12 +18,23 @@
 //! body transparently. Decompression removes `Content-Length` before
 //! `read_capped_body` sees the response, so the cap always applies to
 //! decoded bytes, streamed chunk-by-chunk, never to the compressed size.
+//!
+//! Egress (#97): the client resolves names through
+//! [`super::egress::EgressResolver`] and re-checks every redirect hop with
+//! [`super::egress::redirect_policy`], so no request reaches a private or
+//! reserved address unless the policy is [`EgressPolicy::AllowPrivate`].
+//!
+//! HTML bodies keep only their main-content subtree when
+//! [`super::extract::keep_extracted`] says nothing is lost (#108).
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::egress::{denied_in_chain, redirect_policy, EgressPolicy, EgressResolver};
 use super::error::{normalize_url, FetchError};
+use super::extract::{extract, keep_extracted};
 use super::obscura::{FetchedMarkdown, Obscura};
 use crate::web::profile::pick_profile;
 use crate::web::search::{apply_navigation_headers, ChainPosition};
@@ -66,6 +77,8 @@ pub struct Fetcher {
     max_body_bytes: usize,
     /// Static markdown shorter than this (trimmed chars) is treated as a JS shell.
     min_markdown_chars: usize,
+    /// Which addresses the static client and the Obscura check may reach.
+    egress: EgressPolicy,
 }
 
 /// Why the static path handed over to Obscura; kept for the error message.
@@ -95,29 +108,64 @@ enum StaticOutcome {
 
 impl Fetcher {
     /// Production defaults: 15 s static timeout, 5 MiB body cap, 200-char
-    /// JS-shell threshold, `obscura` on PATH with a 60 s timeout.
+    /// JS-shell threshold, `obscura` on PATH with a 60 s timeout, egress
+    /// policy from `FETCH_ALLOW_PRIVATE`.
     pub fn new() -> Self {
         Self::with_obscura(Obscura::default())
     }
 
     /// Same defaults with an injected Obscura handle (tests use the fixture double).
     pub fn with_obscura(obscura: Obscura) -> Self {
-        let client = reqwest::Client::builder()
+        Self::with_policy(obscura, EgressPolicy::from_env())
+    }
+
+    /// Same defaults with an explicit egress policy, applied to the static
+    /// client and to `obscura`. Tests against a local `127.0.0.1` server
+    /// pass [`EgressPolicy::AllowPrivate`] here instead of setting the env.
+    pub fn with_policy(obscura: Obscura, egress: EgressPolicy) -> Self {
+        Self::build(obscura, egress, reqwest::Client::builder())
+    }
+
+    /// Public-only fetcher whose client maps `host` to `addr` (a local
+    /// stub), so a test can serve a "public" name from `127.0.0.1` and prove
+    /// the redirect hop and resolver checks still apply past it. `reqwest`'s
+    /// overrides bypass the resolver for `host` only.
+    #[cfg(test)]
+    pub(crate) fn public_only_with_dns_override(
+        obscura: Obscura,
+        host: &str,
+        addr: std::net::SocketAddr,
+    ) -> Self {
+        Self::build(
+            obscura,
+            EgressPolicy::PublicOnly,
+            reqwest::Client::builder().resolve(host, addr),
+        )
+    }
+
+    fn build(obscura: Obscura, egress: EgressPolicy, builder: reqwest::ClientBuilder) -> Self {
+        let mut builder = builder
             .timeout(STATIC_TIMEOUT)
+            .redirect(redirect_policy(egress));
+        if egress == EgressPolicy::PublicOnly {
+            builder = builder.dns_resolver(Arc::new(EgressResolver));
+        }
+        let client = builder
             .build()
             .expect("static reqwest client config is valid");
         Self {
             client,
-            obscura,
-            max_body_bytes: 5 * 1024 * 1024,
+            obscura: obscura.with_egress(egress),
+            max_body_bytes: super::MAX_BODY_BYTES,
             min_markdown_chars: 200,
+            egress,
         }
     }
 
     /// Fetch `raw_url` as markdown. Tries the static path; falls back to
     /// Obscura on the triggers listed in the module docs.
     pub async fn fetch(&self, raw_url: &str) -> Result<(FetchedMarkdown, FetchPath), FetchError> {
-        let url = normalize_url(raw_url)?;
+        let url = normalize_url(raw_url, self.egress)?;
         let handover = match self.fetch_static(&url).await? {
             StaticOutcome::Done(page) => return Ok((page, FetchPath::Static)),
             StaticOutcome::Fallback(handover) => handover,
@@ -138,7 +186,17 @@ impl Fetcher {
         let builder =
             apply_navigation_headers(self.client.get(url), &profile, ChainPosition::First, None);
         let mut response = builder.send().await.map_err(|err| {
-            if err.is_timeout() {
+            if let Some(denied) = denied_in_chain(&err) {
+                // The redirect policy records the refused hop; a resolver
+                // refusal reports the URL `reqwest` was connecting to.
+                FetchError::Egress {
+                    url: denied.hop.clone().unwrap_or_else(|| {
+                        err.url()
+                            .map_or_else(|| url.to_owned(), |target| target.to_string())
+                    }),
+                    reason: denied.reason.clone(),
+                }
+            } else if err.is_timeout() {
                 FetchError::Timeout {
                     url: url.to_owned(),
                     after: STATIC_TIMEOUT,
@@ -196,7 +254,7 @@ impl Fetcher {
             if is_challenge(&text) {
                 return Ok(StaticOutcome::Fallback(Handover::Challenge));
             }
-            html_to_markdown(&text)
+            main_content_markdown(&text, self.min_markdown_chars)
         } else if content_type.starts_with("text/") || content_type.contains("json") {
             text.trim().to_owned()
         } else {
@@ -263,7 +321,7 @@ fn is_challenge(html: &str) -> bool {
 
 /// HTML → trimmed markdown. Conversion errors (malformed input the parser
 /// rejects) degrade to empty, which the caller treats as a JS shell.
-fn html_to_markdown(html: &str) -> String {
+pub(super) fn html_to_markdown(html: &str) -> String {
     htmd::HtmlToMarkdown::builder()
         .skip_tags(SKIP_TAGS.to_vec())
         .build()
@@ -272,29 +330,41 @@ fn html_to_markdown(html: &str) -> String {
         .unwrap_or_default()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converts_content_and_drops_chrome() {
-        let md = html_to_markdown(
-            "<html><head><style>p{}</style></head><body><nav>Menu</nav><h1>Title</h1>\
-             <p>Body <a href=\"https://x.test/\">link</a></p><script>var a;</script>\
-             <footer>Foot</footer></body></html>",
-        );
-        assert!(md.starts_with("# Title"), "{md}");
-        assert!(md.contains("[link](https://x.test/)"), "{md}");
-        for dropped in ["Menu", "Foot", "var a", "p{}"] {
-            assert!(!md.contains(dropped), "{dropped} leaked: {md}");
-        }
-    }
-
-    #[test]
-    fn detects_cloudflare_interstitial() {
-        assert!(is_challenge(
-            "<html><title>Just a moment...</title><div id=\"cf-chl-widget\"></div></html>"
-        ));
-        assert!(!is_challenge("<html><title>Rust docs</title></html>"));
+/// The page's markdown: the main-content extraction when the #108 gate
+/// keeps it, else the whole-page baseline.
+fn main_content_markdown(html: &str, min_markdown_chars: usize) -> String {
+    let page = main_content(html, min_markdown_chars);
+    match page.extracted {
+        Some(extracted) if page.kept => extracted,
+        _ => page.baseline,
     }
 }
+
+/// Both conversions of one HTML page and the gate's verdict; the fixture
+/// measurement test reads all three.
+pub(super) struct MainContent {
+    pub(super) baseline: String,
+    pub(super) extracted: Option<String>,
+    pub(super) kept: bool,
+}
+
+pub(super) fn main_content(html: &str, min_markdown_chars: usize) -> MainContent {
+    let baseline = html_to_markdown(html);
+    let extraction = extract(html, SKIP_TAGS);
+    let extracted = extraction
+        .as_ref()
+        .map(|extraction| html_to_markdown(&extraction.html));
+    let kept = keep_extracted(
+        &baseline,
+        extraction.as_ref().zip(extracted.as_deref()),
+        min_markdown_chars,
+    );
+    MainContent {
+        baseline,
+        extracted,
+        kept,
+    }
+}
+
+#[cfg(test)]
+mod tests;

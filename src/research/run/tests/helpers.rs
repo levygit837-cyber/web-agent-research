@@ -106,10 +106,13 @@ pub(super) async fn local_web() -> (ToolRegistry, String) {
         &format!("{search_base}/search"),
         &format!("{search_base}/search"),
     );
-    let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-        "/nonexistent/obscura".into(),
-        std::time::Duration::from_secs(1),
-    ));
+    let fetcher = Fetcher::with_policy(
+        crate::web::fetch::Obscura::new(
+            "/nonexistent/obscura".into(),
+            std::time::Duration::from_secs(1),
+        ),
+        crate::web::fetch::EgressPolicy::AllowPrivate,
+    );
     (ToolRegistry::new(searcher, fetcher), page_url)
 }
 
@@ -136,10 +139,13 @@ pub(super) async fn long_page_web() -> (
     let dead = "http://127.0.0.1:9/";
     let registry = ToolRegistry::new(
         Searcher::with_bases(dead, dead, dead, dead, dead, dead),
-        Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-            "/nonexistent/obscura".into(),
-            std::time::Duration::from_secs(1),
-        )),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::AllowPrivate,
+        ),
     );
     (registry, page_url, pages)
 }
@@ -179,9 +185,12 @@ pub(super) async fn walled_web() -> ToolRegistry {
         &yahoo_stub.base(),
         &bing_stub.base(),
     );
-    let fetcher = Fetcher::with_obscura(crate::web::fetch::Obscura::new(
-        "/nonexistent/obscura".into(),
-        std::time::Duration::from_secs(1),
-    ));
+    let fetcher = Fetcher::with_policy(
+        crate::web::fetch::Obscura::new(
+            "/nonexistent/obscura".into(),
+            std::time::Duration::from_secs(1),
+        ),
+        crate::web::fetch::EgressPolicy::AllowPrivate,
+    );
     ToolRegistry::new(searcher, fetcher)
 }
