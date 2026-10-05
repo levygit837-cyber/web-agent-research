@@ -5,6 +5,8 @@
 //! text the runner appends to the transcript tail (turns left, the tool
 //! roster after an empty reply). `runner.rs` owns the loop around them.
 
+use tokio::time::Instant;
+
 use crate::llm::RequestedToolCall;
 use crate::research::agent_loop::answer::{ANSWER_CLOSE, ANSWER_OPEN};
 use crate::research::agent_loop::context::{self, ToolMessage};
@@ -32,17 +34,16 @@ fn roster_footer(tools: &ToolRegistry, allowed: &[String]) -> String {
 }
 
 /// Repair observation after a reply with no tool call and no answer text.
-/// It keeps the turns-left countdown (#72); when only the last turn is left
-/// it asks for the answer alone, since a tool call on the last turn ends the
-/// run with no answer.
+/// It keeps the turns-left countdown (#72); `turns_left` counts the turns
+/// after this one. When only the final turn is left it asks for the answer
+/// alone, since the final turn runs tools-off.
 pub(super) fn empty_answer_observation(
     tools: &ToolRegistry,
     allowed: &[String],
-    turn: u32,
-    budget: &LoopBudget,
+    turns_left: u32,
 ) -> String {
-    let note = turns_left_note(turn, budget);
-    if budget.max_turns.saturating_sub(turn) <= 1 {
+    let note = turns_left_note(turns_left);
+    if turns_left <= 1 {
         return format!("Your last reply had no tool call and no answer text.{note}");
     }
     format!(
@@ -54,12 +55,14 @@ pub(super) fn empty_answer_observation(
 /// Turn-budget note appended to the newest tool result of each tool turn
 /// (#72). The system prompt must stay byte-identical across turns for
 /// prompt caching, so per-turn state rides in the transcript tail; the note
-/// is stored in history, so the transcript stays append-only.
-pub(super) fn turns_left_note(turn: u32, budget: &LoopBudget) -> String {
-    match budget.max_turns.saturating_sub(turn) {
+/// is stored in history, so the transcript stays append-only. `turns_left`
+/// counts the turns after this one under the current (possibly extended)
+/// budget.
+pub(super) fn turns_left_note(turns_left: u32) -> String {
+    match turns_left {
         0 => String::new(),
         1 => format!(
-            "\n\n[1 turn left: your next reply must be the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, with no tool call.]"
+            "\n\n[1 turn left: tools are off on it, so your next reply must be the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags.]"
         ),
         left => format!("\n\n[{left} turns left, counting the final answer.]"),
     }
@@ -111,6 +114,9 @@ pub(super) struct TurnOutcome {
     pub(super) search_blocked: Option<String>,
     /// Whether any `search` call this turn returned a non-empty Hit list.
     pub(super) had_search_hits: bool,
+    /// `search` calls this turn that succeeded; each one after the run's
+    /// first extends the turn budget (#101).
+    pub(super) successful_searches: u32,
 }
 
 /// Execute one turn's calls (up to `max_tools_per_turn`) and pair every one
@@ -118,14 +124,17 @@ pub(super) struct TurnOutcome {
 /// `tool` message. Execution failures never stop sibling calls; the last
 /// failure in the turn wins for `failure`/`failure_reason` (a turn mixing
 /// failure kinds is exceptional and untested — either kind aborts the run
-/// the same way once repairs are exhausted). `nonce` tags the containers
-/// that frame page and Hit text (#98).
+/// the same way once repairs are exhausted). `cutoff` is the latest instant
+/// a call may run to (the run deadline minus the final-answer reserve,
+/// #100); each call's timeout is `tool_timeout` clamped to it. `nonce` tags
+/// the containers that frame page and Hit text (#98).
 pub(super) async fn dispatch_turn(
     turn: u32,
     calls: &[RequestedToolCall],
     tools: &ToolRegistry,
     allowed: &[String],
     budget: &LoopBudget,
+    cutoff: Option<Instant>,
     nonce: &str,
 ) -> TurnOutcome {
     let cap = budget.max_tools_per_turn.max(1);
@@ -138,6 +147,7 @@ pub(super) async fn dispatch_turn(
     let mut failure_reason = String::new();
     let mut search_blocked: Option<String> = None;
     let mut had_search_hits = false;
+    let mut successful_searches: u32 = 0;
 
     for (index, call) in resolved.iter().enumerate() {
         if index >= cap {
@@ -165,14 +175,23 @@ pub(super) async fn dispatch_turn(
             failure_reason = reason;
             continue;
         }
-        let executed = tokio::time::timeout(
-            budget.tool_timeout,
-            tools.execute(call, budget.max_part_chars),
-        )
-        .await;
+        let timeout = cutoff.map_or(budget.tool_timeout, |cutoff| {
+            budget
+                .tool_timeout
+                .min(cutoff.saturating_duration_since(Instant::now()))
+        });
+        let executed =
+            tokio::time::timeout(timeout, tools.execute(call, budget.max_part_chars)).await;
         match executed {
             Err(_) => {
-                let reason = format!("timeout after {}s", budget.tool_timeout.as_secs());
+                let reason = if timeout < budget.tool_timeout {
+                    format!(
+                        "timeout after {}s: the run deadline is near",
+                        timeout.as_secs()
+                    )
+                } else {
+                    format!("timeout after {}s", budget.tool_timeout.as_secs())
+                };
                 // Same text as an executor failure, so a timed-out fetch
                 // carries the failed-fetch next step (#72).
                 let rendered = ToolResult::Failed {
@@ -221,6 +240,9 @@ pub(super) async fn dispatch_turn(
                 }
                 if result.is_success() {
                     had_success = true;
+                    if matches!(result, ToolResult::Search { .. }) {
+                        successful_searches += 1;
+                    }
                     evidence.push(ToolEvidence {
                         turn,
                         id: call.id.clone(),
@@ -263,5 +285,6 @@ pub(super) async fn dispatch_turn(
         failure_reason,
         search_blocked,
         had_search_hits,
+        successful_searches,
     }
 }

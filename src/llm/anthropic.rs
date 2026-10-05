@@ -183,6 +183,9 @@ pub(crate) fn request_body(
         body.insert("system".to_owned(), system.into());
     }
     body.insert("messages".to_owned(), wire.into());
+    // Typed, so `GATEWAY_EXTRA_BODY` cannot turn on streaming: the client
+    // reads one complete JSON body.
+    body.insert("stream".to_owned(), false.into());
     if let Some(tools) = tools.filter(|t| !t.is_empty()) {
         let mut defs: Vec<serde_json::Value> = tools
             .iter()
@@ -278,15 +281,9 @@ fn string_chars(value: &serde_json::Value) -> usize {
 }
 
 pub(crate) fn parse_response(resp: MessagesResponse) -> Result<LlmReply, GatewayError> {
-    if resp.kind.as_deref() == Some("error") {
-        let detail = resp
-            .error
-            .as_ref()
-            .and_then(|e| e.get("message"))
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("error body on a 2xx response")
-            .to_owned();
-        return Err(GatewayError::Parse(detail));
+    if resp.kind.as_deref() == Some("error") || resp.error.as_ref().is_some_and(|e| !e.is_null()) {
+        let error = resp.error.unwrap_or(serde_json::Value::Null);
+        return Err(super::client::error_object(&error));
     }
     let mut output = String::new();
     let mut thinking: Vec<String> = Vec::new();
@@ -656,6 +653,16 @@ mod tests {
             "error": {"type": "overloaded_error", "message": "Overloaded"}
         }))
         .expect_err("error body must fail");
-        assert!(matches!(error, GatewayError::Parse(text) if text == "Overloaded"));
+        assert!(
+            matches!(&error, GatewayError::ErrorBody { kind, message, retryable: true }
+                if kind == "overloaded_error" && message == "Overloaded"),
+            "{error:?}"
+        );
+        let rejected = parse(serde_json::json!({
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": "bad"}
+        }))
+        .expect_err("error body must fail");
+        assert!(!rejected.is_retryable(), "{rejected:?}");
     }
 }

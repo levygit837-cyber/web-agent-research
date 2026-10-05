@@ -21,6 +21,18 @@ pub fn default_max_turns() -> u32 {
     LoopBudget::default().max_turns
 }
 
+/// Default ceiling the turn budget can grow to (#101).
+pub fn default_max_turns_cap() -> u32 {
+    LoopBudget::default().max_turns_cap
+}
+
+/// Default wall-clock bound on one run, in seconds (#100).
+pub const DEFAULT_DEADLINE_SECS: u64 = 300;
+
+fn default_deadline_secs() -> u64 {
+    DEFAULT_DEADLINE_SECS
+}
+
 fn default_size() -> SynthesisSize {
     SynthesisSize::default()
 }
@@ -103,9 +115,16 @@ pub struct ResearchRequest {
     /// Requested synthesis size; echoed into the response unchanged.
     #[serde(with = "size_serde", default = "default_size")]
     pub size: SynthesisSize,
-    /// Total gateway calls allowed. Must be >= 1.
+    /// Base turn budget (gateway calls). Must be >= 1.
     #[serde(default = "default_max_turns")]
     pub max_turns: u32,
+    /// Ceiling the turn budget can grow to: each successful `search` call
+    /// after the first adds 5 turns. Must be >= `max_turns`.
+    #[serde(default = "default_max_turns_cap")]
+    pub max_turns_cap: u32,
+    /// Wall-clock bound on the whole run, in seconds. Must be >= 1.
+    #[serde(default = "default_deadline_secs")]
+    pub deadline_secs: u64,
     /// Defaults to generated `<unix-secs>-<pid>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -190,7 +209,13 @@ pub struct ResearchResponse {
     #[serde(default = "default_content_trust")]
     pub content_trust: String,
     pub synthesis: SynthesisDTO,
+    /// Gateway calls made.
     pub turns_used: u32,
+    /// Turn budget when the run ended: `max_turns` plus any `search`
+    /// extensions, at most `max_turns_cap` (#101). `0` from readers of
+    /// responses written before the field existed.
+    #[serde(default)]
+    pub turn_budget: u32,
     pub evidence_urls: Vec<String>,
     pub usage: UsageDTO,
 }
@@ -309,6 +334,7 @@ mod tests {
                 },
             },
             turns_used: 3,
+            turn_budget: 15,
             evidence_urls: vec!["https://example.com/t".to_owned()],
             usage: UsageDTO {
                 prompt_tokens: 0,
@@ -336,6 +362,7 @@ mod tests {
         assert_eq!(value["synthesis"]["verification"]["bullets"], 2);
         assert_eq!(value["synthesis"]["verification"]["partial"], 1);
         assert_eq!(value["turns_used"], 3);
+        assert_eq!(value["turn_budget"], 15);
         assert_eq!(value["evidence_urls"][0], "https://example.com/t");
         assert_eq!(value["usage"]["total_tokens"], 0);
     }
@@ -404,6 +431,8 @@ mod tests {
                 .expect("request deserializes");
         assert_eq!(req.size, SynthesisSize::Large);
         assert_eq!(req.session_id, None);
+        assert_eq!(req.max_turns_cap, 25);
+        assert_eq!(req.deadline_secs, 300);
         let back = serde_json::to_value(&req).expect("request serializes");
         assert_eq!(back["size"], "large");
     }

@@ -122,7 +122,7 @@ async fn retryable_exhausted_aborts() {
     .expect_err("exhausted 500 must abort");
     assert!(matches!(
         err,
-        LoopError::Gateway(GatewayError::Server { status: 500 })
+        LoopError::Gateway(GatewayError::Server { status: 500, .. })
     ));
 }
 
@@ -139,7 +139,7 @@ async fn client_error_aborts() {
     .expect_err("4xx must abort");
     assert!(matches!(
         err,
-        LoopError::Gateway(GatewayError::Client { status: 404 })
+        LoopError::Gateway(GatewayError::Client { status: 404, .. })
     ));
 }
 
