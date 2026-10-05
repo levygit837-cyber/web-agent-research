@@ -15,6 +15,7 @@
 pub mod bing;
 pub mod brave;
 pub(crate) mod cache;
+mod cratesio;
 pub mod ddg;
 pub mod decode;
 pub mod dedup;
