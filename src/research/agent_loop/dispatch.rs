@@ -118,13 +118,15 @@ pub(super) struct TurnOutcome {
 /// `tool` message. Execution failures never stop sibling calls; the last
 /// failure in the turn wins for `failure`/`failure_reason` (a turn mixing
 /// failure kinds is exceptional and untested — either kind aborts the run
-/// the same way once repairs are exhausted).
+/// the same way once repairs are exhausted). `nonce` tags the containers
+/// that frame page and Hit text (#98).
 pub(super) async fn dispatch_turn(
     turn: u32,
     calls: &[RequestedToolCall],
     tools: &ToolRegistry,
     allowed: &[String],
     budget: &LoopBudget,
+    nonce: &str,
 ) -> TurnOutcome {
     let cap = budget.max_tools_per_turn.max(1);
     let resolved = resolve_call_ids(turn, calls);
@@ -178,7 +180,7 @@ pub(super) async fn dispatch_turn(
                     reason: reason.clone(),
                     kind: FailureKind::Execution,
                 }
-                .render();
+                .render(nonce);
                 let content = cap_excerpt(&rendered, budget);
                 results.push(ToolMessage {
                     id: call.id.clone(),
@@ -197,7 +199,7 @@ pub(super) async fn dispatch_turn(
                 failure_reason = reason;
             }
             Ok(result) => {
-                let rendered = result.render();
+                let rendered = result.render(nonce);
                 // A Fetch part is already sized by the registry; capping it
                 // again would cut the part's continuation line.
                 let excerpt = if matches!(result, ToolResult::Fetch { .. }) {

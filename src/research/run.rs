@@ -12,8 +12,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::llm::{Gateway, GatewayConfig};
 use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
 use crate::research::data_dir;
-use crate::research::dto::{ResearchRequest, ResearchResponse, SynthesisDTO, UsageDTO};
+use crate::research::dto::{
+    ResearchRequest, ResearchResponse, SynthesisDTO, UsageDTO, CONTENT_TRUST_UNTRUSTED_WEB,
+};
 use crate::research::session::{SessionHeader, SessionSink, SessionUsage, TurnRow};
+use crate::research::synthesis::Support;
 use crate::web::fetch::{Evidence, Fetcher};
 use crate::web::search::tool::Searcher;
 
@@ -203,6 +206,7 @@ pub(crate) async fn run_research_with(
 
     Ok(ResearchResponse {
         session_id,
+        content_trust: CONTENT_TRUST_UNTRUSTED_WEB.to_owned(),
         synthesis: synthesis_dto,
         turns_used: report.turns_used,
         evidence_urls,
@@ -212,6 +216,9 @@ pub(crate) async fn run_research_with(
 
 /// Pure printer for human stdout: summary, `##` theme sections with `-`
 /// points, then a numbered `Sources:` `[title](url)` list in document order.
+/// A source whose page did not hold the quote of any bullet citing it is
+/// marked `(unsupported: …)`, one that held the quote but not every number
+/// or identifier `(partial: …)` (#106).
 pub fn render(response: &ResearchResponse) -> String {
     let mut out = String::new();
     out.push_str(&response.synthesis.summary);
@@ -230,7 +237,19 @@ pub fn render(response: &ResearchResponse) -> String {
     out.push_str("Sources:\n");
     for (index, citation) in response.synthesis.citations.iter().enumerate() {
         let title = citation.title.as_deref().unwrap_or(&citation.url);
-        out.push_str(&format!("{}. [{}]({})\n", index + 1, title, citation.url));
+        let mark = match citation.support {
+            Support::None => " (unsupported: the cited page does not contain the quoted text)",
+            Support::Partial => {
+                " (partial: a number or identifier in the claim is not on the cited page)"
+            }
+            Support::Exact | Support::Unchecked => "",
+        };
+        out.push_str(&format!(
+            "{}. [{}]({}){mark}\n",
+            index + 1,
+            title,
+            citation.url
+        ));
     }
     out
 }

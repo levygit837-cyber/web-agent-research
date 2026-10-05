@@ -20,10 +20,11 @@ use crate::research::agent_loop::dispatch::{
     allowed_roster, dispatch_turn, empty_answer_observation, turns_left_note,
 };
 use crate::research::agent_loop::registry::ToolRegistry;
-use crate::research::agent_loop::result::FailureKind;
+use crate::research::agent_loop::result::{new_nonce, FailureKind};
 use crate::research::agent_loop::types::{
     LoopBudget, LoopError, LoopInput, RunReport, ToolEvidence,
 };
+use crate::research::agent_loop::verify::verify_synthesis;
 use crate::research::prompt::build_system_prompt;
 use crate::web::search::dedup_key;
 
@@ -58,6 +59,9 @@ pub async fn run_loop(
     let roster: Vec<(&str, &str)> = allowed_roster(tools, &input.allowed_tools);
     let system_prompt = build_system_prompt(&roster, input.size, budget);
     let defs = tools.tool_defs(&input.allowed_tools);
+    // One nonce per run tags the containers around page and Hit text (#98):
+    // a page cannot predict it, so it cannot forge a closing tag.
+    let nonce = new_nonce();
 
     let mut history: Vec<HistoryEntry> = Vec::new();
     let mut evidence: Vec<ToolEvidence> = Vec::new();
@@ -97,6 +101,7 @@ pub async fn run_loop(
                         .map(dedup_key)
                         .collect();
                     retain_fetched_citations(&mut synthesis, &fetched);
+                    verify_synthesis(&mut synthesis, &evidence);
                     return Ok(RunReport {
                         synthesis,
                         turns_used: turn,
@@ -129,8 +134,15 @@ pub async fn run_loop(
             }
         }
 
-        let mut outcome =
-            dispatch_turn(turn, &reply.tool_calls, tools, &input.allowed_tools, budget).await;
+        let mut outcome = dispatch_turn(
+            turn,
+            &reply.tool_calls,
+            tools,
+            &input.allowed_tools,
+            budget,
+            &nonce,
+        )
+        .await;
         evidence.extend(outcome.evidence);
         if outcome.search_blocked.is_some() {
             search_blocked = outcome.search_blocked;

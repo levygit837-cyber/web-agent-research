@@ -6,7 +6,9 @@
 //! its own progress never reach the caller (#72). The only hard gate is
 //! non-emptiness: markdown pedantry never fails a good answer.
 
-use crate::research::synthesis::{Citation, Synthesis, SynthesisSize, ThemeSection};
+use crate::research::synthesis::{
+    Citation, Point, Synthesis, SynthesisSize, ThemeSection, Verification,
+};
 use crate::web::search::dedup_key;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,13 +86,63 @@ fn dedupe_links(links: Vec<ParsedLink>) -> Vec<Citation> {
     let mut citations = Vec::new();
     for link in links {
         if seen.insert(link.url.clone()) {
-            citations.push(Citation {
-                url: link.url,
-                title: link.title,
-            });
+            citations.push(Citation::new(link.url, link.title));
         }
     }
     citations
+}
+
+/// Marker that opens a bullet's verbatim quote (#106): `(quote: "…")`.
+const QUOTE_MARKER: &str = "(quote:";
+
+/// Split one bullet into its text, its links and its trailing quote. The
+/// quote is the last `(quote: "…")` group, matched in any letter case and
+/// with straight or curly quote marks; it is removed from the text, and
+/// anything after it (usually the closing period) is kept. An empty quote
+/// counts as no quote.
+fn parse_point(raw: &str) -> Point {
+    let mut seen = std::collections::HashSet::new();
+    let links: Vec<String> = scan_links(raw)
+        .into_iter()
+        .map(|link| link.url)
+        .filter(|url| seen.insert(url.clone()))
+        .collect();
+    let lower = raw.to_ascii_lowercase();
+    let Some(start) = lower.rfind(QUOTE_MARKER) else {
+        return Point {
+            text: raw.to_owned(),
+            links,
+            ..Point::default()
+        };
+    };
+    let after_marker = &raw[start + QUOTE_MARKER.len()..];
+    // The group closes at the last `)` that follows a closing quote mark,
+    // so a `)` inside the quoted words never ends it early.
+    let close = after_marker
+        .rfind(['"', '\u{201D}', '\u{201C}'])
+        .and_then(|mark| {
+            let rest = &after_marker[mark..];
+            let mark_len = rest.chars().next().map_or(1, char::len_utf8);
+            rest[mark_len..]
+                .find(')')
+                .map(|paren| mark + mark_len + paren)
+        })
+        .or_else(|| after_marker.rfind(')'));
+    let (inner, tail) = match close {
+        Some(close) => (&after_marker[..close], &after_marker[close + 1..]),
+        None => (after_marker, ""),
+    };
+    let quote = inner
+        .trim()
+        .trim_matches(['"', '\u{201C}', '\u{201D}'])
+        .trim();
+    let text = format!("{}{}", raw[..start].trim_end(), tail.trim());
+    Point {
+        text: text.trim().to_owned(),
+        links,
+        quote: (!quote.is_empty()).then(|| quote.to_owned()),
+        ..Point::default()
+    }
 }
 
 fn citations_in(text: &str, global: &[Citation]) -> Vec<Citation> {
@@ -209,18 +261,21 @@ pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis,
     if themes.is_empty() {
         sections.push(ThemeSection {
             title: "Findings".to_owned(),
-            points: vec![summary.clone()],
+            points: vec![parse_point(&summary)],
             citations: citations.clone(),
         });
     } else {
         for (title, lines) in themes {
             let joined = lines.join("\n");
-            let mut points: Vec<String> =
-                lines.iter().filter_map(|line| bullet_text(line)).collect();
+            let mut points: Vec<Point> = lines
+                .iter()
+                .filter_map(|line| bullet_text(line))
+                .map(|text| parse_point(&text))
+                .collect();
             if points.is_empty() {
                 let text = lines.join(" ");
                 if !text.trim().is_empty() {
-                    points.push(text);
+                    points.push(parse_point(&text));
                 }
             }
             sections.push(ThemeSection {
@@ -230,7 +285,7 @@ pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis,
             });
         }
         if sections.iter().all(|section| section.points.is_empty()) {
-            sections[0].points.push(summary.clone());
+            sections[0].points.push(parse_point(&summary));
         }
     }
 
@@ -239,6 +294,7 @@ pub(crate) fn parse_answer(body: &str, size: SynthesisSize) -> Result<Synthesis,
         summary,
         themes: sections,
         citations,
+        verification: Verification::default(),
     })
 }
 
@@ -354,7 +410,7 @@ mod tests {
         .expect("demoted headings parse");
         assert_eq!(synthesis.themes.len(), 1);
         assert_eq!(synthesis.themes[0].points.len(), 1);
-        assert!(synthesis.themes[0].points[0].contains("Detail"));
+        assert!(synthesis.themes[0].points[0].text.contains("Detail"));
     }
 
     #[test]
@@ -384,7 +440,7 @@ mod tests {
     fn numbered_bullets_become_points() {
         let synthesis = parse_answer("## Steps\n\n1. First\n2. Second", SynthesisSize::Medium)
             .expect("numbered list parses");
-        assert_eq!(synthesis.themes[0].points, vec!["First", "Second"]);
+        assert_eq!(texts(&synthesis, 0), vec!["First", "Second"]);
     }
 
     /// Models narrate before their final answer ("I have enough information
@@ -400,8 +456,12 @@ mod tests {
         );
         assert_eq!(synthesis.themes.len(), 1);
         assert_eq!(
-            synthesis.themes[0].points,
+            texts(&synthesis, 0),
             vec!["Async I/O and timers ([tokio docs](https://docs.rs/tokio/latest/tokio/))."]
+        );
+        assert_eq!(
+            synthesis.themes[0].points[0].links,
+            vec!["https://docs.rs/tokio/latest/tokio/"]
         );
         let urls: Vec<&str> = synthesis
             .citations
@@ -425,7 +485,7 @@ mod tests {
         )
         .expect("unclosed block parses");
         assert_eq!(synthesis.summary, "Tokio is a runtime.");
-        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+        assert_eq!(texts(&synthesis, 0), vec!["Spawn tasks."]);
     }
 
     /// An explicitly empty answer block is an empty answer, which the loop
@@ -453,7 +513,7 @@ mod tests {
             synthesis.summary,
             "Tokio is a runtime ([Tokio](https://tokio.rs/))."
         );
-        assert_eq!(synthesis.themes[0].points, vec!["Spawn tasks."]);
+        assert_eq!(texts(&synthesis, 0), vec!["Spawn tasks."]);
     }
 
     /// Inline code in the answer can show the tags themselves (a goal about
@@ -467,7 +527,7 @@ mod tests {
         .expect("a block with inline tags parses");
         assert_eq!(synthesis.summary, "Wrap the final reply in answer tags.");
         assert_eq!(
-            synthesis.themes[0].points,
+            texts(&synthesis, 0),
             vec![
                 "Write `<answer>42</answer>` in the template ([Guide](https://example.com/guide))."
             ]
@@ -484,5 +544,43 @@ mod tests {
         )
         .expect("a mixed-case block parses");
         assert_eq!(synthesis.summary, "Tokio is a runtime.");
+    }
+
+    /// #106: a bullet's trailing `(quote: "…")` is attached to the bullet and
+    /// removed from its text; its links stay attached per bullet.
+    #[test]
+    fn bullets_carry_their_links_and_quote() {
+        let synthesis = parse_answer(
+            "Summary ([A](https://a.example/)).\n\n## T\n\n- Rust 1.75 shipped `async fn` in traits ([A](https://a.example/)) (quote: \"Rust 1.75 stabilizes async fn in traits (AFIT)\").\n- Two links [A](https://a.example/) and [B](https://b.example/) (Quote: “curly quoted”)\n- No quote here ([B](https://b.example/)).\n- Empty quote ([B](https://b.example/)) (quote: \"\").",
+            SynthesisSize::Medium,
+        )
+        .expect("quoted answer parses");
+        let points = &synthesis.themes[0].points;
+        assert_eq!(
+            points[0].text,
+            "Rust 1.75 shipped `async fn` in traits ([A](https://a.example/))."
+        );
+        assert_eq!(
+            points[0].quote.as_deref(),
+            Some("Rust 1.75 stabilizes async fn in traits (AFIT)")
+        );
+        assert_eq!(points[0].links, vec!["https://a.example/"]);
+        assert_eq!(points[1].quote.as_deref(), Some("curly quoted"));
+        assert_eq!(
+            points[1].links,
+            vec!["https://a.example/", "https://b.example/"]
+        );
+        assert_eq!(points[2].quote, None);
+        assert_eq!(points[2].text, "No quote here ([B](https://b.example/)).");
+        assert_eq!(points[3].quote, None, "an empty quote is no quote");
+        assert_eq!(points[3].text, "Empty quote ([B](https://b.example/)).");
+    }
+
+    fn texts(synthesis: &Synthesis, theme: usize) -> Vec<&str> {
+        synthesis.themes[theme]
+            .points
+            .iter()
+            .map(|point| point.text.as_str())
+            .collect()
     }
 }

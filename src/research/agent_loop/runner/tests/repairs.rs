@@ -244,7 +244,7 @@ async fn timed_out_fetch_points_to_another_hit() {
         reason: reason.to_owned(),
         kind: FailureKind::Execution,
     }
-    .render();
+    .render("n");
     assert!(observation.starts_with(&failed_fetch), "{observation}");
 }
 
