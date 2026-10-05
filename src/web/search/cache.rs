@@ -12,8 +12,8 @@
 //! constructor pass `None`, never resolving `cache_dir::cache_root()`) and
 //! on `SEARCH_CACHE=off`. `store` takes rows, not a `Result`: a Challenge or
 //! any other leg error has no code path into this cache by construction --
-//! the caller (the fan-out spawn loop) only calls `store` on a settled
-//! `Ok` leg.
+//! the caller (`fanout::leg::run`) only calls `store` on a settled `Ok`
+//! leg, and `store` itself skips zero rows (#104).
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use super::types::{Recency, SearchProvider, SearchResult};
-use crate::web::cache_dir::write_atomic;
+use crate::web::cache_dir::{write_atomic, TEMP_EXTENSION_PREFIX};
 
 /// Default entry lifetime: 24 h (issue #67: "none longer").
 const DEFAULT_TTL_SECS: u64 = 24 * 3_600;
@@ -154,12 +154,10 @@ pub(crate) fn lookup(
 }
 
 /// Store a settled leg's rows. No-op on cache disabled or no `cache_root`.
-/// Callers pass rows only, never a `Result`: a Challenge or transport error
-/// leg has no way to reach this function. Zero rows are cached like any
-/// other successful leg -- a genuinely empty result set (no challenge
-/// marker) is a real answer for that Query within the TTL window, not a
-/// failure to paper over, and it still expires and gets overwritten by a
-/// later real answer exactly like a non-empty entry.
+/// Callers pass rows only, never a `Result`: a Challenge, transport error
+/// or unrecognized-markup leg has no way to reach this function. The
+/// fan-out never calls it with zero rows either (#104): an empty answer
+/// is cheap to ask again and must not shadow a later real one for 24 h.
 pub(crate) fn store(
     cache_root: Option<&Path>,
     provider: SearchProvider,
@@ -168,7 +166,7 @@ pub(crate) fn store(
     page: usize,
     results: &[SearchResult],
 ) {
-    if cache_disabled() {
+    if cache_disabled() || results.is_empty() {
         return;
     }
     let Some(root) = cache_root else {
@@ -193,12 +191,18 @@ pub(crate) fn store(
     enforce_cap(&search_dir, max_bytes());
 }
 
+/// Age past which a `write_atomic` temp file (`*.tmp-<pid>-<n>`) is an
+/// orphan of a killed process, not an in-flight write (#103). A real
+/// write lasts milliseconds.
+const STALE_TEMP_SECS: u64 = 600;
+
 /// Oldest-first eviction by `fetched_at_secs` (not filesystem mtime: some
 /// filesystems have coarse mtime resolution, and `fetched_at_secs` is the
 /// field that actually defines "oldest" for this cache). A corrupt entry
 /// sorts as `fetched_at_secs = 0`, i.e. oldest, so it is evicted before any
-/// valid entry rather than lingering. Best effort: an unreadable directory
-/// or a `remove_file` failure is skipped, never panics.
+/// valid entry rather than lingering. Also removes `write_atomic` temp
+/// files older than [`STALE_TEMP_SECS`] (#103). Best effort: an unreadable
+/// directory or a `remove_file` failure is skipped, never panics.
 fn enforce_cap(search_dir: &Path, cap_bytes: u64) {
     let Ok(read_dir) = std::fs::read_dir(search_dir) else {
         return;
@@ -215,14 +219,26 @@ fn enforce_cap(search_dir: &Path, cap_bytes: u64) {
     let mut total: u64 = 0;
     for dir_entry in read_dir.flatten() {
         let path = dir_entry.path();
-        // Skip `write_atomic`'s sibling `*.tmp-<pid>-<n>` files (in-flight
-        // writes) and anything else that is not one of our entries.
-        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
-            continue;
-        }
         let Ok(metadata) = dir_entry.metadata() else {
             continue;
         };
+        let extension = path.extension().and_then(|ext| ext.to_str());
+        if extension.is_some_and(|ext| ext.starts_with(TEMP_EXTENSION_PREFIX)) {
+            // A fresh temp is an in-flight write: leave it alone.
+            let stale = metadata
+                .modified()
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .is_some_and(|age| age.as_secs() > STALE_TEMP_SECS);
+            if stale {
+                let _ = std::fs::remove_file(&path);
+            }
+            continue;
+        }
+        // Anything else that is not one of our entries is skipped.
+        if extension != Some("json") {
+            continue;
+        }
         let len = metadata.len();
         total += len;
         candidates.push(Candidate { path, len });
@@ -532,7 +548,9 @@ mod tests {
     }
 
     #[test]
-    fn zero_rows_are_cached_like_any_successful_leg() {
+    fn zero_rows_are_never_cached() {
+        // #104: an empty leg (a genuine no-results page, or drift briefly
+        // mistaken for one) must not answer the same Query for 24 h.
         let _guard = EnvGuard::lock();
         let root = temp_dir("zero");
         store(
@@ -551,8 +569,33 @@ mod tests {
                 None,
                 0
             ),
-            Some(vec![])
+            None
         );
+        assert!(!root.join("search").exists(), "nothing written");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn eviction_removes_stale_temp_files_and_keeps_fresh_ones() {
+        // #103: a temp file orphaned by a killed writer is evicted; one
+        // that is still being written (fresh mtime) is left alone.
+        let _guard = EnvGuard::lock();
+        let root = temp_dir("stale-tmp");
+        let search_dir = root.join("search");
+        std::fs::create_dir_all(&search_dir).expect("mkdir");
+        let stale = search_dir.join(format!("abc.{TEMP_EXTENSION_PREFIX}1-0"));
+        let fresh = search_dir.join(format!("def.{TEMP_EXTENSION_PREFIX}1-1"));
+        std::fs::write(&stale, b"x").expect("write stale");
+        std::fs::write(&fresh, b"x").expect("write fresh");
+        let old = SystemTime::now() - std::time::Duration::from_secs(STALE_TEMP_SECS + 60);
+        std::fs::File::options()
+            .write(true)
+            .open(&stale)
+            .and_then(|file| file.set_modified(old))
+            .expect("age stale temp");
+        enforce_cap(&search_dir, u64::MAX);
+        assert!(!stale.exists(), "stale temp evicted");
+        assert!(fresh.exists(), "in-flight temp kept");
         std::fs::remove_dir_all(&root).ok();
     }
 
