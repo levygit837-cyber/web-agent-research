@@ -10,6 +10,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::llm::{Gateway, GatewayConfig};
+use crate::research::agent_loop::tape::Tape;
 use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
 use crate::research::data_dir;
 use crate::research::dto::{
@@ -118,8 +119,13 @@ fn generate_session_id() -> String {
 /// Owns `req`; borrows nothing. Exactly one gateway call per turn.
 /// `allowed_tools` is fixed to `["search", "fetch"]` in registry order.
 /// The key comes only from env (`GATEWAY_API_KEY`), never from the request.
+/// The eval-only `WAR_EVAL_RECORD` / `WAR_EVAL_REPLAY` env vars (#107,
+/// `docs/eval.md`) record or replay the tools; a bad value is
+/// `NotConfigured`.
 pub async fn run_research(req: ResearchRequest) -> Result<ResearchResponse, ResearchError> {
-    run_research_with(req, ToolRegistry::new(Searcher::new(), Fetcher::new())).await
+    let tape = Tape::from_env().map_err(ResearchError::NotConfigured)?;
+    let tools = ToolRegistry::new(Searcher::new(), Fetcher::new()).with_tape(tape);
+    run_research_with(req, tools).await
 }
 
 /// [`run_research`] over an injected registry (test seam for hermetic runs).

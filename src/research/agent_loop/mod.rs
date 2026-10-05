@@ -11,6 +11,7 @@ mod dispatch;
 pub mod registry;
 pub mod result;
 pub mod runner;
+pub(crate) mod tape;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
