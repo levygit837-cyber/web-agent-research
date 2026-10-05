@@ -1,0 +1,2377 @@
+
+<!DOCTYPE html>
+    <html itemscope itemtype="https://schema.org/QAPage" class="html__responsive " lang="en">
+        <head>
+            <title>looping through `ls` results in bash shell script - Super User</title>
+            <script></script>
+    <script></script>
+    <script type="text/javascript"></script>
+        <script type="application/ld+json"></script>
+<script id="webpack-public-path" type="text/uri-list"></script>
+<script type="application/json"></script>
+<script type="application/json"></script>
+<script type="text/javascript"></script>
+<script></script>
+            <script></script>
+            <script></script>
+            <script></script>
+<script></script><script type="application/json"></script><script></script>
+                <script></script>
+            <script></script>
+            <script></script>
+            <noscript id="noscript-css"></noscript>
+<script></script>        <script type="text/javascript"></script>
+        <script type="text/javascript"></script>
+        <script type="text/javascript"></script>
+        </head>
+    <body class="question-page unified-theme">
+<div id="signup-modal-container"></div>
+<script type="application/json"></script>
+<script></script><script></script><script></script><script></script>
+<script></script>
+    <div id="one-tap-container"></div>
+<script type="application/json"></script><script></script><script></script>
+    <div id="notify-container"></div>
+    <div id="custom-header"></div>
+<header class="s-topbar ps-fixed t0 l0 js-top-bar">
+    <a href="#content" class="s-topbar--skip-link">Skip to main content</a>
+	<div class="s-topbar--container">
+			<a href="#" class="s-topbar--menu-btn js-left-sidebar-toggle"><span></span></a>
+			<div class="topbar-dialog leftnav-dialog js-leftnav-dialog dno">
+				<div class="left-sidebar js-unpinned-left-sidebar"></div>
+			</div>
+			<a href="#" class="s-topbar--logo network-logo js-gps-track js-network-logo">
+				<svg class="fc-black-200 d:fc-black-350 mtn1 svg-icon iconGlyphNew"></svg>
+			</a>
+			<div class="topbar-dialog network-logo-dialog js-network-logo-dialog dno" id="topbar-network-logo-dialog" role="dialog">
+				<div class="dialog-content">
+					<h4 class="bold" id="topbar-network-logo-dialog-title">Stack Exchange Network</h4>
+					<p id="topbar-network-logo-dialog-body">
+						Stack Exchange network consists of 183 Q&amp;A communities including <a href="https://stackoverflow.com">Stack Overflow</a>, the largest, most trusted online community for developers to learn, share their knowledge, and build their careers.
+					</p>
+					<a class="s-btn s-btn__filled" href="https://stackexchange.com">Visit Stack Exchange</a>
+					<button class="s-btn s-btn__muted p0 ps-absolute t16 r16 js-close-button"><svg class="svg-icon iconClear"></svg></button>
+				</div>
+			</div>
+		        <form id="search" role="search" class="s-topbar--searchbar js-searchbar ">
+                        <div class="s-topbar--searchbar--input-group">
+                            <input name="q" type="text" role="combobox" class="s-input s-input__search js-search-field wmn1 ">s-popover#show"
+                                   data-s-popover-placement="bottom-start" />
+                            <svg class="s-input-icon s-input-icon__search svg-icon iconSearch"></svg>
+                            <div class="s-popover p0 wmx100 wmn4" id="top-search" role="menu">
+    <div class="s-popover--arrow"></div>
+    <div class="s-popover--content">
+        <div class="js-spinner p24 d-flex ai-center jc-center d-none">
+            <div class="s-spinner s-spinner__sm fc-orange-400">
+                <div class="v-visible-sr">Loading&#x2026;</div>
+            </div>
+        </div>
+        <span class="v-visible-sr js-screen-reader-info"></span>
+        <div class="js-ac-results overflow-y-auto hmx3 d-none"></div>
+        <div class="js-search-hints"></div>
+    </div>
+</div>
+                        </div>
+                </form>
+<nav class="h100 ml-auto overflow-x-auto pr12">
+    <ol class="s-topbar--content">
+        <li>
+            <a href="/help" class="s-topbar--item js-help-button" title="Help Center and other resources"><svg class="svg-icon iconHelp"></svg></a>
+            <div class="topbar-dialog help-dialog js-help-dialog dno" id="topbar-help-dialog" role="menu">
+                <div class="modal-content">
+                    <ul>
+                            <li>
+                                <a href="/tour" class="js-gps-track s-block-link">
+                                    Tour
+                                    <span class="item-summary">
+                                        Start here for a quick overview of the site
+                                    </span>
+                                </a>
+                            </li>
+                        <li>
+                            <a href="/help" class="js-gps-track s-block-link">
+                                Help Center
+                                <span class="item-summary">
+                                    Detailed answers to any questions you might have
+                                </span>
+                            </a>
+                        </li>
+                                    <li>
+                                        <a href="https://meta.superuser.com" class="js-gps-track s-block-link">
+                                            Meta
+                                            <span class="item-summary">
+                                                Discuss the workings and policies of this site
+                                            </span>
+                                        </a>
+                                    </li>
+                                <li>
+                                    <a href="https://stackoverflow.co/" class="js-gps-track s-block-link">
+                                        About Us
+                                        <span class="item-summary">
+                                            Learn more about Stack Overflow the company, and our products
+                                        </span>
+                                    </a>
+                                </li>
+                    </ul>
+                </div>
+            </div>
+        </li>
+        <li>
+            <a href="https://stackexchange.com" class="s-topbar--item js-site-switcher-button js-gps-track" title="A list of all 183 Stack Exchange sites">
+                <svg class="svg-icon iconStackExchange"></svg>
+            </a>
+        </li>
+        <li class="js-topbar-dialog-corral">
+    <div class="topbar-dialog siteSwitcher-dialog dno" role="menu">
+        <div class="header fw-wrap">
+            <h3 class="flex--item">
+                <a href="https://superuser.com">current community</a>
+            </h3>
+            <div class="flex--item fl1">
+                <div class="ai-center d-flex jc-end">
+                    <button class="js-close-button s-btn s-btn__muted p0 ml8 d-none sm:d-block" type="button">
+                        <svg class="svg-icon iconClear"></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-content bg-blue-200 current-site-container">
+            <ul class="current-site">
+                    <li class="d-flex">
+                            <div class="fl1">
+                <a href="https://superuser.com" class="current-site-link d-flex gx8 site-link js-gps-track">
+        <div class="favicon favicon-superuser site-icon flex--item" title="Super User"></div>
+        <span class="flex--item fl1">
+            Super User
+        </span>
+    </a>
+    </div>
+    <div class="related-links">
+            <a href="https://superuser.com/help" class="js-gps-track">help</a>
+            <a href="https://chat.stackexchange.com?tab=site&amp;host=superuser.com" class="js-gps-track">chat</a>
+    </div>
+                    </li>
+                    <li class="related-site d-flex">
+                            <div class="L-shaped-icon-container">
+        <span class="L-shaped-icon"></span>
+    </div>
+                            <a href="https://meta.superuser.com" class="s-block-link px16 d-flex gx8 site-link js-gps-track">
+        <div class="favicon favicon-superusermeta site-icon flex--item" title="Meta Super User"></div>
+        <span class="flex--item fl1">
+            Meta Super User
+        </span>
+    </a>
+                    </li>
+            </ul>
+        </div>
+        <div class="header" id="your-communities-header">
+            <h3>
+your communities            </h3>
+        </div>
+        <div class="modal-content" id="your-communities-section">
+                <div class="call-to-login">
+<a href="https://superuser.com/users/signup?ssrc=site_switcher&amp;returnurl=https%3a%2f%2fsuperuser.com%2fquestions%2f31464%2flooping-through-ls-results-in-bash-shell-script" class="login-link js-gps-track">Sign up</a> or <a href="https://superuser.com/users/login?ssrc=site_switcher&amp;returnurl=https%3a%2f%2fsuperuser.com%2fquestions%2f31464%2flooping-through-ls-results-in-bash-shell-script" class="login-link js-gps-track">log in</a> to customize your list.                </div>
+        </div>
+        <div class="header">
+            <h3><a href="https://stackexchange.com/sites">more stack exchange communities</a>
+            </h3>
+            <a href="https://stackoverflow.blog" class="float-right">company blog</a>
+        </div>
+        <div class="modal-content">
+                <div class="child-content"></div>
+        </div>
+    </div>
+        </li>
+            <li><button class="s-topbar--item s-btn s-btn__icon s-btn__muted" title="Click to show search"><svg class="svg-icon iconSearch"></svg></button></li>
+                        <li>
+                            <a href="https://superuser.com/users/login?ssrc=head&returnurl=https%3a%2f%2fsuperuser.com%2fquestions%2f31464%2flooping-through-ls-results-in-bash-shell-script" class="s-topbar--item s-topbar--item__unset s-btn s-btn__outlined">Log in</a>
+                        </li>
+                        <li><a href="https://superuser.com/users/signup?ssrc=head&returnurl=https%3a%2f%2fsuperuser.com%2fquestions%2f31464%2flooping-through-ls-results-in-bash-shell-script" class="s-topbar--item s-topbar--item__unset ml4 s-btn">Sign up</a></li>
+    </ol>
+</nav>
+	</div>
+</header>
+	<script></script>
+        <header class="site-header">
+            <div class="site-header--container jc-space-between sm:fd-column sm:pt8">
+            <a class="site-header--link d-flex ai-center fs-headline1" href="https://superuser.com">
+                <img class="h-auto wmx100" alt="Super User">
+            </a>
+                <div class="d-flex ai-center gsx gs8">
+<div class="js-zone-container zone-container-sidebar">
+    <div id="dfp-sspon" class="everyonelovesstackoverflow my4"></div>
+</div>
+                </div>
+            </div>
+        </header>
+    <div class="container">
+            <script></script>
+<div id="left-sidebar" class="left-sidebar js-pinned-left-sidebar ps-relative">
+    <div class="left-sidebar--sticky-container js-sticky-leftnav">
+        <nav>
+            <ol class="nav-links">
+                <li>
+                    <ol class="nav-links">
+<li class="ps-relative">
+    <a href="/" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconHome"></svg>                <span class="-link--channel-name pl8">Home</span>
+        </div>
+    </a>
+</li>
+<li class="ps-relative  youarehere">
+    <a id="nav-questions" href="/questions" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconQuestion"></svg>                <span class="-link--channel-name pl8">Questions</span>
+        </div>
+    </a>
+</li>
+<li class="ps-relative">
+    <a id="nav-unanswered" href="/unanswered" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconAnswer"></svg>                <span class="-link--channel-name pl8">Unanswered</span>
+        </div>
+    </a>
+</li>
+<li class="ps-relative">
+    <a id="nav-askstack" href="https://stackoverflow.com/ai-assist" class="s-block-link h32 pl8 ai-center">
+        <div class="d-flex ai-center">
+<div class="d-flex ai-center mln8 mrn8"><svg class="fc-white bg-transparent h18 w18 svg-icon iconAnswerAI"></svg></div>                <span class="-link--channel-name pl8">AI Assist</span>
+        </div>
+    </a>
+</li>
+    <script></script>
+<li class="ps-relative">
+    <a href="/tags" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconTags"></svg>                <span class="-link--channel-name pl8">Tags</span>
+        </div>
+    </a>
+</li>
+                        <li class="pb24"></li>
+                            <li class="ps-relative">
+                                <a id="nav-chat" href=https://chat.stackexchange.com class="s-block-link pl8 ai-center js-disable-chat-new-link">
+                                    <div class="d-flex ai-center">
+                                        <div class="d-flex ai-center mln8 mrn8"><svg class="fc-white bg-transparent  svg-icon iconChatTest"></svg></div>
+                                    </div>
+                                    <span class="-link--channel-name pl8">Chat</span>
+                                   </a>
+                            </li>
+<li class="ps-relative">
+    <a id="nav-users" href="/users" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconPeople"></svg>                <span class="-link--channel-name pl8">Users</span>
+        </div>
+    </a>
+</li>
+                        <li class="pb24"></li>
+<li class="ps-relative">
+    <a id="nav-companies" href="https://stackoverflow.com/jobs/companies?so_medium=superuser&amp;so_source=SiteNav" class="s-block-link pl8 js-gps-track nav-links--link">
+        <div class="d-flex ai-center">
+<svg class="svg-icon iconIndustry"></svg>                <span class="-link--channel-name pl8">Companies</span>
+        </div>
+    </a>
+</li>
+                    </ol>
+                </li>
+<li class="js-freemium-cta ps-relative mt32 mb8">
+    <div class="fs-fine tt-uppercase fc-black-600 fw-bold ml8 mt16 mb8">Stack Internal</div>
+    <div class="px8 pt12 pb4 mb12 fc-medium overflow-hidden">
+        <svg class="svg-icon d-block w100 h-auto mb12"></svg>
+        <p class="fs-fine">
+            Stack Overflow for Teams is now called <strong>Stack Internal</strong>. Bring the best of human thought and AI automation together at your work.
+        </p>
+        <a href="https://stackoverflowteams.com/teams/create/free/?utm_medium=referral&utm_source=superuser-community&utm_campaign=side-bar&utm_content=explore-teams" class="w100 s-btn s-btn__filled s-btn__xs">Try for free</a>
+        <a href="https://stackoverflow.co/internal/?utm_medium=referral&utm_source=superuser-community&utm_campaign=side-bar&utm_content=explore-teams" class="w100 s-btn s-btn__muted s-btn__xs mt1 js-gps-track">Learn more</a>
+    </div>
+</li>
+    <li class="d-flex ai-center jc-space-between ml8">
+        <a href="javascript:void(0)" class="s-link d-flex fl-grow1 fc-black-400" role="button">
+            <div class="flex--item fl-grow1 fc-black-600 fw-bold tt-uppercase">Stack Internal</div>
+            <div class="flex--item px12">
+                <svg class="svg-icon iconPlusSm"></svg>
+            </div>
+        </a>
+    </li>
+    <li class="ps-relative js-create-team-cta d-none">
+        <p class="fs-fine pr8 pl8 pb4 fc-black-400">
+            Bring the best of human thought and AI automation together at your work.
+            <a href="https://stackoverflow.co/internal/?utm_medium=referral&utm_source=superuser-community&utm_campaign=side-bar&utm_content=explore-teams-compact" class="s-link s-link__grayscale s-link__underlined fw-bold">Learn more</a>
+        </p>
+    </li>
+            </ol>
+        </nav>
+    </div>
+        <div class="s-popover ws2" id="popover-teams-create-cta" role="menu">
+            <div class="s-popover--arrow"></div>
+            <div class="ps-relative overflow-hidden">
+                <p class="mb2"><strong>Stack Internal</strong></p>
+                <p class="mb12 fs-caption fc-black-400">Knowledge at work</p>
+                <p class="mb12 fs-caption fc-black-500">Bring the best of human thought and AI automation together at your work.</p>
+                <a href="https://stackoverflow.co/internal/?utm_medium=referral&utm_source=superuser-community&utm_campaign=side-bar&utm_content=explore-teams-compact-popover" class="js-gps-track s-btn s-btn__filled s-btn__xs">
+                    Explore Stack Internal
+                </a>
+            </div>
+            <div class="ps-absolute t8 r8">
+                <svg class="fc-orange-400 svg-spot spotPeople"></svg>
+            </div>
+        </div>
+</div>
+        <div id="content" class="">
+<div itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+    <div class="inner-content clearfix">
+            <div id="question-header" class="d-flex sm:fd-column">
+                        <h1 itemprop="name" class="fs-headline1 ow-anywhere mb8 flex--item fl1"><a href="/questions/31464/looping-through-ls-results-in-bash-shell-script" class="question-hyperlink">looping through `ls` results in bash shell script</a></h1>
+                <div class="ml12 aside-cta flex--item sm:ml0">
+                        <div class="ml12 aside-cta flex--item print:d-none">
+                                <a href="/questions/ask" class="ws-nowrap s-btn s-btn__filled">
+        Ask Question
+    </a>
+                        </div>
+                </div>
+            </div>
+                <div class="d-flex ai-center fw-wrap pb8 mb16 bb bc-black-200">
+                        <div class="flex--item ws-nowrap mr16 mb8" title="2009-08-28 17:03:49Z">
+                            <span class="fc-black-400 mr2">Asked</span>
+                            <time itemprop="dateCreated" datetime="2009-08-28 17:03:49Z">16 years, 7 months ago</time>
+                        </div>
+                        <div class="flex--item ws-nowrap mr16 mb8">
+                            <span class="fc-black-400 mr2">Modified</span>
+                            <a href="?lastactivity" class="s-link s-link__inherit" title="2023-08-11 17:41:24Z">2 years, 8 months ago</a>
+                        </div>
+                        <div class="flex--item ws-nowrap mb8" title="Viewed 563,318 times">
+                            <span class="fc-black-400 mr2">Viewed</span>
+                            563k times
+                        </div>
+                </div>
+            <div id="mainbar" role="main">
+<div class="question js-question" id="question">
+    <style></style>
+<div class="js-zone-container zone-container-main">
+    <div id="dfp-tlb" class="everyonelovesstackoverflow everyoneloves__top-leaderboard everyoneloves__leaderboard"></div>
+		<div class="js-report-ad-button-container "></div>
+</div>
+    <div class="post-layout ">
+            <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-31464" title="This question shows research effort; it is useful and clear">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+170        </div>
+        <button class="js-vote-down-btn js-vote-down-question flex--item mb8" id=downvote-btn-31464 title="This question does not show any research effort; it is unclear or not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-31464" title="Save this question.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/31464/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+            </div>
+<div class="postcell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>Does any one have a template shell script for doing something with <code>ls</code> for a list of directory names and looping through each one and doing something?</p>
+<p>I'm planning to do <code>ls -1d */</code> to get the list of directory names.</p>
+    </div>
+            <div class="mt24 mb12">
+                <div class="post-taglist d-flex gs4 gsy fd-column">
+                    <div class="d-flex ps-relative fw-wrap">
+                        <ul class='ml0 list-ls-none js-post-tag-list-wrapper d-inline'><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/bash" class="s-tag post-tag" title="show questions tagged &#39;bash&#39;">bash</a></li><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/shell" class="s-tag post-tag" title="show questions tagged &#39;shell&#39;">shell</a></li><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/shell-script" class="s-tag post-tag" title="show questions tagged &#39;shell-script&#39;">shell-script</a></li></ul>
+                    </div>
+                </div>
+            </div>
+    <div class="mb0 ">
+        <div class="mt16 d-flex gs8 gsy fw-wrap jc-end ai-start pt4 mb16">
+            <div class="flex--item mr16 fl1 w96">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/q/31464" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this question">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/31464/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this question</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-31464" class="s-btn s-btn__link js-follow-post js-follow-question" title="Follow this question to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+                <div class="post-signature flex--item">
+<div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/31464/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2017-09-06 13:30:41Z' class='relativetime'>Sep 6, 2017 at 13:30</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+    </div>
+    <div class="user-details" itemprop="editor" itemscope itemtype="http://schema.org/Person">
+        <div class="-flair">
+        </div>
+    </div>
+</div>
+                </div>
+                <div class="post-signature owner flex--item">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            asked <span title='2009-08-28 17:03:49Z' class='relativetime'>Aug 28, 2009 at 17:03</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/2066/daniel-a-white"><div class="gravatar-wrapper-32"><img alt="Daniel A. White&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/2066/daniel-a-white" itemprop="url">Daniel A. White</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">4,178</span><span title="2 gold badges"><span class="badge1"></span><span class="badgecount">2</span></span><span class="v-visible-sr">2 gold badges</span><span title="28 silver badges"><span class="badge2"></span><span class="badgecount">28</span></span><span class="v-visible-sr">28 silver badges</span><span title="31 bronze badges"><span class="badge3"></span><span class="badgecount">31</span></span><span class="v-visible-sr">31 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount"></span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-31464" class="comments js-comments-container bt bc-black-200 mt12  dno">
+            <ul class="comments-list js-comments-list">
+            </ul>
+	    </div>
+        <div id="comments-link-31464">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid answering questions in comments." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+    </div>
+</div>
+                <div id="answers" class="">
+                        <a name="tab-top"></a>
+                        <div id="answers-header">
+                            <div class="answers-subheader d-flex ai-center mb8">
+                                <div class="flex--item fl1">
+                                    <h2 class="mb0">
+9 Answers                                        <span itemprop="answerCount">9</span>
+                                    </h2>
+                                </div>
+                                <div class="flex--item">
+<div class="d-flex g4 gsx ai-center sm:fd-column sm:ai-start">
+    <div class="d-flex fd-column ai-end sm:ai-start">
+        <label class="flex--item fs-caption">
+            Sorted by:
+        </label>
+        <a class="js-sort-preference-change s-link flex--item fs-fine d-none" href="/questions/31464/looping-through-ls-results-in-bash-shell-script?answertab=scoredesc#tab-top">
+            Reset to default
+        </a>
+    </div>
+    <div class="flex--item s-select">
+        <select id="answer-sort-dropdown-select-menu">
+                    <option>
+                        Highest score (default)
+                    </option>
+                    <option>
+                        Date modified (newest first)
+                    </option>
+                    <option>
+                        Date created (oldest first)
+                    </option>
+        </select>
+    </div>
+</div>
+                                </div>
+                            </div>
+                        </div>
+<a name="31466"></a>
+<div id="answer-31466" class="answer js-answer accepted-answer js-accepted-answer " itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-31466" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+202        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-31466 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-31466" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/31466/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p><strong>Edited not to use ls where a glob would do, as @shawn-j-goff and others suggested.</strong></p>
+<p>Just use a <code>for..do..done</code> loop:</p>
+<pre><code>for f in *; do
+  echo "File -&gt; $f"
+done
+</code></pre>
+<p>You can replace the <code>*</code> with <code>*.txt</code> or any other glob that returns a list (of files, directories, or anything for that matter), a command that generates a list, e.g., <code>$(cat filelist.txt)</code>, or actually replace it with a list.</p>
+<p>Within the <code>do</code> loop, you just refer to the loop variable with the dollar sign prefix (so <code>$f</code> in the above example). You can <code>echo</code> it or do anything else to it you want.</p>
+<p>For example, to rename all the <code>.xml</code> files in the current directory to <code>.txt</code>:</p>
+<pre><code>for x in *.xml; do
+  t=$(echo $x | sed 's/\.xml$/.txt/');
+  mv $x $t &amp;&amp; echo "moved $x -&gt; $t"
+done
+</code></pre>
+<p>Or even better, if you are using Bash you can use Bash parameter expansions rather than spawning a subshell:</p>
+<pre><code>for x in *.xml; do
+  t=${x%.xml}.txt
+  mv $x $t &amp;&amp; echo "moved $x -&gt; $t"
+done
+</code></pre>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2009-08-28 17:09:37Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/31466" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/31466/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-31466" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/31466/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2015-05-08 00:00:06Z' class='relativetime'>May 8, 2015 at 0:00</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/128359/michael-frank"><div class="gravatar-wrapper-32"><img alt="Michael Frank&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details">
+        <a href="/users/128359/michael-frank">Michael Frank</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">8,121</span><span title="4 gold badges"><span class="badge1"></span><span class="badgecount">4</span></span><span class="v-visible-sr">4 gold badges</span><span title="44 silver badges"><span class="badge2"></span><span class="badgecount">44</span></span><span class="v-visible-sr">44 silver badges</span><span title="54 bronze badges"><span class="badge3"></span><span class="badgecount">54</span></span><span class="v-visible-sr">54 bronze badges</span>
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2009-08-28 17:09:37Z' class='relativetime'>Aug 28, 2009 at 17:09</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/3911/otherdevopsgene"><div class="gravatar-wrapper-32"><img alt="OtherDevOpsGene&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/3911/otherdevopsgene" itemprop="url">OtherDevOpsGene</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">2,348</span><span title="1 gold badge"><span class="badge1"></span><span class="badgecount">1</span></span><span class="v-visible-sr">1 gold badge</span><span title="16 silver badges"><span class="badge2"></span><span class="badgecount">16</span></span><span class="v-visible-sr">16 silver badges</span><span title="7 bronze badges"><span class="badge3"></span><span class="badgecount">7</span></span><span class="v-visible-sr">7 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">11</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-31466" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-31376" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="supernova">35</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">What if the filename has a space in it?</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">Daniel A. White</div>
+&ndash;&nbsp;
+                        <a href="/users/2066/daniel-a-white" title="4,178 reputation" class="comment-user owner" itemprop="url">Daniel A. White</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2009-08-28 17:17:32 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2009-08-28 17:17:32Z, License: CC BY-SA 2.5' class='relativetime-clean'>Aug 28, 2009 at 17:17</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-654725" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="warm">10</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Unfortunately, as Daniel said, the code in this answer will break if any of the files or folders contains a space or newline in their name. It shows a very common misuse of <code>for</code> loops, and a typical pitfall of trying to parse the output of <code>ls</code>. @DanielA.White, you <i>might</i> consider unaccepting this answer if it wasn&#39;t helpful (or is potentially misleading), since like you said, you&#39;re acting on directories. Shawn J. Goff&#39;s answer should provide a more robust and working solution to your issue.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">slhck</div>
+&ndash;&nbsp;
+                        <a href="/users/48078/slhck" title="237,029 reputation" class="comment-user" itemprop="url">slhck</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2013-01-23 17:48:34 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2013-01-23 17:48:34Z, License: CC BY-SA 3.0' class='relativetime-clean'>Jan 23, 2013 at 17:48</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-956581" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="warm">7</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">-∞ <a href="http://mywiki.wooledge.org/ParsingLs">You shouldn&#39;t parse <code>ls</code> output</a>, <a href="http://mywiki.wooledge.org/BashFAQ/001">you shouldn&#39;t read output in a <code>for</code> loop</a>, you should use <code>$()</code> instead of `` and <a href="http://mywiki.wooledge.org/Quotes">Use More Quotes™</a>. I&#39;m sure @CoverosGene meant well, but this is just terrible.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">l0b0</div>
+&ndash;&nbsp;
+                        <a href="/users/2259/l0b0" title="7,502 reputation" class="comment-user" itemprop="url">l0b0</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2014-04-17 19:31:15 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2014-04-17 19:31:15Z, License: CC BY-SA 3.0' class='relativetime-clean'>Apr 17, 2014 at 19:31</span>
+                </span>
+                        <span title="this comment was edited 1 time">
+                            <svg class="va-text-bottom o50 svg-icon iconPencilSm"></svg>
+                        </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1031527" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">4</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">A better alternative if you really want to use <code>ls</code> is <code>ls -1 | while read line; do stuff; done</code>. At least that one won&#39;t break for whitespaces.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">ejoubaud</div>
+&ndash;&nbsp;
+                        <a href="/users/156135/ejoubaud" title="101 reputation" class="comment-user" itemprop="url">ejoubaud</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2014-08-01 08:47:38 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2014-08-01 08:47:38Z, License: CC BY-SA 3.0' class='relativetime-clean'>Aug 1, 2014 at 8:47</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1429667" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">1</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">with <code>mv -v</code> you don&#39;t need <code>echo &quot;moved $x -&gt; $t&quot;</code></span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">DmitrySandalov</div>
+&ndash;&nbsp;
+                        <a href="/users/195933/dmitrysandalov" title="646 reputation" class="comment-user" itemprop="url">DmitrySandalov</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2016-01-15 12:59:47 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2016-01-15 12:59:47Z, License: CC BY-SA 3.0' class='relativetime-clean'>Jan 15, 2016 at 12:59</span>
+                </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-31466">
+                    <a class="js-add-link comments-link dno" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link " title="Expand to show all comments on this post" href=# role="button">
+                Show <b>6</b> more comments
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<div class="js-zone-container zone-container-main">
+    <div id="dfp-mlb" class="everyonelovesstackoverflow everyoneloves__mid-leaderboard everyoneloves__leaderboard"></div>
+		<div class="js-report-ad-button-container "></div>
+</div>
+<a name="418490"></a>
+<div id="answer-418490" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-418490" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+88        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-418490 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-418490" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/418490/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p><a href="http://mywiki.wooledge.org/ParsingLs">Using the output of <code>ls</code> to get filenames is a bad idea</a>. It can lead to malfunctioning and even dangerous scripts. This is because a filename can contain any character except <code>/</code> and the <code>null</code>character, and <code>ls</code> does not use either of those characters as delimiters, so if a filename has a space or a newline, you <em>will</em> get unexpected results.</p>
+<p>There are two very good ways of iterating over files. Here, I've used simply <code>echo</code> to demonstrate doing something with the filename; you can use anything, though.</p>
+<p>The first is to use the shell's native globbing features.</p>
+<pre><code>for dir in */; do
+  echo "$dir"
+done
+</code></pre>
+<p>The shell expands <code>*/</code> into separate arguments that the <code>for</code> loop reads; even if there is a space, newline, or any other strange character in the filename, <code>for</code> will see each complete name as an atomic unit; it's not parsing the list in any way.</p>
+<p>If you want to go recursively into subdirectories, then this won't do unless your shell has some extended globbing features (such as <code>bash</code>'s <code>globstar</code>. If your shell doesn't have these features, or if you want to ensure that your script will work on a variety of systems, then the next option is to use <code>find</code>.</p>
+<pre><code>find . -type d -exec echo '{}' \;
+</code></pre>
+<p>Here, the <code>find</code> command will call <code>echo</code> and pass it an argument of the filename. It does this once for each file it finds. As with the previous example, there is no parsing of a list of filenames; instead, a fileneame is sent completely as an argument.</p>
+<p>The syntax of the <code>-exec</code> argument looks a little funny. <code>find</code> takes the first argument after <code>-exec</code> and treats that as the program to run, and every subsequent argument, it takes as an argument to pass to that program. There are two special arguments that <code>-exec</code> needs to see. The first one is <code>{}</code>; this argument gets replaced with a filename that the previous parts of <code>find</code> generates. The second one is <code>;</code>, which lets <code>find</code> know this is the end of the list of arguments to pass to the program; <code>find</code> needs this because you can continue with more arguments that are intended for <code>find</code> and not intended for the exec'd program. The reason for the <code>\</code> is that the shell also treats <code>;</code> specially - it represents the end of a command, so we need to escape it so that the shell gives it as an argument to <code>find</code> rather than consuming it for itself; another way of getting the shell to not treat it specially is to put it in in quotes: <code>';'</code> works just as well as <code>\;</code> for this purpose.</p>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2012-04-29 22:16:24Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/418490" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/418490/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-418490" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/418490/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2014-07-23 13:00:46Z' class='relativetime'>Jul 23, 2014 at 13:00</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+    </div>
+    <div class="user-details">
+        <div class="-flair">
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2012-04-29 22:16:24Z' class='relativetime'>Apr 29, 2012 at 22:16</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/4820/shawn-j-goff"><div class="gravatar-wrapper-32"><img alt="Shawn J. Goff&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/4820/shawn-j-goff" itemprop="url">Shawn J. Goff</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">1,113</span><span title="1 gold badge"><span class="badge1"></span><span class="badgecount">1</span></span><span class="v-visible-sr">1 gold badge</span><span title="9 silver badges"><span class="badge2"></span><span class="badgecount">9</span></span><span class="v-visible-sr">9 silver badges</span><span title="16 bronze badges"><span class="badge3"></span><span class="badgecount">16</span></span><span class="v-visible-sr">16 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">4</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-418490" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-484610" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">2</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">+1 this is definitely the way to go when you need to generate a file list and use it in a command. find -exec is limited by only being able to run a single commands. With the loop, you can pipe to your heart&#39;s content.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">MaQleod</div>
+&ndash;&nbsp;
+                        <a href="/users/46328/maqleod" title="13,258 reputation" class="comment-user" itemprop="url">MaQleod</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2012-05-10 22:45:21 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2012-05-10 22:45:21Z, License: CC BY-SA 3.0' class='relativetime-clean'>May 10, 2012 at 22:45</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1086859" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">+1.  I wish more people would use <code>find</code>.  There is magic that can be done, and even the perceived limitations of <code>-exec</code> can be worked around.  The <code>-print0</code> option is also valuable for use with <code>xargs</code>.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">ghoti</div>
+&ndash;&nbsp;
+                        <a href="/users/113356/ghoti" title="871 reputation" class="comment-user" itemprop="url">ghoti</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2014-10-17 22:24:30 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2014-10-17 22:24:30Z, License: CC BY-SA 3.0' class='relativetime-clean'>Oct 17, 2014 at 22:24</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-2172063" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">The loop option won&#39;t show hidden directories. The find option won&#180;t show symlinks.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">jinawee</div>
+&ndash;&nbsp;
+                        <a href="/users/265280/jinawee" title="103 reputation" class="comment-user" itemprop="url">jinawee</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2019-05-21 14:41:03 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2019-05-21 14:41:03Z, License: CC BY-SA 4.0' class='relativetime-clean'>May 21, 2019 at 14:41</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-2828119" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">1</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">The problem with this approach is you also get the &#39;.&#39; directory back. That means if you are trying to do, for example, an <code>rm</code> of a set of subfolders, you will remove those subfolders before traversing into them. I realize this is a specific issue I am trying to solve, but worth pointing out in case anyone attempts to use this with <code>rm</code>.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">user3728501</div>
+&ndash;&nbsp;
+                        <a href="/users/211942/user3728501" title="3,642 reputation" class="comment-user" itemprop="url">user3728501</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2023-08-12 07:55:17 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2023-08-12 07:55:17Z, License: CC BY-SA 4.0' class='relativetime-clean'>Aug 12, 2023 at 7:55</span>
+                </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-418490">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="31484"></a>
+<div id="answer-31484" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-31484" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+45        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-31484 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-31484" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/31484/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>For files with spaces in you will have to make sure to quote the variable like:</p>
+<pre><code> for i in $(ls); do echo &quot;$i&quot;; done;
+</code></pre>
+<p>or, you can change the input field separator (IFS) environment variable:</p>
+<pre><code> (IFS=$'\n';for i in $(ls); do echo $i; done) # subshell to restore IFS
+</code></pre>
+<p>Finally, depending on what you're doing, you may not even need the ls:</p>
+<pre><code> for i in *; do echo &quot;$i&quot;; done;
+</code></pre>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2009-08-28 17:26:27Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/31484" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/31484/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-31484" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/31484/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2023-08-11 17:41:24Z' class='relativetime'>Aug 11, 2023 at 17:41</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/1830429/steffen-schwigon"><div class="gravatar-wrapper-32"><img alt="Steffen Schwigon&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details">
+        <a href="/users/1830429/steffen-schwigon">Steffen Schwigon</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">3</span><span title="3 bronze badges"><span class="badge3"></span><span class="badgecount">3</span></span><span class="v-visible-sr">3 bronze badges</span>
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2009-08-28 17:26:27Z' class='relativetime'>Aug 28, 2009 at 17:26</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/8862/john"><div class="gravatar-wrapper-32"><img alt="john&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/8862/john" itemprop="url">john</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">827</span><span title="5 silver badges"><span class="badge2"></span><span class="badgecount">5</span></span><span class="v-visible-sr">5 silver badges</span><span title="7 bronze badges"><span class="badge3"></span><span class="badgecount">7</span></span><span class="v-visible-sr">7 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">4</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-31484" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-31434" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">nice use of a subshell in the first example</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">Jeremy L</div>
+&ndash;&nbsp;
+                        <a href="/users/8934/jeremy-l" title="2,938 reputation" class="comment-user" itemprop="url">Jeremy L</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2009-08-28 18:46:53 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2009-08-28 18:46:53Z, License: CC BY-SA 2.5' class='relativetime-clean'>Aug 28, 2009 at 18:46</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-614204" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Why does IFS need a $ after the assignment and before the new character?</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">Andy Ibanez</div>
+&ndash;&nbsp;
+                        <a href="/users/110420/andy-ibanez" title="111 reputation" class="comment-user" itemprop="url">Andy Ibanez</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2012-11-29 18:57:50 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2012-11-29 18:57:50Z, License: CC BY-SA 3.0' class='relativetime-clean'>Nov 29, 2012 at 18:57</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1086856" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="warm">7</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Filenames can also contain newlines.  Breaking on <code>\n</code> is insufficient.  It&#39;s never a good idea to recommend parsing the output of <code>ls</code>.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">ghoti</div>
+&ndash;&nbsp;
+                        <a href="/users/113356/ghoti" title="871 reputation" class="comment-user" itemprop="url">ghoti</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2014-10-17 22:18:25 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2014-10-17 22:18:25Z, License: CC BY-SA 3.0' class='relativetime-clean'>Oct 17, 2014 at 22:18</span>
+                </span>
+                        <span title="this comment was edited 1 time">
+                            <svg class="va-text-bottom o50 svg-icon iconPencilSm"></svg>
+                        </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-2511451" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">1</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Could replace \n with \0 (null character), as some people have suggested</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">awvalenti</div>
+&ndash;&nbsp;
+                        <a href="/users/333593/awvalenti" title="129 reputation" class="comment-user" itemprop="url">awvalenti</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2021-04-21 01:30:21 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2021-04-21 01:30:21Z, License: CC BY-SA 4.0' class='relativetime-clean'>Apr 21, 2021 at 1:30</span>
+                </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-31484">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<div class="js-zone-container zone-container-main">
+    <div id="dfp-smlb" class="everyonelovesstackoverflow everyoneloves__mid-second-leaderboard everyoneloves__leaderboard"></div>
+		<div class="js-report-ad-button-container "></div>
+</div>
+<a name="179116"></a>
+<div id="answer-179116" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-179116" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+7        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-179116 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-179116" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/179116/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>If you have GNU Parallel <a href="http://www.gnu.org/software/parallel/">http://www.gnu.org/software/parallel/</a> installed you can do this:</p>
+<pre><code>ls | parallel echo {} is in this dir
+</code></pre>
+<p>To rename all .txt to .xml:</p>
+<pre><code>ls *.txt | parallel mv {} {.}.xml
+</code></pre>
+<p>Watch the intro video for GNU Parallel to learn more:
+<a href="http://www.youtube.com/watch?v=OpaiGYxkSuQ">http://www.youtube.com/watch?v=OpaiGYxkSuQ</a></p>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2010-08-22 20:02:35Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/179116" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/179116/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-179116" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/179116/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2012-04-30 00:49:30Z' class='relativetime'>Apr 30, 2012 at 0:49</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/25472/catherine"><div class="gravatar-wrapper-32"><img alt="Catherine&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details">
+        <a href="/users/25472/catherine">Catherine</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score 16,650">16.7k</span><span title="5 gold badges"><span class="badge1"></span><span class="badgecount">5</span></span><span class="v-visible-sr">5 gold badges</span><span title="51 silver badges"><span class="badge2"></span><span class="badgecount">51</span></span><span class="v-visible-sr">51 silver badges</span><span title="57 bronze badges"><span class="badge3"></span><span class="badgecount">57</span></span><span class="v-visible-sr">57 bronze badges</span>
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2010-08-22 20:02:35Z' class='relativetime'>Aug 22, 2010 at 20:02</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/41337/ole-tange"><div class="gravatar-wrapper-32"><img alt="Ole Tange&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/41337/ole-tange" itemprop="url">Ole Tange</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">5,179</span><span title="2 gold badges"><span class="badge1"></span><span class="badgecount">2</span></span><span class="v-visible-sr">2 gold badges</span><span title="41 silver badges"><span class="badge2"></span><span class="badgecount">41</span></span><span class="v-visible-sr">41 silver badges</span><span title="54 bronze badges"><span class="badge3"></span><span class="badgecount">54</span></span><span class="v-visible-sr">54 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount"></span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-179116" class="comments js-comments-container bt bc-black-200 mt12  dno">
+            <ul class="comments-list js-comments-list">
+            </ul>
+	    </div>
+        <div id="comments-link-179116">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="876626"></a>
+<div id="answer-876626" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-876626" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+5        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-876626 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-876626" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/876626/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>Just to add to CoverosGene's answer, here is a way to list just the directory names:</p>
+<pre><code>for f in */; do
+  echo "Directory -&gt; $f"
+done
+</code></pre>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2015-02-11 14:36:01Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/876626" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/876626/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-876626" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2015-02-11 14:36:01Z' class='relativetime'>Feb 11, 2015 at 14:36</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/417891/n3o"><div class="gravatar-wrapper-32"><img alt="n3o&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/417891/n3o" itemprop="url">n3o</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">151</span><span title="1 silver badge"><span class="badge2"></span><span class="badgecount">1</span></span><span class="v-visible-sr">1 silver badge</span><span title="3 bronze badges"><span class="badge3"></span><span class="badgecount">3</span></span><span class="v-visible-sr">3 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount"></span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-876626" class="comments js-comments-container bt bc-black-200 mt12  dno">
+            <ul class="comments-list js-comments-list">
+            </ul>
+	    </div>
+        <div id="comments-link-876626">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="423086"></a>
+<div id="answer-423086" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-423086" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+3        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-423086 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-423086" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/423086/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>Why not set IFS to a newline, then capture the output of <code>ls</code> in an array?  Setting IFS to newline should resolve issues with funny characters in file names; using <code>ls</code> can be nice because it has a built-in sort facility.</p>
+<p>(In testing I was having trouble setting IFS to <code>\n</code> but setting it to newline backspace works, as suggested elsewhere here):</p>
+<p>E.g. (assuming desired <code>ls</code> search pattern passed in <code>$1</code>):</p>
+<pre><code>SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+FILES=($(/bin/ls "$1"))
+for AFILE in ${FILES[@]}
+do
+    ... do something with a file ...
+done
+IFS=$SAVEIFS
+</code></pre>
+<p>This is especially handy on OS X, e.g., to capture a list of files sorted by creation date (oldest to newest), the <code>ls</code> command is <code>ls -t -U -r</code>.</p>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2012-05-10 22:36:39Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/423086" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/423086/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-423086" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/423086/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2012-10-22 01:09:13Z' class='relativetime'>Oct 22, 2012 at 1:09</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/108226/indrek"><div class="gravatar-wrapper-32"><img alt="Indrek&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details">
+        <a href="/users/108226/indrek">Indrek</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score 24,973">25k</span><span title="14 gold badges"><span class="badge1"></span><span class="badgecount">14</span></span><span class="v-visible-sr">14 gold badges</span><span title="95 silver badges"><span class="badge2"></span><span class="badgecount">95</span></span><span class="v-visible-sr">95 silver badges</span><span title="94 bronze badges"><span class="badge3"></span><span class="badgecount">94</span></span><span class="v-visible-sr">94 bronze badges</span>
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2012-05-10 22:36:39Z' class='relativetime'>May 10, 2012 at 22:36</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/133497/jetset"><div class="gravatar-wrapper-32"><img alt="jetset&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/133497/jetset" itemprop="url">jetset</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">149</span><span title="4 bronze badges"><span class="badge3"></span><span class="badgecount">4</span></span><span class="v-visible-sr">4 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">2</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-423086" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-1086858" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="cool">3</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Filenames can also contain newlines, and they often do when users are permitted to name their own files.  Breaking on <code>\n</code> is insufficient.  The only valid solutions use a for loop with pathname expansion, or <code>find</code>.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">ghoti</div>
+&ndash;&nbsp;
+                        <a href="/users/113356/ghoti" title="871 reputation" class="comment-user" itemprop="url">ghoti</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2014-10-17 22:21:44 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2014-10-17 22:21:44Z, License: CC BY-SA 3.0' class='relativetime-clean'>Oct 17, 2014 at 22:21</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1139407" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">The only reliable way to transfer a list of file names is to separate them with a NUL character, as this is the only one definitely not contained in a file path.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">glglgl</div>
+&ndash;&nbsp;
+                        <a href="/users/92891/glglgl" title="1,469 reputation" class="comment-user" itemprop="url">glglgl</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2015-01-02 09:23:50 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2015-01-02 09:23:50Z, License: CC BY-SA 3.0' class='relativetime-clean'>Jan 2, 2015 at 9:23</span>
+                </span>
+                        <span title="this comment was edited 1 time">
+                            <svg class="va-text-bottom o50 svg-icon iconPencilSm"></svg>
+                        </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-423086">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="1591313"></a>
+<div id="answer-1591313" class="answer js-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-1591313" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+2        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-1591313 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-1591313" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/1591313/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>while loop with ls command  in a command line</p>
+<pre><code>
+ls | while read filename;do echo &quot;file name is $filename&quot;; done
+</code></pre>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2020-10-06 22:05:14Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/1591313" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/1591313/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-1591313" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info user-hover ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2020-10-06 22:05:14Z' class='relativetime'>Oct 6, 2020 at 22:05</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/1226552/d%c4%b1lo-s%c3%bcr%c3%bcc%c3%bc"><div class="gravatar-wrapper-32"><img alt="dılo s&#252;r&#252;c&#252;&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/1226552/d%c4%b1lo-s%c3%bcr%c3%bcc%c3%bc" itemprop="url">dılo s&#252;r&#252;c&#252;</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">121</span><span title="3 bronze badges"><span class="badge3"></span><span class="badgecount">3</span></span><span class="v-visible-sr">3 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount"></span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-1591313" class="comments js-comments-container bt bc-black-200 mt12  dno">
+            <ul class="comments-list js-comments-list">
+            </ul>
+	    </div>
+        <div id="comments-link-1591313">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="31486"></a>
+<div id="answer-31486" class="answer js-answer downvoted-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-31486" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+-3        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-31486 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-31486" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/31486/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>This is how I do it, but there are probably more efficient ways. </p>
+<pre><code>ls &gt; filelist.txt
+while read filename; do echo filename: "$filename"; done &lt; filelist.txt
+</code></pre>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2009-08-28 17:28:24Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/31486" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/31486/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-31486" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2009-08-28 17:28:24Z' class='relativetime'>Aug 28, 2009 at 17:28</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/862/tree"><div class="gravatar-wrapper-32"><img alt="TREE&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/862/tree" itemprop="url">TREE</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">1,317</span><span title="1 gold badge"><span class="badge1"></span><span class="badgecount">1</span></span><span class="v-visible-sr">1 gold badge</span><span title="9 silver badges"><span class="badge2"></span><span class="badgecount">9</span></span><span class="v-visible-sr">9 silver badges</span><span title="16 bronze badges"><span class="badge3"></span><span class="badgecount">16</span></span><span class="v-visible-sr">16 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">3</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-31486" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-31431" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+                    <span title="number of &#x27;useful comment&#x27; votes received" class="warm">6</span>
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Stick to pipes in place of the file:  &gt;<code>ls | while read i; do echo filename: $i; done</code></span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">Jeremy L</div>
+&ndash;&nbsp;
+                        <a href="/users/8934/jeremy-l" title="2,938 reputation" class="comment-user" itemprop="url">Jeremy L</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2009-08-28 18:46:11 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2009-08-28 18:46:11Z, License: CC BY-SA 2.5' class='relativetime-clean'>Aug 28, 2009 at 18:46</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-32954" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Cool. I should say that you can also use $EDITOR filelist.txt in between the two commands. Lots of stuff you can do in an editor that is easier than on the command line. Not relevant to this question, though.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">TREE</div>
+&ndash;&nbsp;
+                        <a href="/users/862/tree" title="1,317 reputation" class="comment-user" itemprop="url">TREE</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2009-08-31 18:45:55 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2009-08-31 18:45:55Z, License: CC BY-SA 2.5' class='relativetime-clean'>Aug 31, 2009 at 18:45</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-1139408" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">Your solution doesn&#39;t at all address the problem with file names containing newlines and other fancy stuff.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">glglgl</div>
+&ndash;&nbsp;
+                        <a href="/users/92891/glglgl" title="1,469 reputation" class="comment-user" itemprop="url">glglgl</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2015-01-02 09:24:50 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2015-01-02 09:24:50Z, License: CC BY-SA 3.0' class='relativetime-clean'>Jan 2, 2015 at 9:24</span>
+                </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-31486">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+<a name="1565448"></a>
+<div id="answer-1565448" class="answer js-answer downvoted-answer " itemprop="suggestedAnswer" itemscope itemtype="https://schema.org/Answer">
+        <div class="post-layout ">
+                <div class="votecell post-layout--left">
+<div class="js-voting-container d-flex jc-center fd-column">
+        <button class="js-vote-up-btn flex--item s-btn s-btn__muted" id="upvote-btn-1565448" title="This answer is useful">
+            <svg class="svg-icon iconArrowUp"></svg>
+        </button>
+        <input type="hidden" id="voteUpHash"/>
+        <div class="js-vote-count flex--item d-flex fd-column" itemprop="upvoteCount">
+-3        </div>
+        <button class="js-vote-down-btn flex--item mb8 s-btn" id=downvote-btn-1565448 title="This answer is not useful">
+            <svg class="svg-icon iconArrowDown"></svg>
+        </button>
+        <input type="hidden" id="voteDownHash"/>
+<button class="js-saves-btn s-btn s-btn__unset c-pointer py4" type="button" id="saves-btn-1565448" title="Save this answer.">
+    <svg class="fc-theme-primary-400 js-saves-btn-selected d-none svg-icon"></svg>
+    <svg class="js-saves-btn-unselected svg-icon iconBookmarkAlt"></svg>
+</button>
+            <div class="js-accepted-answer-indicator flex--item fc-green-400 py6" title="Loading when this answer was accepted&#x2026;" role="note">
+                <div class="ta-center">
+                    <svg class="svg-icon iconCheckmarkLg"></svg>
+                </div>
+            </div>
+    <a class="js-post-issue flex--item s-btn s-btn__unset" href="/posts/1565448/timeline" title="Show activity on this post."><svg class="mln2 mr0 svg-icon iconHistory"></svg></a>
+</div>
+                </div>
+<div class="answercell post-layout--right">
+    <div class="s-prose js-post-body" itemprop="text">
+<p>It's prefectly fine:</p>
+<pre><code>#!/bin/sh
+for i in `ls`
+do
+   echo `ls -l $i`
+done
+</code></pre>
+<p>Here is the output:</p>
+<pre><code>root@online:/usr/local/httpd/bin # more ~root/rm-in-ls.sh
+    #!/bin/sh
+    for i in `ls`
+    do
+      echo `ls -l $i`
+    done
+root@online:/usr/local/httpd/bin # /root/rm-in-ls.sh
+-rwxr-xr-x 1 root wheel 82516 Jul 3 04:52 ab
+-rwxr-xr-x 1 root 40 3431 Jul 3 04:35 apachectl
+-rwxr-xr-x 1 root 40 23881 Jul 3 04:35 apxs
+-rwxr-xr-x 1 root wheel 21456 Jul 3 04:52 checkgid
+-rwxr-xr-x 1 root 40 8931 Jul 3 04:35 dbmmanage
+root@online:/usr/local/httpd/bin #
+</code></pre>
+<p>Missed it ! Right !!!</p>
+<p>HEADS UP !!!</p>
+<p>Thats not &quot; ' &quot; in 'ls' !!!
+Thats &quot; ` &quot; in `ls`.
+The acute not apostrophe.
+There is a difference between ' and `.
+I spent a week on that to figure out when I was in college (1990).</p>
+<p>This is &quot;`&quot;, the key with ~ Tilde mostly shift + ~, it's called acute.<a href="https://en.wikipedia.org/wiki/Acute_accent">wiki</a></p>
+<p>If you did not get it, then copy and paste the script and run.</p>
+    </div>
+    <div class="mt24">
+        <div class="d-flex fw-wrap ai-start jc-end gs8 gsy">
+            <time itemprop="dateCreated" datetime="2020-07-01 23:26:39Z"></time>
+            <div class="flex--item mr16">
+<div class="js-post-menu pt2">
+    <div class="d-flex gs8 s-anchors s-anchors__muted fw-wrap">
+        <div class="flex--item">
+            <a href="/a/1565448" itemprop="url" class="js-share-link js-gps-track" title="Short permalink to this answer">Share</a>
+        </div>
+                    <div class="flex--item">
+                        <a href="/posts/1565448/edit" class="js-suggest-edit-post js-gps-track" title="">Improve this answer</a>
+                    </div>
+                <div class="flex--item">
+                    <button type="button" id="btnFollowPost-1565448" class="s-btn s-btn__link js-follow-post js-follow-answer" title="Follow this answer to receive notifications">
+                        Follow
+                        <input type="hidden" id="voteFollowHash"/>
+                    </button>
+                </div>
+    </div>
+    <div class="js-menu-popup-container"></div>
+</div>
+            </div>
+            <div class="post-signature flex--item fl0">
+<div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            <a href="/posts/1565448/revisions" title="show all edits to this post" class="js-gps-track">edited <span title='2020-07-14 23:30:01Z' class='relativetime'>Jul 14, 2020 at 23:30</span></a>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+    </div>
+    <div class="user-details">
+        <div class="-flair">
+        </div>
+    </div>
+</div>
+            </div>
+                <div class="post-signature flex--item fl0">
+                    <div class="user-info ">
+    <div class="d-flex ">
+        <div class="user-action-time fl-grow1">
+            answered <span title='2020-07-01 23:26:39Z' class='relativetime'>Jul 1, 2020 at 23:26</span>
+        </div>
+    </div>
+    <div class="user-gravatar32">
+        <a href="/users/1193799/biddut-mitra"><div class="gravatar-wrapper-32"><img alt="Biddut Mitra&#39;s user avatar" class="bar-sm"></div></a>
+    </div>
+    <div class="user-details" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <a href="/users/1193799/biddut-mitra" itemprop="url">Biddut Mitra</a>
+        <div class="-flair">
+            <span class="reputation-score" title="reputation score ">119</span><span title="3 bronze badges"><span class="badge3"></span><span class="badgecount">3</span></span><span class="v-visible-sr">3 bronze badges</span>
+        </div>
+    </div>
+</div>
+                </div>
+        </div>
+    </div>
+</div>
+<span class="d-none" itemprop="commentCount">2</span>
+	<div class="post-layout--right js-post-comments-component">
+        <div id="comments-1565448" class="comments js-comments-container bt bc-black-200 mt12 ">
+            <ul class="comments-list js-comments-list">
+                        <li id="comment-2511448" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">It doesn&#39;t play well with spaces in files/folders names. The problem is not in the quote.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">awvalenti</div>
+&ndash;&nbsp;
+                        <a href="/users/333593/awvalenti" title="129 reputation" class="comment-user" itemprop="url">awvalenti</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2021-04-21 01:28:17 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2021-04-21 01:28:17Z, License: CC BY-SA 4.0' class='relativetime-clean'>Apr 21, 2021 at 1:28</span>
+                </span>
+            </div>
+        </div>
+    </li>
+    <li id="comment-2775117" itemprop="comment" itemscope itemtype="https://schema.org/Comment" class="comment js-comment ">
+        <div class="js-comment-actions comment-actions">
+            <div class="comment-score js-comment-score js-comment-edit-hide">
+            </div>
+        </div>
+        <div class="comment-text  js-comment-text-and-form">
+            <div class="comment-body js-comment-edit-hide">
+                <span class="comment-copy" itemprop="text">I am bit surprised that I got -2 on a perfect and notable example that I learned from mistake as student at my college life decades ago. Surprised that not many experts around for up vote.</span>
+                <div class="d-inline-flex ai-center" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <div class="d-none" itemprop="name">Biddut Mitra</div>
+&ndash;&nbsp;
+                        <a href="/users/1193799/biddut-mitra" title="119 reputation" class="comment-user" itemprop="url">Biddut Mitra</a>
+                </div>
+                <div class="d-none" itemprop="datePublished">2023-04-10 19:34:16 &#x2B;00:00</div>
+                <span class="comment-date">
+                    <span class="v-visible-sr">Commented</span>
+                    <span title='2023-04-10 19:34:16Z, License: CC BY-SA 4.0' class='relativetime-clean'>Apr 10, 2023 at 19:34</span>
+                </span>
+            </div>
+        </div>
+    </li>
+            </ul>
+	    </div>
+        <div id="comments-link-1565448">
+                    <a class="js-add-link comments-link disabled-link" title="Use comments to ask for more information or suggest improvements. Avoid comments like &#x201C;&#x2B;1&#x201D; or &#x201C;thanks&#x201D;." href="#" role="button">
+                        Add a comment
+                    </a>
+                <span class="js-link-separator dno">&nbsp;|&nbsp;</span>
+            <a class="js-show-link comments-link dno" title="Expand to show all comments on this post" href=# role="button">
+            </a>
+        </div>
+    </div>
+        </div>
+</div>
+                                    <h2 class="js-bottom-notice bottom-notice">
+                                        You must <a href="/users/login?ssrc=question_page&amp;returnurl=https%3a%2f%2fsuperuser.com%2fquestions%2f31464">log in</a> to answer this question.
+                                    </h2>
+                                <div class="js-bottom-notice d-flex w100 md:mb12">
+                                    <div class="flex--item ba bc-black-200 bar-md">
+                                        <div class="d-flex fd-column">
+                                            <p class="flex--item fs-body2 fw-bold fc-black-500 mb8">Start asking to get answers</p>
+                                            <p class="flex--item fs-body1 fc-black-400 mb16">Find the answer to your question by asking.</p>
+                                            <a class="flex--item s-btn s-btn__outlined as-start px32 md:px16" href="/questions/ask">Ask question</a>
+                                        </div>
+                                    </div>
+                                    <div class="flex--item ba bc-black-200 bar-md p24 md:p16 w50 md:w100">
+                                        <div class="d-flex fd-column gsy g16">
+                                            <p class="flex--item fs-body2 fw-bold fc-black-500 mb0">Explore related questions</p>
+                                            <div class="flex--item mb0"><ul class='ml0 list-ls-none js-post-tag-list-wrapper d-inline'><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/bash" class="s-tag post-tag" title="show questions tagged &#39;bash&#39;">bash</a></li><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/shell" class="s-tag post-tag" title="show questions tagged &#39;shell&#39;">shell</a></li><li class='d-inline mr4 js-post-tag-list-item'><a href="/questions/tagged/shell-script" class="s-tag post-tag" title="show questions tagged &#39;shell-script&#39;">shell-script</a></li></ul></div>
+                                            <p class="flex--item fs-body1 fc-black-400 mb0">See similar questions with these tags.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                </div>
+            </div>
+<div id="sidebar" class="show-votes" role="complementary">
+    <div class="s-sidebarwidget s-sidebarwidget__yellow s-anchors s-anchors__grayscale">
+            <ul class="s-sidebarwidget--content s-sidebarwidget__items p0">
+                        <li class="s-sidebarwidget--header">
+                            The Overflow Blog
+                        </li>
+        <li class="s-sidebarwidget--item d-flex px16">
+            <div class="flex--item1 fl-shrink0">
+<svg class="va-text-top svg-icon iconPencilSm"></svg>            </div>
+            <div class="flex--item wmn0 ow-break-word">
+                <a href="https://stackoverflow.blog/2026/04/15/human-input-needed-take-our-survey-on-ai-agents/" class="js-gps-track">Human input needed: take our survey on AI agents</a>
+            </div>
+        </li>
+        <li class="s-sidebarwidget--item d-flex px16">
+            <div class="flex--item1 fl-shrink0">
+<svg class="va-text-top svg-icon iconPencilSm"></svg>            </div>
+            <div class="flex--item wmn0 ow-break-word">
+                <a href="https://stackoverflow.blog/2026/04/14/who-needs-vcs-when-you-have-friends-like-these/" class="js-gps-track">Who needs VCs when you have friends like these?</a>
+            </div>
+        </li>
+        </ul>
+    </div>
+<div class="js-zone-container zone-container-sidebar">
+    <div id="dfp-tsb" class="everyonelovesstackoverflow everyoneloves__top-sidebar"></div>
+		<div class="js-report-ad-button-container "></div>
+</div>
+<div class="js-zone-container zone-container-sidebar">
+    <div id="dfp-msb" class="everyonelovesstackoverflow everyoneloves__mid-sidebar"></div>
+		<div class="js-report-ad-button-container "></div>
+</div>
+            <div class="module sidebar-linked">
+	<h4 id="h-linked">Linked</h4>
+	    <div class="linked">
+            <div class="spacer js-gps-track">
+				<a href="/questions/1904634/why-are-surrounding-single-quotes-missing-if-output-of-ls-1-is-passed-to-a-pipe" title="Question score (upvotes - downvotes)">
+					<div class="answer-votes answered-accepted default">5</div>
+				</a>
+				<a href="/questions/1904634/why-are-surrounding-single-quotes-missing-if-output-of-ls-1-is-passed-to-a-pipe?noredirect=1" class="question-hyperlink">Why are surrounding single quotes missing if output of ls -1 is passed to a pipe?</a>
+			</div>
+            <div class="spacer js-gps-track">
+				<a href="/questions/540593/how-to-send-files-from-find-to-another-program" title="Question score (upvotes - downvotes)">
+					<div class="answer-votes answered-accepted default">0</div>
+				</a>
+				<a href="/questions/540593/how-to-send-files-from-find-to-another-program?noredirect=1" class="question-hyperlink">How to send files from Find to another program?</a>
+			</div>
+	</div>
+</div>
+        <div class="module sidebar-related">
+            <h4 id="h-related">Related</h4>
+            <div class="related js-gps-related-questions">
+                    <div class="spacer">
+                        <a href="/questions/128136/trouble-using-a-scheduled-task-to-run-a-shell-script-ubuntu-linux" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">1</div>
+                        </a>
+                        <a href="/questions/128136/trouble-using-a-scheduled-task-to-run-a-shell-script-ubuntu-linux" class="question-hyperlink">trouble using a scheduled task to run a shell script (ubuntu linux)</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/142220/bash-shell-scripting-how-to-iterate-through-directories-and-copy-and-rename-f" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">4</div>
+                        </a>
+                        <a href="/questions/142220/bash-shell-scripting-how-to-iterate-through-directories-and-copy-and-rename-f" class="question-hyperlink">Bash Shell Scripting - How to iterate through directories, and copy and rename files?</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/445458/shell-script-iterating-over-a-folder" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">2</div>
+                        </a>
+                        <a href="/questions/445458/shell-script-iterating-over-a-folder" class="question-hyperlink">Shell Script, iterating over a folder</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/707261/shell-script-bash-moving-file-iterate-based-on-month" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">2</div>
+                        </a>
+                        <a href="/questions/707261/shell-script-bash-moving-file-iterate-based-on-month" class="question-hyperlink">Shell script bash: Moving file iterate based on month</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/757189/bash-script-to-check-for-shell-access" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">1</div>
+                        </a>
+                        <a href="/questions/757189/bash-script-to-check-for-shell-access" class="question-hyperlink">Bash script to check for shell access</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/1111737/shell-bash-script-to-continue-before-the-end-of-the-line-is-running" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes default">0</div>
+                        </a>
+                        <a href="/questions/1111737/shell-bash-script-to-continue-before-the-end-of-the-line-is-running" class="question-hyperlink">Shell / Bash - Script to continue before the end of the line is running</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/1173884/run-an-interactive-shell-from-a-bash-script" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes default">1</div>
+                        </a>
+                        <a href="/questions/1173884/run-an-interactive-shell-from-a-bash-script" class="question-hyperlink">Run an interactive shell from a bash script</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/1325693/bash-shell-script-wildcard-nightmare" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">0</div>
+                        </a>
+                        <a href="/questions/1325693/bash-shell-script-wildcard-nightmare" class="question-hyperlink">Bash Shell Script Wildcard Nightmare</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/1392346/bash-shell-script-recursively-cat-txt-files-in-folders" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes default">0</div>
+                        </a>
+                        <a href="/questions/1392346/bash-shell-script-recursively-cat-txt-files-in-folders" class="question-hyperlink">Bash shell script: recursively cat TXT files in folders</a>
+                    </div>
+                    <div class="spacer">
+                        <a href="/questions/1523654/shell-script-loop-through-list-line-by-line" title="Question score (upvotes - downvotes)">
+                            <div class="answer-votes answered-accepted default">1</div>
+                        </a>
+                        <a href="/questions/1523654/shell-script-loop-through-list-line-by-line" class="question-hyperlink">shell script loop through list line by line</a>
+                    </div>
+            </div>
+        </div>
+        <script type="text/javascript"></script>
+<div id="hot-network-questions" class="module tex2jax_ignore">
+    <h4>
+        <a href="https://stackexchange.com/questions?tab=hot" class="js-gps-track s-link s-link__inherit">
+            Hot Network Questions
+        </a>
+    </h4>
+    <ul>
+            <li>
+                <div class="favicon favicon-physics" title="Physics Stack Exchange"></div><a href="https://physics.stackexchange.com/questions/871251/what-would-it-mean-for-string-theory-if-quarks-and-leptons-turn-out-to-be-compos" class="js-gps-track question-hyperlink mb0">
+                    What would it mean for string theory if quarks and leptons turn out to be composite particles?
+                </a>
+            </li>
+            <li>
+                <div class="favicon favicon-stats" title="Cross Validated"></div><a href="https://stats.stackexchange.com/questions/675621/why-does-sample-size-influence-the-marginal-r2-obtained-from-two-simulated-model" class="js-gps-track question-hyperlink mb0">
+                    Why does sample size influence the marginal R2 obtained from two simulated models with exactly the same parameters?
+                </a>
+            </li>
+            <li>
+                <div class="favicon favicon-philosophy" title="Philosophy Stack Exchange"></div><a href="https://philosophy.stackexchange.com/questions/137769/are-abstract-objects-a-nan-distance-from-concrete-ones" class="js-gps-track question-hyperlink mb0">
+                    Are abstract objects a NaN distance from concrete ones?
+                </a>
+            </li>
+            <li>
+                <div class="favicon favicon-gaming" title="Arqade"></div><a href="https://gaming.stackexchange.com/questions/418434/who-is-the-robot-holding-the-portal-gun-in-the-portal-2-box-art" class="js-gps-track question-hyperlink mb0">
+                    Who is the robot holding the portal gun in the Portal 2 box art?
+                </a>
+            </li>
+            <li>
+                <div class="favicon favicon-space" title="Space Exploration Stack Exchange"></div><a href="https://space.stackexchange.com/questions/70445/are-there-currently-any-realistic-proposals-using-von-neumann-machines" class="js-gps-track question-hyperlink mb0">
+                    Are there currently any (realistic) proposals using von Neumann machines?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-math" title="Mathematics Stack Exchange"></div><a href="https://math.stackexchange.com/questions/5133248/independent-set-intercepting-every-maximal-clique" class="js-gps-track question-hyperlink mb0">
+                    Independent set intercepting every maximal clique
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-music" title="Music: Practice &amp; Theory Stack Exchange"></div><a href="https://music.stackexchange.com/questions/143519/are-there-any-useful-criteria-for-what-constitutes-using-ai-to-make-music" class="js-gps-track question-hyperlink mb0">
+                    Are there any useful criteria for what constitutes using AI to make music?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-space" title="Space Exploration Stack Exchange"></div><a href="https://space.stackexchange.com/questions/70456/could-artemis-2-have-left-its-unused-fuel-in-earth-orbit-for-future-use" class="js-gps-track question-hyperlink mb0">
+                    Could Artemis 2 have left its unused fuel in earth orbit for future use?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-puzzling" title="Puzzling Stack Exchange"></div><a href="https://puzzling.stackexchange.com/questions/137687/cryptic-family-reunion-at-the-races" class="js-gps-track question-hyperlink mb0">
+                    Cryptic Family Reunion at the Races
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-scifi" title="Science Fiction &amp; Fantasy Stack Exchange"></div><a href="https://scifi.stackexchange.com/questions/304075/sci-fi-story-about-earth-reaching-absolute-zero" class="js-gps-track question-hyperlink mb0">
+                    Sci-fi story about Earth reaching absolute zero
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-unix" title="Unix &amp; Linux Stack Exchange"></div><a href="https://unix.stackexchange.com/questions/805434/can-a-single-physical-server-boot-and-run-two-debian-systems-from-different-part" class="js-gps-track question-hyperlink mb0">
+                    Can a single physical server boot and run two Debian systems from different partitions?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-english" title="English Language &amp; Usage Stack Exchange"></div><a href="https://english.stackexchange.com/questions/639491/is-there-a-word-for-what-symposium-used-to-mean" class="js-gps-track question-hyperlink mb0">
+                    Is there a word for what &quot;symposium&quot; used to mean?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-physics" title="Physics Stack Exchange"></div><a href="https://physics.stackexchange.com/questions/871291/subtlety-in-schr%c3%b6dinger-vs-heisenberg-picture" class="js-gps-track question-hyperlink mb0">
+                    Subtlety in Schr&#xF6;dinger vs Heisenberg picture
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-math" title="Mathematics Stack Exchange"></div><a href="https://math.stackexchange.com/questions/5133219/the-first-non-trivial-differential-in-the-ahss" class="js-gps-track question-hyperlink mb0">
+                    The first non-trivial differential in the AHSS
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-quantumcomputing" title="Quantum Computing Stack Exchange"></div><a href="https://quantumcomputing.stackexchange.com/questions/46183/what-do-the-eigenvalues-of-a-qft-matrix-show" class="js-gps-track question-hyperlink mb0">
+                    What do the eigenvalues of a QFT matrix show
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-electronics" title="Electrical Engineering Stack Exchange"></div><a href="https://electronics.stackexchange.com/questions/768136/amplitude-modulating-a-14vpp-carrier-wave-with-a-12vpp-modulating-wave-with-a-di" class="js-gps-track question-hyperlink mb0">
+                    Amplitude modulating a 14Vpp carrier wave with a 12Vpp modulating wave with a diode modulation circuit results in a signal less than 360mVpp
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-crypto" title="Cryptography Stack Exchange"></div><a href="https://crypto.stackexchange.com/questions/119524/pgp-subkey-on-key-servers-with-missing-secret-key" class="js-gps-track question-hyperlink mb0">
+                    PGP subkey on key servers with missing secret key
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-stats" title="Cross Validated"></div><a href="https://stats.stackexchange.com/questions/675627/how-to-plot-pdf-where-a-parameter-is-a-function-of-another-variable" class="js-gps-track question-hyperlink mb0">
+                    How to plot PDF where a parameter is a function of another variable
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-parenting" title="Parenting Stack Exchange"></div><a href="https://parenting.stackexchange.com/questions/46913/is-there-a-way-to-get-alerts-when-my-daughter-receives-calls-from-numbers-not-sa" class="js-gps-track question-hyperlink mb0">
+                    Is there a way to get alerts when my daughter receives calls from numbers not saved in her contacts?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-diy" title="Home Improvement Stack Exchange"></div><a href="https://diy.stackexchange.com/questions/330065/how-to-remove-a-mirror-stuck-to-a-door-with-sticky-pads" class="js-gps-track question-hyperlink mb0">
+                    How to remove a mirror stuck to a door with sticky pads?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-electronics" title="Electrical Engineering Stack Exchange"></div><a href="https://electronics.stackexchange.com/questions/768118/contact-resistance-is-a-multimeter-useful-for-this" class="js-gps-track question-hyperlink mb0">
+                    Contact resistance: is a multimeter useful for this?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-rpg" title="Role-playing Games Stack Exchange"></div><a href="https://rpg.stackexchange.com/questions/219102/how-do-i-define-variables-as-the-result-of-a-function-in-anydice" class="js-gps-track question-hyperlink mb0">
+                    How do I define variables as the result of a function in AnyDice
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-academia" title="Academia Stack Exchange"></div><a href="https://academia.stackexchange.com/questions/226486/can-i-use-vibe-coding-for-scientific-research" class="js-gps-track question-hyperlink mb0">
+                    Can I use &quot;vibe coding&quot; for scientific research?
+                </a>
+            </li>
+            <li class="dno js-hidden">
+                <div class="favicon favicon-buddhism" title="Buddhism Stack Exchange"></div><a href="https://buddhism.stackexchange.com/questions/55567/if-nibbana-is-characterized-as-bliss-how-to-understand-the-coherence-of-exper" class="js-gps-track question-hyperlink mb0">
+                    If Nibbana is characterized as &#x201C;bliss&#x201D;, how to understand the coherence of experience without a subject in the Nibbanasukha Sutta?
+                </a>
+            </li>
+    </ul>
+        <a href="#" class="show-more js-show-more js-gps-track">
+            more hot questions
+        </a>
+</div>                    <div id="feed-link" class="js-feed-link">
+        <a href="/feeds/question/31464" title="Feed of this question and its answers">
+            <svg class="fc-orange-400 svg-icon iconRss"></svg>
+            Question feed
+        </a>
+    </div>
+    <aside class="s-modal js-feed-link-modal" role="dialog">
+        <div class="s-modal--dialog js-modal-dialog wmx4" role="document">
+            <h1 class="s-modal--header fw-bold js-first-tabbable" id="feed-modal-title">
+                Subscribe to RSS
+            </h1>
+            <div class="d-flex gs4 gsy fd-column">
+                <div class="flex--item">
+                    <label class="d-block s-label c-default">
+                        Question feed
+                        <p class="s-description mt2" id="feed-modal-description">To subscribe to this RSS feed, copy and paste this URL into your RSS reader.</p>
+                    </label>
+                </div>
+                <div class="d-flex ps-relative">
+                    <input class="s-input" type="text" name="feed-url" id="feed-url"/>
+                    <svg class="s-input-icon fc-orange-400 svg-icon iconRss"></svg>
+                </div>
+            </div>
+            <a class="s-modal--close s-btn s-btn__muted js-modal-close" href="#">
+                <svg class="svg-icon iconClearSm"></svg>
+            </a>
+        </div>
+    </aside>
+</div>
+    </div>
+<script></script>
+<noscript></noscript><div id="js-codeblock-lang">lang-bash</div>
+    <div id="js-follow-ups-flag-modal"></div>
+    <div id="js-follow-ups-mention"></div>
+</div>
+<script></script>
+<script type="application/json"></script>
+<script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script>
+<script></script><script></script><script></script>
+<script type="application/json"></script>
+<div id="js-follow-ups-experiment-group" class="d-none"></div>
+<div id="redirect-action-modal-container"></div>
+<script type="application/json"></script>
+<script></script><script></script><script></script>
+        </div>
+    </div>
+    <footer id="footer" class="site-footer js-footer" role="contentinfo">
+        <div class="site-footer--container">
+            <nav class="site-footer--nav">
+                    <div class="site-footer--col">
+                        <h5 class="-title"><a href="/">Super User</a></h5>
+                        <ul class="-list js-primary-footer-links">
+                                    <li><a class="js-gps-track -link" href="/tour">Tour</a></li>
+                                <li><a href="/help" class="js-gps-track -link">Help</a></li>
+                                    <li><a class="js-gps-track -link" href="https://chat.stackexchange.com?tab=site&host=superuser.com">Chat</a></li>
+                            <li><a class="js-gps-track -link" href="/contact">Contact</a></li>
+                                <li><a class="js-gps-track -link" href="https://meta.superuser.com">Feedback</a></li>
+                        </ul>
+                    </div>
+                <div class="site-footer--col">
+                    <h5 class="-title"><a class="js-gps-track" href="https://stackoverflow.co/">Company</a></h5>
+                    <ul class="-list">
+                            <li><a href="https://stackoverflow.com" class="js-gps-track -link">Stack Overflow</a></li>
+                            <li><a href="https://stackoverflow.co/internal/" class="js-gps-track -link">Stack Internal</a></li>
+                            <li><a href="https://stackoverflow.co/data-licensing/" class="js-gps-track -link">Stack Data Licensing</a></li>
+                            <li><a href="https://stackoverflow.co/advertising/" class="js-gps-track -link">Stack Ads</a></li>
+                                <li><a class="js-gps-track -link" href="https://stackoverflow.co/">About</a></li>
+                        <li><a class="js-gps-track -link" href="https://stackoverflow.co/company/press/">Press</a></li>
+                        <li><a class="js-gps-track -link" href="https://stackoverflow.com/legal">Legal</a></li>
+                        <li><a class="js-gps-track -link" href="https://stackoverflow.com/legal/privacy-policy">Privacy Policy</a></li>
+                        <li><a class="js-gps-track -link" href="https://stackoverflow.com/legal/terms-of-service/public">Terms of Service</a></li>
+        <li id="consent-footer-link"><button type="button">cookie-settings#toggle" class="s-btn s-btn__link py4 js-gps-track -link" data-gps-track="footer.click({ location: 2, link: 38 })" data-consent-popup-loader="footer">
+Your Privacy Choices <svg class="svg-icon iconCCPA"></svg>        </button></li>
+                        <li><a class="js-gps-track -link" href="https://policies.stackoverflow.co/stack-overflow/cookie-policy">Cookie Policy</a></li>
+                    </ul>
+                </div>
+                <div class="site-footer--col site-footer--categories-nav">
+                    <div>
+                        <h5 class="-title"><a href="https://stackexchange.com">Stack Exchange Network</a></h5>
+                        <ul class="-list">
+                            <li>
+                                <a href="https://stackexchange.com/sites#technology" class="-link js-gps-track">
+                                    Technology
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://stackexchange.com/sites#culturerecreation" class="-link js-gps-track">
+                                    Culture &amp; recreation
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://stackexchange.com/sites#lifearts" class="-link js-gps-track">
+                                    Life &amp; arts
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://stackexchange.com/sites#science" class="-link js-gps-track">
+                                    Science
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://stackexchange.com/sites#professional" class="-link js-gps-track">
+                                    Professional
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://stackexchange.com/sites#business" class="-link js-gps-track">
+                                    Business
+                                </a>
+                            </li>
+                            <li class="mt16 md:mt0">
+                                <a href="https://api.stackexchange.com/" class="-link js-gps-track">
+                                    API
+                                </a>
+                            </li>
+                            <li>
+                                <a href="https://data.stackexchange.com/" class="-link js-gps-track">
+                                    Data
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            <div class="site-footer--copyright fs-fine md:mt24">
+                <ul class="-list -social md:mb8">
+                    <li><a class="js-gps-track -link" href="https://stackoverflow.blog?blb=1">Blog</a></li>
+                    <li><a href="https://www.facebook.com/officialstackoverflow/" class="-link js-gps-track">Facebook</a></li>
+                    <li><a href="https://twitter.com/stackoverflow" class="-link js-gps-track">Twitter</a></li>
+                    <li><a href="https://linkedin.com/company/stack-overflow" class="-link js-gps-track">LinkedIn</a></li>
+                    <li><a href="https://www.instagram.com/thestackoverflow" class="-link js-gps-track">Instagram</a></li>
+                </ul>
+                <p class="md:mb0">
+                    <span>Site design / logo © 2026 Stack Exchange Inc; </span>
+                    <span>user contributions licensed under </span>
+                    <a class="-link s-link td-underline" href="https://stackoverflow.com/help/licensing">CC BY-SA</a>
+                    <span>. </span>
+                    <span id="svnrev">rev&nbsp;2026.4.16.42124</span>
+                </p>
+            </div>
+        </div>
+    </footer>
+    <script></script>
+            <script></script>
+            <script></script>
+        <script></script>
+    <script type="text/javascript"></script>
+<script></script>
+    <script></script></body>
+    </html>

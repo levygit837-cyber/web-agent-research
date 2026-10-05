@@ -9,9 +9,9 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use web_agent_research::web::fetch::tool::fetch_tool;
-use web_agent_research::web::fetch::{FetchError, FetchPath, Fetcher, Obscura};
+use web_agent_research::web::fetch::{EgressPolicy, FetchError, FetchPath, Fetcher, Obscura};
 
-/// Must match `Fetcher::with_obscura`'s default body cap (5 MiB); there is no
+/// Must match `Fetcher::with_policy`'s default body cap (5 MiB); there is no
 /// public constant to import, and no reason to expose one for a single test.
 const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
 
@@ -22,15 +22,24 @@ fn fixture_binary() -> PathBuf {
         .join("obscura-fake.sh")
 }
 
+/// The fixture server binds `127.0.0.1`, so every fetcher here opts out of
+/// the egress policy explicitly (#97); the policy itself is tested in
+/// `web::fetch::egress` and `web::fetch::fetcher`.
 fn fetcher() -> Fetcher {
-    Fetcher::with_obscura(Obscura::new(fixture_binary(), Duration::from_secs(10)))
+    Fetcher::with_policy(
+        Obscura::new(fixture_binary(), Duration::from_secs(10)),
+        EgressPolicy::AllowPrivate,
+    )
 }
 
 fn fetcher_without_obscura() -> Fetcher {
-    Fetcher::with_obscura(Obscura::new(
-        PathBuf::from("/nonexistent/obscura"),
-        Duration::from_secs(1),
-    ))
+    Fetcher::with_policy(
+        Obscura::new(
+            PathBuf::from("/nonexistent/obscura"),
+            Duration::from_secs(1),
+        ),
+        EgressPolicy::AllowPrivate,
+    )
 }
 
 fn article_html() -> String {

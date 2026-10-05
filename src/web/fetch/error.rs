@@ -4,15 +4,25 @@
 use std::fmt;
 use std::time::Duration;
 
+use super::egress::{check_url_host, EgressPolicy};
+
 /// Parse `raw_url` with `reqwest::Url`, requiring an absolute URL whose
-/// scheme is `http` or `https`. Returns the re-serialized canonical URL.
-pub(crate) fn normalize_url(raw_url: &str) -> Result<String, FetchError> {
-    match reqwest::Url::parse(raw_url) {
-        Ok(url) if url.scheme() == "http" || url.scheme() == "https" => Ok(url.to_string()),
-        _ => Err(FetchError::InvalidUrl {
-            input: raw_url.to_string(),
-        }),
-    }
+/// scheme is `http` or `https`, then refuse an IP-literal host the egress
+/// policy forbids (#97). Returns the re-serialized canonical URL.
+pub(crate) fn normalize_url(raw_url: &str, policy: EgressPolicy) -> Result<String, FetchError> {
+    let url = match reqwest::Url::parse(raw_url) {
+        Ok(url) if url.scheme() == "http" || url.scheme() == "https" => url,
+        _ => {
+            return Err(FetchError::InvalidUrl {
+                input: raw_url.to_string(),
+            })
+        }
+    };
+    check_url_host(&url, policy).map_err(|denied| FetchError::Egress {
+        url: url.to_string(),
+        reason: denied.reason,
+    })?;
+    Ok(url.to_string())
 }
 
 /// Every failure mode of `fetch_markdown`, and of the fetch tool by delegation.
@@ -24,6 +34,11 @@ pub enum FetchError {
     /// `part` is not an integer >= 1. No request was made. `input` is the
     /// compact JSON of the supplied value.
     InvalidPart { input: String },
+    /// The egress policy (#97) refused the target: an IP-literal host, a
+    /// name resolving only to, or a redirect hop pointing at, a private or
+    /// reserved address. No byte of the target's body was read. `url` is
+    /// the URL whose host was refused (the redirect hop, when one was).
+    Egress { url: String, reason: String },
     /// Exit 0 but stdout was empty/whitespace-only.
     EmptyBody { url: String },
     /// Engine reported access denial (exit code or stderr markers, §3).
@@ -47,6 +62,9 @@ impl fmt::Display for FetchError {
         match self {
             FetchError::InvalidUrl { input } => {
                 write!(f, "invalid url: {input} (expected absolute http(s) URL)")
+            }
+            FetchError::Egress { url, reason } => {
+                write!(f, "refused private-network target: {url}: {reason}")
             }
             FetchError::EmptyBody { url } => {
                 write!(f, "empty body: {url} returned no markdown")

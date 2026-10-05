@@ -28,6 +28,7 @@ fn error_url(err: &FetchError) -> &str {
             panic!("expected url-carrying error")
         }
         FetchError::EmptyBody { url }
+        | FetchError::Egress { url, .. }
         | FetchError::Blocked { url, .. }
         | FetchError::Timeout { url, .. }
         | FetchError::CommandFailed { url, .. }
@@ -213,6 +214,31 @@ async fn fetch_markdown_maps_plain_nonzero_exit_to_command_failed() {
     assert_eq!(url, "https://example.com/fail");
     assert!(detail.contains("boom"), "detail = {detail}");
     assert_eq!(err.to_string(), format!("command failed: {url}: {detail}"));
+}
+
+/// #97: Obscura output is read incrementally and capped at 5 MiB per
+/// stream; an endless writer is killed with a typed error well before the
+/// 10 s engine timeout instead of buffering without bound.
+#[tokio::test]
+async fn endless_obscura_output_is_capped_and_killed() {
+    for (route, stream) in [("flood", "stdout"), ("errflood", "stderr")] {
+        let started = std::time::Instant::now();
+        let err = fake_engine()
+            .fetch_markdown(&format!("https://example.com/{route}"))
+            .await
+            .unwrap_err();
+        let FetchError::CommandFailed { detail, .. } = &err else {
+            panic!("{route}: expected CommandFailed, got {err:?}");
+        };
+        assert!(
+            detail.contains(&format!("obscura {stream} exceeds 5242880 bytes")),
+            "{route}: {detail}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "{route}: cap must trip before the engine timeout"
+        );
+    }
 }
 
 // --- Fetch error Display contract ---

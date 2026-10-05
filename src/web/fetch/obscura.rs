@@ -3,12 +3,21 @@
 //! Single engine (subprocess today), spawned only when the static path in
 //! `fetcher` decides the response is unusable (ADR-0006 §3). URL validation
 //! lives in [`super::error::normalize_url`] so every caller gets it for free.
+//!
+//! Before spawning, the target host must resolve to public addresses only
+//! ([`super::egress::check_resolved`], #97). stdout and stderr are read
+//! incrementally, each capped at [`super::MAX_BODY_BYTES`]; the child is
+//! killed as soon as either stream crosses the cap.
 
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
 
+use tokio::io::{AsyncRead, AsyncReadExt};
+
+use super::egress::{check_resolved, EgressPolicy};
 use super::error::{normalize_url, FetchError};
+use super::MAX_BODY_BYTES;
 
 /// Concrete handle to the single Obscura engine (subprocess today).
 /// `binary` is the internal seam tests use to inject the fixture double.
@@ -16,6 +25,16 @@ use super::error::{normalize_url, FetchError};
 pub struct Obscura {
     pub binary: PathBuf,
     pub timeout: Duration,
+    /// Egress policy checked before spawning; `Fetcher` overrides it with
+    /// its own via [`Obscura::with_egress`].
+    egress: EgressPolicy,
+}
+
+/// Why reading the child's output stopped early.
+enum ReadFailure {
+    Io(std::io::Error),
+    /// The named stream crossed [`MAX_BODY_BYTES`].
+    Overflow(&'static str),
 }
 
 /// Production per-fetch timeout. Sized so a static attempt that times out
@@ -29,7 +48,16 @@ impl Obscura {
     /// Handle over `binary` with a per-fetch `timeout` (production uses
     /// [`Obscura::default`]: `obscura` on PATH, [`DEFAULT_TIMEOUT`]).
     pub fn new(binary: PathBuf, timeout: Duration) -> Self {
-        Self { binary, timeout }
+        Self {
+            binary,
+            timeout,
+            egress: EgressPolicy::from_env(),
+        }
+    }
+
+    /// The same handle with an explicit egress policy.
+    pub fn with_egress(self, egress: EgressPolicy) -> Self {
+        Self { egress, ..self }
     }
 
     /// Spawn `obscura fetch <normalized-url> --dump markdown --quiet`,
@@ -38,8 +66,15 @@ impl Obscura {
     /// `--wait` is omitted. A fetch still running after `timeout` is killed
     /// and classified `Timeout`.
     pub async fn fetch_markdown(&self, raw_url: &str) -> Result<FetchedMarkdown, FetchError> {
-        let normalized = normalize_url(raw_url)?;
-        let child = tokio::process::Command::new(&self.binary)
+        let normalized = normalize_url(raw_url, self.egress)?;
+        let parsed = reqwest::Url::parse(&normalized).expect("normalize_url output parses");
+        check_resolved(&parsed, self.egress)
+            .await
+            .map_err(|denied| FetchError::Egress {
+                url: normalized.clone(),
+                reason: denied.reason,
+            })?;
+        let mut child = tokio::process::Command::new(&self.binary)
             .arg("fetch")
             .arg(&normalized)
             .arg("--dump")
@@ -60,39 +95,58 @@ impl Obscura {
                     detail: e.to_string(),
                 },
             })?;
+        let stdout = child.stdout.take().expect("stdout is piped");
+        let stderr = child.stderr.take().expect("stderr is piped");
 
-        let output = match tokio::time::timeout(self.timeout, child.wait_with_output()).await {
+        let collected = tokio::time::timeout(self.timeout, async {
+            let (out, err) =
+                tokio::try_join!(read_capped(stdout, "stdout"), read_capped(stderr, "stderr"))?;
+            let status = child.wait().await.map_err(ReadFailure::Io)?;
+            Ok::<_, ReadFailure>((status, out, err))
+        })
+        .await;
+        let (status, stdout, stderr) = match collected {
             Err(_) => {
                 return Err(FetchError::Timeout {
                     url: normalized,
                     after: self.timeout,
                 });
             }
-            Ok(Err(e)) => {
+            Ok(Err(ReadFailure::Overflow(stream))) => {
+                // Killed here rather than on drop so the process is gone
+                // before the error reaches the caller.
+                let _ = child.kill().await;
+                return Err(FetchError::CommandFailed {
+                    url: normalized,
+                    detail: format!("obscura {stream} exceeds {MAX_BODY_BYTES} bytes; killed"),
+                });
+            }
+            Ok(Err(ReadFailure::Io(e))) => {
                 return Err(FetchError::CommandFailed {
                     url: normalized,
                     detail: e.to_string(),
                 });
             }
-            Ok(Ok(output)) => output,
+            Ok(Ok(collected)) => collected,
         };
 
-        let stderr_tail = tail(&String::from_utf8_lossy(&output.stderr));
-        if is_blocked(&String::from_utf8_lossy(&output.stderr)) {
+        let stderr = String::from_utf8_lossy(&stderr);
+        let stderr_tail = tail(&stderr);
+        if is_blocked(&stderr) {
             return Err(FetchError::Blocked {
                 url: normalized,
                 reason: stderr_tail,
             });
         }
 
-        if !output.status.success() {
+        if !status.success() {
             return Err(FetchError::CommandFailed {
                 url: normalized,
-                detail: format!("exit {}: {}", output.status, stderr_tail),
+                detail: format!("exit {status}: {stderr_tail}"),
             });
         }
 
-        let markdown = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let markdown = String::from_utf8_lossy(&stdout).trim().to_string();
         if markdown.is_empty() {
             return Err(FetchError::EmptyBody { url: normalized });
         }
@@ -104,13 +158,33 @@ impl Obscura {
     }
 }
 
-impl Default for Obscura {
-    /// `Obscura { binary: "obscura".into(), timeout: DEFAULT_TIMEOUT }`.
-    fn default() -> Self {
-        Self {
-            binary: "obscura".into(),
-            timeout: DEFAULT_TIMEOUT,
+/// Read `stream` to its end, failing with [`ReadFailure::Overflow`] as soon
+/// as more than [`MAX_BODY_BYTES`] arrive; never buffers past the cap by
+/// more than one read.
+async fn read_capped(
+    mut stream: impl AsyncRead + Unpin,
+    name: &'static str,
+) -> Result<Vec<u8>, ReadFailure> {
+    let mut out = Vec::new();
+    // On the heap: two of these live in the caller's future at once, and a
+    // stack array would inflate every future that awaits a fetch.
+    let mut buf = vec![0u8; 16 * 1024];
+    loop {
+        let n = stream.read(&mut buf).await.map_err(ReadFailure::Io)?;
+        if n == 0 {
+            return Ok(out);
         }
+        if out.len() + n > MAX_BODY_BYTES {
+            return Err(ReadFailure::Overflow(name));
+        }
+        out.extend_from_slice(&buf[..n]);
+    }
+}
+
+impl Default for Obscura {
+    /// `obscura` on PATH, [`DEFAULT_TIMEOUT`], egress policy from the env.
+    fn default() -> Self {
+        Self::new("obscura".into(), DEFAULT_TIMEOUT)
     }
 }
 

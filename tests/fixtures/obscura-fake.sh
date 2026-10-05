@@ -7,6 +7,14 @@ case "$url" in
   *slow*)
     exec sleep 5
     ;;
+  *errflood*)
+    # Endless stderr: the 5 MiB cap must kill it long before the timeout.
+    exec yes 'stderr noise line' >&2
+    ;;
+  *flood*)
+    # Endless stdout: same, for the markdown stream.
+    exec yes 'markdown flood line'
+    ;;
   *blocked*)
     printf 'access forbidden (bot denied)' >&2
     exit 3

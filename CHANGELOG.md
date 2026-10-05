@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A failed write to the defaulted Session path warns on stderr and exits `0`; exit `6` is only for an explicit `--session-out` (#102).
 - `--json` adds `content_trust: "untrusted-web"`; the Harness snippet now treats the Synthesis as untrusted web content (#98).
 - `--json` citations add `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`; the Synthesis adds `verification` counts (#106).
+- `fetch` refuses loopback, private, link-local and other reserved addresses, incl. via DNS and redirects (#97).
+- New `FetchError::Egress` variant; `Fetcher::with_policy` and `Obscura::with_egress` take an `EgressPolicy` (#97).
 - Exit `8` for requests the gateway rejects (401, 403, other 4xx, error-in-200, empty choices, refusal); `3` is now retryable exhaustion only (#99).
 - `--deadline-secs` (default 300) bounds the run; a deadline with no answer exits `9`; a malformed `GATEWAY_BASE_URL` exits `2` (#99, #100).
 - `--max-turns` defaults to 10; each successful search after the first adds 5 turns up to `--max-turns-cap` (default 25) (#101).
@@ -26,15 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gateway retries honor `Retry-After` (seconds or HTTP-date) on 429/503/529 with full-jitter backoff; error messages carry the upstream detail (#99).
 - Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
 - Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
+- `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
 
 ### Changed
 
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
+- Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
 
 ### Fixed
 
 - `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
+- Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
 - Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).
 - A hung gateway or tool no longer stretches a run: `connect_timeout` 10 s, one timeout retry, static fetch 10 s, Obscura 30 s (#100).
 

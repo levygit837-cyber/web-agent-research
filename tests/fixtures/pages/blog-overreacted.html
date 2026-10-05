@@ -1,0 +1,1213 @@
+<!DOCTYPE html><html lang="en" class="__className_577ed0"><head><script></script><script></script><script></script><script></script><script></script><script></script><title>A Complete Guide to useEffect — overreacted</title><script></script><script></script></head><body class="mx-auto max-w-2xl bg-[--bg] px-5 py-12 text-[--text]"><div></div><header class="mb-14 flex flex-row place-content-between"><a class="__className_64c2fd inline-block text-2xl font-black" href="/"><span>overreacted</span></a><span class="relative top-[4px] italic">by <a class=" scale-100 active:scale-100" href="https://danabra.mov"><img alt="Dan Abramov" class="relative -top-1 mx-1 inline h-8 w-8 rounded-full"/></a></span></header><main><article><h1 class="__className_64c2fd text-[40px] font-black leading-[44px]">A Complete Guide to useEffect</h1><p class="mt-2 text-[13px] text-gray-700 dark:text-gray-300">March 9, 2019</p><div class="markdown flex flex-col gap-8 mt-12"><div class="relative md:-left-6 flex flex-wrap items-baseline gap-4"><a href="https://ko-fi.com/gaearon" class="tip tip-sm"><span class="tip-bg"></span>Pay what you like</a></div><div class="flex flex-col gap-8"><p>You wrote a few components with <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-intro.html">Hooks</a>. Maybe even a small app. You’re mostly satisfied. You’re comfortable with the API and picked up a few tricks along the way. You even made some <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-custom.html">custom Hooks</a> to extract repetitive logic (300 lines gone!) and showed it off to your colleagues. “Great job”, they said.</p>
+<p>But sometimes when you <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>, the pieces don’t quite fit together. You have a nagging feeling that you’re missing something. It seems similar to class lifecycles… but is it really? You find yourself asking questions like:</p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">🤔 How do I replicate <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidMount</code> with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>?</li>
+<li class="mb-3 last:mb-0">🤔 How do I correctly fetch data inside <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>? What is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code>?</li>
+<li class="mb-3 last:mb-0">🤔 Do I need to specify functions as effect dependencies or not?</li>
+<li class="mb-3 last:mb-0">🤔 Why do I sometimes get an infinite refetching loop?</li>
+<li class="mb-3 last:mb-0">🤔 Why do I sometimes get an old state or prop value inside my effect?</li>
+</ul>
+<p>When I just started using Hooks, I was confused by all of those questions too. Even when writing the initial docs, I didn’t have a firm grasp on some of the subtleties. I’ve since had a few “aha” moments that I want to share with you. <strong>This deep dive will make the answers to these questions look obvious to you.</strong></p>
+<p>To <em>see</em> the answers, we need to take a step back. The goal of this article isn’t to give you a list of bullet point recipes. It’s to help you truly “grok” <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>. There won’t be much to learn. In fact, we’ll spend most of our time <em>un</em>learning.</p>
+<p><strong>It’s only after I stopped looking at the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> Hook through the prism of the familiar class lifecycle methods that everything came together for me.</strong></p>
+<blockquote class="relative -left-2 -ml-4 pl-4">
+<p>“Unlearn what you have learned.” — Yoda</p>
+</blockquote>
+<p><img class="max-w-full" alt="Yoda sniffing the air. Caption: “I smell bacon.”"/></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p><strong>This article assumes that you’re somewhat familiar with <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-effect.html"><code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code></a> API.</strong></p>
+<p><strong>It’s also <em>really</em> long. It’s like a mini-book. That’s just my preferred format. But I wrote a TLDR just below if you’re in a rush or don’t really care.</strong></p>
+<p><strong>If you’re not comfortable with deep dives, you might want to wait until these explanations appear elsewhere. Just like when React came out in 2013, it will take some time for people to recognize a different mental model and teach it.</strong></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<h2 id="tldr" class="group relative text-3xl font-bold mt-2"><a href="#tldr" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>TLDR</a></h2>
+<p>Here’s a quick TLDR if you don’t want to read the whole thing. If some parts don’t make sense, you can scroll down until you find something related.</p>
+<p>Feel free to skip it if you plan to read the whole post. I’ll link to it at the end.</p>
+<p><strong>🤔 Question: How do I replicate <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidMount</code> with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>?</strong></p>
+<p>While you can <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect(fn, [])</code>, it’s not an exact equivalent. Unlike <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidMount</code>, it will <em>capture</em> props and state. So even inside the callbacks, you’ll see the initial props and state. If you want to see “latest” something, you can write it to a ref. But there’s usually a simpler way to structure the code so that you don’t have to. Keep in mind that the mental model for effects is different from <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidMount</code> and other lifecycles, and trying to find their exact equivalents may confuse you more than help. To get productive, you need to “think in effects”, and their mental model is closer to implementing synchronization than to responding to lifecycle events.</p>
+<p><strong>🤔 Question:  How do I correctly fetch data inside <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>? What is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code>?</strong></p>
+<p><a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://www.robinwieruch.de/react-hooks-fetch-data/">This article</a> is a good primer on data fetching with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>. Make sure to read it to the end! It’s not as long as this one. <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code> means the effect doesn’t use any value that participates in React data flow, and is for that reason safe to apply once. It is also a common source of bugs when the value actually <em>is</em> used. You’ll need to learn a few strategies (primarily <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useReducer</code> and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code>) that can <em>remove the need</em> for a dependency instead of incorrectly omitting it.</p>
+<p><strong>🤔 Question: Do I need to specify functions as effect dependencies or not?</strong></p>
+<p>The recommendation is to hoist functions that don’t need props or state <em>outside</em> of your component, and pull the ones that are used only by an effect <em>inside</em> of that effect.  If after that your effect still ends up using functions in the render scope (including function from props), wrap them into <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> where they’re defined, and repeat the process. Why does it matter? Functions can “see” values from props and state — so they participate in the data flow. There’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-faq.html#is-it-safe-to-omit-functions-from-the-list-of-dependencies">more detailed answer</a> in our FAQ.</p>
+<p><strong>🤔 Question: Why do I sometimes get an infinite refetching loop?</strong></p>
+<p>This can happen if you’re doing data fetching in an effect without the second dependencies argument. Without it, effects run after every render — and setting the state will trigger the effects again. An infinite loop may also happen if you specify a value that <em>always</em> changes in the dependency array. You can tell which one by removing them one by one. However, removing a dependency you use (or blindly specifying <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code>) is usually the wrong fix. Instead, fix the problem at its source. For example, functions can cause this problem, and putting them inside effects, hoisting them out, or wrapping them with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> helps. To avoid recreating objects, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useMemo</code> can serve a similar purpose.</p>
+<p><strong>🤔 Why do I sometimes get an old state or prop value inside my effect?</strong></p>
+<p>Effects always “see” props and state from the render they were defined in. That <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/how-are-function-components-different-from-classes/">helps prevent bugs</a> but in some cases can be annoying. For those cases, you can explicitly maintain some value in a mutable ref (the linked article explains it at the end). If you think you’re seeing some props or state from an old render but don’t expect it, you probably missed some dependencies. Try using the <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://github.com/facebook/react/issues/14920">lint rule</a> to train yourself to see them. A few days, and it’ll be like a second nature to you. See also <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-faq.html#why-am-i-seeing-stale-props-or-state-inside-my-function">this answer</a> in our FAQ.</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>I hope this TLDR was helpful! Otherwise, let’s go.</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<h2 id="each-render-has-its-own-props-and-state" class="group relative text-3xl font-bold mt-2"><a href="#each-render-has-its-own-props-and-state" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Each Render Has Its Own Props and State</a></h2>
+<p>Before we can talk about effects, we need to talk about rendering.</p>
+<p>Here’s a counter. Look at the highlighted line closely:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>div</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={() </span><span>=&gt;</span><span> setCount</span><span>(</span><span>count</span><span> + </span><span>1</span><span>)}&gt;</span></span>
+<span><span>        Click me</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>    &lt;/</span><span>div</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>What does it mean? Does <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> somehow “watch” changes to our state and update automatically? That might be a useful first intuition when you learn React but it’s <em>not</em> an <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/react-as-a-ui-runtime/">accurate mental model</a>.</p>
+<p><strong>In this example, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> is just a number.</strong> It’s not a magic “data binding”, a “watcher”, a “proxy”, or anything else. It’s a good old number like this one:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>const </span><span>count</span><span> =</span><span> 42</span><span>;</span></span>
+<span><span>// ...</span></span>
+<span><span>&lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>// ...</span></span></code></pre></figure>
+<p>The first time our component renders, the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> variable we get from <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useState()</code> is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">0</code>. When we call <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(1)</code>, React calls our component again. This time, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> will be <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">1</code>. And so on:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// During first render</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 0</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After a click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 1</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After another click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 2</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><strong>Whenever we update the state, React calls our component. Each render result “sees” its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">counter</code> state value which is a <em>constant</em> inside our function.</strong></p>
+<p>So this line doesn’t do any special data binding:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>&lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span></code></pre></figure>
+<p><strong>It only embeds a number value into the render output.</strong> That number is provided by React. When we <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount</code>, React calls our component again with a different <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value. Then React updates the DOM to match our latest render output.</p>
+<p>The key takeaway is that the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> constant inside any particular render doesn’t change over time. It’s our component that’s called again — and each render “sees” its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value that’s isolated between renders.</p>
+<p><em>(For an in-depth overview of this process, check out my post <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/react-as-a-ui-runtime/">React as a UI Runtime</a>.)</em></p>
+<h2 id="each-render-has-its-own-event-handlers" class="group relative text-3xl font-bold mt-2"><a href="#each-render-has-its-own-event-handlers" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Each Render Has Its Own Event Handlers</a></h2>
+<p>So far so good. What about event handlers?</p>
+<p>Look at this example. It shows an alert with the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> after three seconds:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> count</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>div</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={() </span><span>=&gt;</span><span> setCount</span><span>(</span><span>count</span><span> + </span><span>1</span><span>)}&gt;</span></span>
+<span><span>        Click me</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={</span><span>handleAlertClick</span><span>}&gt;</span></span>
+<span><span>        Show alert</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>    &lt;/</span><span>div</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Let’s say I do this sequence of steps:</p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0"><strong>Increment</strong> the counter to 3</li>
+<li class="mb-3 last:mb-0"><strong>Press</strong> “Show alert”</li>
+<li class="mb-3 last:mb-0"><strong>Increment</strong> it to 5 before the timeout fires</li>
+</ul>
+<p><img class="max-w-full" alt="Counter demo"/></p>
+<p>What do you expect the alert to show? Will it show 5 — which is the counter state at the time of the alert? Or will it show 3 — the state when I clicked?</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p><em>spoilers ahead</em></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>Go ahead and <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/w2wxl3yo0l">try it yourself!</a></p>
+<p>If the behavior doesn’t quite make sense to you, imagine a more practical example: a chat app with the current recipient ID in the state, and a Send button. <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/how-are-function-components-different-from-classes/">This article</a> explores the reasons in depth but the correct answer is 3.</p>
+<p>The alert will “capture” the state at the time I clicked the button.</p>
+<p><em>(There are ways to implement the other behavior too but I’ll be focusing on the default case for now. When building a mental model, it’s important that we distinguish the “path of least resistance” from the opt-in escape hatches.)</em></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>But how does it work?</p>
+<p>We’ve discussed that the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value is constant for every particular call to our function. It’s worth emphasizing this — <strong>our function gets called many times (once per each render), but every one of those times the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value inside of it is constant and set to a particular value (state for that render).</strong></p>
+<p>This is not specific to React — regular functions work in a similar way:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> sayHi</span><span>(</span><span>person</span><span>)</span><span> {</span></span>
+<span><span>  const </span><span>name</span><span> =</span><span> person</span><span>.</span><span>name</span><span>;</span></span>
+<span><span>  setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    alert</span><span>(</span><span>&#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>);</span></span>
+<span><span>  },</span><span> 3000</span><span>);</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>let </span><span>someone</span><span> =</span><span> {</span><span>name</span><span>:</span><span> &#x27;</span><span>Dan</span><span>&#x27;</span><span>};</span></span>
+<span><span>sayHi</span><span>(</span><span>someone</span><span>);</span></span>
+<span> </span>
+<span><span>someone </span><span>=</span><span> {</span><span>name</span><span>:</span><span> &#x27;</span><span>Yuzhi</span><span>&#x27;</span><span>};</span></span>
+<span><span>sayHi</span><span>(</span><span>someone</span><span>);</span></span>
+<span> </span>
+<span><span>someone </span><span>=</span><span> {</span><span>name</span><span>:</span><span> &#x27;</span><span>Dominic</span><span>&#x27;</span><span>};</span></span>
+<span><span>sayHi</span><span>(</span><span>someone</span><span>);</span></span></code></pre></figure>
+<p>In <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/mm6ww11lk8">this example</a>, the outer <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">someone</code> variable is reassigned several times. (Just like somewhere in React, the <em>current</em> component state can change.) <strong>However, inside <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">sayHi</code>, there is a local <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code> constant that is associated with a <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">person</code> from a particular call.</strong> That constant is local, so it’s isolated between the calls! As a result, when the timeouts fire, each alert “remembers” its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code>.</p>
+<p>This explains how our event handler captures the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> at the time of the click. If we apply the same substitution principle, each render “sees” its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// During first render</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 0</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> count</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After a click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 1</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> count</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After another click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const </span><span>count</span><span> =</span><span> 2</span><span>;</span><span> // Returned by useState()</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> count</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>So effectively, each render returns its own “version” of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">handleAlertClick</code>. Each of those versions “remembers” its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// During first render</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> 0</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>button</span><span> onClick={</span><span>handleAlertClick</span><span>} /&gt;</span><span> // The one with 0 inside</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After a click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>button</span><span> onClick={</span><span>handleAlertClick</span><span>} /&gt;</span><span> // The one with 1 inside</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After another click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  function</span><span> handleAlertClick</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      alert</span><span>(</span><span>&#x27;</span><span>You clicked on: </span><span>&#x27;</span><span> +</span><span> 2</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>  &lt;</span><span>button</span><span> onClick={</span><span>handleAlertClick</span><span>} /&gt;</span><span> // The one with 2 inside</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>This is why <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/w2wxl3yo0l">in this demo</a> event handlers “belong” to a particular render, and when you click, it keeps using the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">counter</code> state <em>from</em> that render.</p>
+<p><strong>Inside any particular render, props and state forever stay the same.</strong> But if props and state are isolated between renders, so are any values using them (including the event handlers). They also “belong” to a particular render. So even async functions inside an event handler will “see” the same <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value.</p>
+<p><em>Side note: I inlined concrete <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> values right into <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">handleAlertClick</code> functions above. This mental substitution is safe because <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> can’t possibly change within a particular render. It’s declared as a <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">const</code> and is a number. It would be safe to think the same way about other values like objects too, but only if we agree to avoid mutating state. Calling <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setSomething(newObj)</code> with a newly created object instead of mutating it is fine because state belonging to previous renders is intact.</em></p>
+<h2 id="each-render-has-its-own-effects" class="group relative text-3xl font-bold mt-2"><a href="#each-render-has-its-own-effects" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Each Render Has Its Own Effects</a></h2>
+<p>This was supposed to be a post about effects but we still haven’t talked about effects yet! We’ll rectify this now. Turns out, effects aren’t really any different.</p>
+<p>Let’s go back to an example from <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-effect.html">the docs</a>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> `You clicked </span><span>${</span><span>count</span><span>}</span><span> times`</span><span>;</span></span>
+<span><span>  });</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>div</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={() </span><span>=&gt;</span><span> setCount</span><span>(</span><span>count</span><span> + </span><span>1</span><span>)}&gt;</span></span>
+<span><span>        Click me</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>    &lt;/</span><span>div</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><strong>Here’s a question for you: how does the effect read the latest <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> state?</strong></p>
+<p>Maybe, there’s some kind of “data binding” or “watching” that makes <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> update live inside the effect function? Maybe <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> is a mutable variable that React sets inside our component so that our effect always sees the latest value?</p>
+<p>Nope.</p>
+<p>We already know that <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> is constant within a particular component render. Event handlers “see” the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> state from the render that they “belong” to because <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> is a variable in their scope. The same is true for effects!</p>
+<p><strong>It’s not the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> variable that somehow changes inside an “unchanging” effect. It’s the <em>effect function itself</em> that’s different on every render.</strong></p>
+<p>Each version “sees” the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value from the render that it “belongs” to:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// During first render</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect function from first render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      document</span><span>.</span><span>title </span><span>=</span><span> `You clicked </span><span>${</span><span>0</span><span>}</span><span> times`</span><span>;</span></span>
+<span><span>    }</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After a click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect function from second render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      document</span><span>.</span><span>title </span><span>=</span><span> `You clicked </span><span>${</span><span>1</span><span>}</span><span> times`</span><span>;</span></span>
+<span><span>    }</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// After another click, our function is called again</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect function from third render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      document</span><span>.</span><span>title </span><span>=</span><span> `You clicked </span><span>${</span><span>2</span><span>}</span><span> times`</span><span>;</span></span>
+<span><span>    }</span></span>
+<span><span>  );</span></span>
+<span><span>  // ..</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>React remembers the effect function you provided, and runs it after flushing changes to the DOM and letting the browser paint the screen.</p>
+<p>So even if we speak of a single conceptual <em>effect</em> here (updating the document title), it is represented by a <em>different function</em> on every render — and each effect function “sees” props and state from the particular render it “belongs” to.</p>
+<p><strong>Conceptually, you can imagine effects are a <em>part of the render result</em>.</strong></p>
+<p>Strictly saying, they’re not (in order to <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/why-do-hooks-rely-on-call-order/">allow Hook composition</a> without clumsy syntax or runtime overhead). But in the mental model we’re building up, effect functions <em>belong</em> to a particular render in the same way that event handlers do.</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>To make sure we have a solid understanding, let’s recap our first render:</p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0"><strong>React:</strong> Give me the UI when the state is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">0</code>.</li>
+<li class="mb-3 last:mb-0"><strong>Your component:</strong>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">Here’s the render result:
+<code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;p&gt;You clicked 0 times&lt;/p&gt;</code>.</li>
+<li class="mb-3 last:mb-0">Also remember to run this effect after you’re done: <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">() =&gt; { document.title = &#x27;You clicked 0 times&#x27; }</code>.</li>
+</ul>
+</li>
+<li class="mb-3 last:mb-0"><strong>React:</strong> Sure. Updating the UI. Hey browser, I’m adding some stuff to the DOM.</li>
+<li class="mb-3 last:mb-0"><strong>Browser:</strong> Cool, I painted it to the screen.</li>
+<li class="mb-3 last:mb-0"><strong>React:</strong> OK, now I’m going to run the effect you gave me.
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">Running <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">() =&gt; { document.title = &#x27;You clicked 0 times&#x27; }</code>.</li>
+</ul>
+</li>
+</ul>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>Now let’s recap what happens after we click:</p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0"><strong>Your component:</strong> Hey React, set my state to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">1</code>.</li>
+<li class="mb-3 last:mb-0"><strong>React:</strong> Give me the UI for when the state is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">1</code>.</li>
+<li class="mb-3 last:mb-0"><strong>Your component:</strong>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">Here’s the render result:
+<code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;p&gt;You clicked 1 times&lt;/p&gt;</code>.</li>
+<li class="mb-3 last:mb-0">Also remember to run this effect after you’re done: <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">() =&gt; { document.title = &#x27;You clicked 1 times&#x27; }</code>.</li>
+</ul>
+</li>
+<li class="mb-3 last:mb-0"><strong>React:</strong> Sure. Updating the UI. Hey browser, I’ve changed the DOM.</li>
+<li class="mb-3 last:mb-0"><strong>Browser:</strong> Cool, I painted your changes to the screen.</li>
+<li class="mb-3 last:mb-0"><strong>React:</strong> OK, now I’ll run the effect that belongs to the render I just did.
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">Running <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">() =&gt; { document.title = &#x27;You clicked 1 times&#x27; }</code>.</li>
+</ul>
+</li>
+</ul>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<h2 id="each-render-has-its-own-everything" class="group relative text-3xl font-bold mt-2"><a href="#each-render-has-its-own-everything" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Each Render Has Its Own… Everything</a></h2>
+<p><strong>We know now that effects run after every render, are conceptually a part of the component output, and “see” the props and state from that particular render.</strong></p>
+<p>Let’s try a thought experiment. Consider this code:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      console</span><span>.</span><span>log</span><span>(</span><span>`You clicked </span><span>${</span><span>count</span><span>}</span><span> times`</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  });</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>div</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>p</span><span>&gt;</span><span>You clicked </span><span>{</span><span>count</span><span>}</span><span> times</span><span>&lt;/</span><span>p</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={() </span><span>=&gt;</span><span> setCount</span><span>(</span><span>count</span><span> + </span><span>1</span><span>)}&gt;</span></span>
+<span><span>        Click me</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>    &lt;/</span><span>div</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>If I click several times with a small delay, what is the log going to look like?</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p><em>spoilers ahead</em></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p>You might think this is a gotcha and the end result is unintuitive. It’s not! We’re going to see a sequence of logs — each one belonging to a particular render and thus with its own <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> value. You can <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/lyx20m1ol">try it yourself</a>:</p>
+<p><img class="max-w-full" alt="Screen recording of 1, 2, 3, 4, 5 logged in order"/></p>
+<p>You may think: “Of course that’s how it works! How else could it work?”</p>
+<p>Well, that’s not how <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.state</code> works in classes. It’s easy to make the mistake of thinking that this <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/kkymzwjqz3">class implementation</a> is equivalent:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  componentDidUpdate</span><span>()</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      console</span><span>.</span><span>log</span><span>(</span><span>`You clicked </span><span>${</span><span>this</span><span>.</span><span>state</span><span>.</span><span>count</span><span>}</span><span> times`</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  }</span></span></code></pre></figure>
+<p>However, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.state.count</code> always points at the <em>latest</em> count rather than the one belonging to a particular render. So you’ll see <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">5</code> logged each time instead:</p>
+<p><img class="max-w-full" alt="Screen recording of 5, 5, 5, 5, 5 logged in order"/></p>
+<p>I think it’s ironic that Hooks rely so much on JavaScript closures, and yet it’s the class implementation that suffers from <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://wsvincent.com/javascript-closure-settimeout-for-loop/">the canonical wrong-value-in-a-timeout confusion</a> that’s often associated with closures. This is because the actual source of the confusion in this example is the mutation (React mutates <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.state</code> in classes to point to the latest state) and not closures themselves.</p>
+<p><strong>Closures are great when the values you close over never change. That makes them easy to think about because you’re essentially referring to constants.</strong> And as we discussed, props and state never change within a particular render. By the way, we can fix the class version… by <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/w7vjo07055">using a closure</a>.</p>
+<h2 id="swimming-against-the-tide" class="group relative text-3xl font-bold mt-2"><a href="#swimming-against-the-tide" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Swimming Against the Tide</a></h2>
+<p>At this point it’s important that we call it out explicitly: <strong>every</strong> function inside the component render (including event handlers, effects, timeouts or API calls inside them) captures the props and state of the render call that defined it.</p>
+<p>So these two examples are equivalent:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Example</span><span>(</span><span>props</span><span>)</span><span> {</span></span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      console</span><span>.</span><span>log</span><span>(</span><span>props</span><span>.</span><span>counter</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>  });</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Example</span><span>(</span><span>props</span><span>)</span><span> {</span></span>
+<span><span>  const </span><span>counter</span><span> =</span><span> props</span><span>.</span><span>counter</span><span>;</span></span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      console</span><span>.</span><span>log</span><span>(</span><span>counter</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>  });</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><strong>It doesn’t matter whether you read from props or state “early” inside of your component.</strong> They’re not going to change! Inside the scope of a single render, props and state stay the same. (Destructuring props makes this more obvious.)</p>
+<p>Of course, sometimes you <em>want</em> to read the latest rather than captured value inside some callback defined in an effect. The easiest way to do it is by using refs, as described in the last section of <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/how-are-function-components-different-from-classes/">this article</a>.</p>
+<p>Be aware that when you want to read the <em>future</em> props or state from a function in a <em>past</em> render, you’re swimming against the tide. It’s not <em>wrong</em> (and in some cases necessary) but it might look less “clean” to break out of the paradigm. This is an intentional consequence because it helps highlight which code is fragile and depends on timing. In classes, it’s less obvious when this happens.</p>
+<p>Here’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/rm7z22qnlp">version of our counter example</a> that replicates the class behavior:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Example</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span><span>  const </span><span>latestCount</span><span> =</span><span> useRef</span><span>(</span><span>count</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    // Set the mutable latest value</span></span>
+<span><span>    latestCount</span><span>.</span><span>current </span><span>=</span><span> count</span><span>;</span></span>
+<span><span>    setTimeout</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      // Read the mutable latest value</span></span>
+<span><span>      console</span><span>.</span><span>log</span><span>(</span><span>`You clicked </span><span>${</span><span>latestCount</span><span>.</span><span>current</span><span>}</span><span> times`</span><span>);</span></span>
+<span><span>    },</span><span> 3000</span><span>);</span></span>
+<span><span>  });</span></span>
+<span><span>  // ...</span></span></code></pre></figure>
+<p><img class="max-w-full" alt="Screen recording of 5, 5, 5, 5, 5 logged in order"/></p>
+<p>It might seem quirky to mutate something in React. However, this is exactly how React itself reassigns <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.state</code> in classes. Unlike with captured props and state, you don’t have any guarantees that reading <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">latestCount.current</code> would give you the same value in any particular callback. By definition, you can mutate it any time. This is why it’s not a default, and you have to opt into that.</p>
+<h2 id="so-what-about-cleanup" class="group relative text-3xl font-bold mt-2"><a href="#so-what-about-cleanup" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>So What About Cleanup?</a></h2>
+<p>As <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-effect.html#effects-with-cleanup">the docs explain</a>, some effects might have a cleanup phase. Essentially, its purpose is to “undo” an effect for cases like subscriptions.</p>
+<p>Consider this code:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    ChatAPI</span><span>.</span><span>subscribeToFriendStatus</span><span>(</span><span>props</span><span>.</span><span>id</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      ChatAPI</span><span>.</span><span>unsubscribeFromFriendStatus</span><span>(</span><span>props</span><span>.</span><span>id</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>    };</span></span>
+<span><span>  });</span></span></code></pre></figure>
+<p>Say <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">props</code> is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code> on the first render, and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code> on the second render. You <em>might</em> think that something like this happens:</p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0">React cleans up the effect for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code>.</li>
+<li class="mb-3 last:mb-0">React renders UI for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>.</li>
+<li class="mb-3 last:mb-0">React runs the effect for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>.</li>
+</ul>
+<p>(This is not quite the case.)</p>
+<p>With this mental model, you might think the cleanup “sees” the old props because it runs before we re-render, and then the new effect “sees” the new props because it runs after the re-render. That’s the mental model lifted directly from the class lifecycles, and <strong>it’s not accurate here</strong>. Let’s see why.</p>
+<p>React only runs the effects after <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://medium.com/@dan_abramov/this-benchmark-is-indeed-flawed-c3d6b5b6f97f">letting the browser paint</a>. This makes your app faster as most effects don’t need to block screen updates. Effect cleanup is also delayed. <strong>The previous effect is cleaned up <em>after</em> the re-render with new props:</strong></p>
+<ul class="list-inside md:list-outside list-disc">
+<li class="mb-3 last:mb-0"><strong>React renders UI for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>.</strong></li>
+<li class="mb-3 last:mb-0">The browser paints. We see the UI for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code> on the screen.</li>
+<li class="mb-3 last:mb-0"><strong>React cleans up the effect for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code>.</strong></li>
+<li class="mb-3 last:mb-0">React runs the effect for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>.</li>
+</ul>
+<p>You might be wondering: but how can the cleanup of the previous effect still “see” the old <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code> props if it runs <em>after</em> the props change to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>?</p>
+<p>We’ve been here before… 🤔</p>
+<p><img class="max-w-full" alt="Deja vu (cat scene from the Matrix movie)"/></p>
+<p>Quoting the previous section:</p>
+<blockquote class="relative -left-2 -ml-4 pl-4">
+<p>Every function inside the component render (including event handlers, effects, timeouts or API calls inside them) captures the props and state of the render call that defined it.</p>
+</blockquote>
+<p>Now the answer is clear! The effect cleanup doesn’t read the “latest” props, whatever that means. It reads props that belong to the render it’s defined in:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// First render, props are {id: 10}</span></span>
+<span><span>function</span><span> Example</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect from first render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      ChatAPI</span><span>.</span><span>subscribeToFriendStatus</span><span>(</span><span>10</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>      // Cleanup for effect from first render</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>        ChatAPI</span><span>.</span><span>unsubscribeFromFriendStatus</span><span>(</span><span>10</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>      };</span></span>
+<span><span>    }</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// Next render, props are {id: 20}</span></span>
+<span><span>function</span><span> Example</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect from second render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      ChatAPI</span><span>.</span><span>subscribeToFriendStatus</span><span>(</span><span>20</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>      // Cleanup for effect from second render</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>        ChatAPI</span><span>.</span><span>unsubscribeFromFriendStatus</span><span>(</span><span>20</span><span>,</span><span> handleStatusChange</span><span>);</span></span>
+<span><span>      };</span></span>
+<span><span>    }</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Kingdoms will rise and turn into ashes, the Sun will shed its outer layers to be a white dwarf, and the last civilization will end. But nothing will make the props “seen” by the first render effect’s cleanup anything other than <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code>.</p>
+<p>That’s what allows React to deal with effects right after painting — and make your apps faster by default. The old props are still there if our code needs them.</p>
+<h2 id="synchronization-not-lifecycle" class="group relative text-3xl font-bold mt-2"><a href="#synchronization-not-lifecycle" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Synchronization, Not Lifecycle</a></h2>
+<p>One of my favorite things about React is that it unifies describing the initial render result and the updates. This <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/the-bug-o-notation/">reduces the entropy</a> of your program.</p>
+<p>Say my component looks like this:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Greeting</span><span>(</span><span>{ name }</span><span>)</span><span> {</span></span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>h1</span><span> className=</span><span>&quot;</span><span>Greeting</span><span>&quot;</span><span>&gt;</span></span>
+<span><span>      Hello, </span><span>{</span><span>name</span><span>}</span></span>
+<span><span>    &lt;/</span><span>h1</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>It doesn’t matter if I render <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;Greeting name=&quot;Dan&quot; /&gt;</code> and later <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;Greeting name=&quot;Yuzhi&quot; /&gt;</code>, or if I just render <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;Greeting name=&quot;Yuzhi&quot; /&gt;</code>. In the end, we will see “Hello, Yuzhi” in both cases.</p>
+<p>People say: “It’s all about the journey, not the destination”. With React, it’s the opposite. <strong>It’s all about the destination, not the journey.</strong> That’s the difference between <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">$.addClass</code> and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">$.removeClass</code> calls in jQuery code (our “journey”) and specifying what the CSS class <em>should be</em> in React code (our “destination”).</p>
+<p><strong>React synchronizes the DOM according to our current props and state.</strong> There is no distinction between a “mount” or an “update” when rendering.</p>
+<p>You should think of effects in a similar way. <strong><code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> lets you <em>synchronize</em> things outside of the React tree according to our props and state.</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Greeting</span><span>(</span><span>{ name }</span><span>)</span><span> {</span></span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> &#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>;</span></span>
+<span><span>  });</span></span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>h1</span><span> className=</span><span>&quot;</span><span>Greeting</span><span>&quot;</span><span>&gt;</span></span>
+<span><span>      Hello, </span><span>{</span><span>name</span><span>}</span></span>
+<span><span>    &lt;/</span><span>h1</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>This is subtly different from the familiar <em>mount/update/unmount</em> mental model. It is important really to internalize this. <strong>If you’re trying to write an effect that behaves differently depending on whether the component renders for the first time or not, you’re swimming against the tide!</strong> We’re failing at synchronizing if our result depends on the “journey” rather than the “destination”.</p>
+<p>It shouldn’t matter whether we rendered with props A, B, and C, or if we rendered with C immediately. While there may be some temporary differences (e.g. while we’re fetching data), eventually the end result should be the same.</p>
+<p>Still, of course running all effects on <em>every</em> render might not be efficient. (And in some cases, it would lead to infinite loops.)</p>
+<p>So how can we fix this?</p>
+<h2 id="teaching-react-to-diff-your-effects" class="group relative text-3xl font-bold mt-2"><a href="#teaching-react-to-diff-your-effects" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Teaching React to Diff Your Effects</a></h2>
+<p>We’ve already learned that lesson with the DOM itself. Instead of touching it on every re-render, React only updates the parts of the DOM that actually change.</p>
+<p>When you’re updating</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>&lt;</span><span>h1</span><span> className=</span><span>&quot;</span><span>Greeting</span><span>&quot;</span><span>&gt;</span></span>
+<span><span>  Hello, Dan</span></span>
+<span><span>&lt;/</span><span>h1</span><span>&gt;</span></span></code></pre></figure>
+<p>to</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>&lt;</span><span>h1</span><span> className=</span><span>&quot;</span><span>Greeting</span><span>&quot;</span><span>&gt;</span></span>
+<span><span>  Hello, Yuzhi</span></span>
+<span><span>&lt;/</span><span>h1</span><span>&gt;</span></span></code></pre></figure>
+<p>React sees two objects:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>const </span><span>oldProps</span><span> =</span><span> {</span><span>className</span><span>:</span><span> &#x27;</span><span>Greeting</span><span>&#x27;</span><span>,</span><span> children</span><span>:</span><span> &#x27;</span><span>Hello, Dan</span><span>&#x27;</span><span>};</span></span>
+<span><span>const </span><span>newProps</span><span> =</span><span> {</span><span>className</span><span>:</span><span> &#x27;</span><span>Greeting</span><span>&#x27;</span><span>,</span><span> children</span><span>:</span><span> &#x27;</span><span>Hello, Yuzhi</span><span>&#x27;</span><span>};</span></span></code></pre></figure>
+<p>It goes over each of their props and determine that <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">children</code> have changed and need a DOM update, but <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">className</code> did not. So it can just do:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>domNode</span><span>.</span><span>innerText </span><span>=</span><span> &#x27;</span><span>Hello, Yuzhi</span><span>&#x27;</span><span>;</span></span>
+<span><span>// No need to touch domNode.className</span></span></code></pre></figure>
+<p><strong>Could we do something like this with effects too? It would be nice to avoid re-running them when applying the effect is unnecessary.</strong></p>
+<p>For example, maybe our component re-renders because of a state change:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Greeting</span><span>(</span><span>{ name }</span><span>)</span><span> {</span></span>
+<span><span>  const [</span><span>counter</span><span>,</span><span> setCounter</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> &#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>;</span></span>
+<span><span>  });</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;</span><span>h1</span><span> className=</span><span>&quot;</span><span>Greeting</span><span>&quot;</span><span>&gt;</span></span>
+<span><span>      Hello, </span><span>{</span><span>name</span><span>}</span></span>
+<span><span>      &lt;</span><span>button</span><span> onClick={() </span><span>=&gt;</span><span> setCounter</span><span>(</span><span>count</span><span> + </span><span>1</span><span>)}&gt;</span></span>
+<span><span>        Increment</span></span>
+<span><span>      &lt;/</span><span>button</span><span>&gt;</span></span>
+<span><span>    &lt;/</span><span>h1</span><span>&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>But our effect doesn’t use the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">counter</code> state. <strong>Our effect synchronizes the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">document.title</code> with the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code> prop, but the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code> prop is the same.</strong> Re-assigning <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">document.title</code> on every counter change seems non-ideal.</p>
+<p>OK, so can React just… diff effects?</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>let </span><span>oldEffect</span><span> =</span><span> ()</span><span> =&gt; </span><span>{</span><span> document</span><span>.</span><span>title</span><span> =</span><span> &#x27;</span><span>Hello, Dan</span><span>&#x27;</span><span>;</span><span> };</span></span>
+<span><span>let </span><span>newEffect</span><span> =</span><span> ()</span><span> =&gt; </span><span>{</span><span> document</span><span>.</span><span>title</span><span> =</span><span> &#x27;</span><span>Hello, Dan</span><span>&#x27;</span><span>;</span><span> };</span></span>
+<span><span>// Can React see these functions do the same thing?</span></span></code></pre></figure>
+<p>Not really. React can’t guess what the function does without calling it. (The source doesn’t really contain specific values, it just closes over the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code> prop.)</p>
+<p>This is why if you want to avoid re-running effects unnecessarily, you can provide a dependency array (also known as “deps”) argument to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> &#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>;</span></span>
+<span><span>  },</span><span> [</span><span>name</span><span>]);</span><span> // Our deps</span></span></code></pre></figure>
+<p><strong>It’s like if we told React: “Hey, I know you can’t see <em>inside</em> this function, but I promise it only uses <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">name</code> and nothing else from the render scope.”</strong></p>
+<p>If each of these values is the same between the current and the previous time this effect ran, there’s nothing to synchronize so React can skip the effect:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>const </span><span>oldEffect</span><span> =</span><span> ()</span><span> =&gt; </span><span>{</span><span> document</span><span>.</span><span>title</span><span> =</span><span> &#x27;</span><span>Hello, Dan</span><span>&#x27;</span><span>;</span><span> };</span></span>
+<span><span>const </span><span>oldDeps</span><span> =</span><span> [</span><span>&#x27;</span><span>Dan</span><span>&#x27;</span><span>];</span></span>
+<span> </span>
+<span><span>const </span><span>newEffect</span><span> =</span><span> ()</span><span> =&gt; </span><span>{</span><span> document</span><span>.</span><span>title</span><span> =</span><span> &#x27;</span><span>Hello, Dan</span><span>&#x27;</span><span>;</span><span> };</span></span>
+<span><span>const </span><span>newDeps</span><span> =</span><span> [</span><span>&#x27;</span><span>Dan</span><span>&#x27;</span><span>];</span></span>
+<span> </span>
+<span><span>// React can&#x27;t peek inside of functions, but it can compare deps.</span></span>
+<span><span>// Since all deps are the same, it doesn’t need to run the new effect.</span></span></code></pre></figure>
+<p>If even one of the values in the dependency array is different between renders, we know running the effect can’t be skipped. Synchronize all the things!</p>
+<h2 id="dont-lie-to-react-about-dependencies" class="group relative text-3xl font-bold mt-2"><a href="#dont-lie-to-react-about-dependencies" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Don’t Lie to React About Dependencies</a></h2>
+<p>Lying to React about dependencies has bad consequences. Intuitively, this makes sense, but I’ve seen pretty much everyone who tries <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> with a mental model from classes try to cheat the rules. (And I did that too at first!)</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>    // ...</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> []);</span><span> // Is this okay? Not always -- and there&#x27;s a better way to write it.</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><em>(The <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-faq.html#is-it-safe-to-omit-functions-from-the-list-of-dependencies">Hooks FAQ</a> explains what to do instead. We’ll come back to this example <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="#moving-functions-inside-effects">below</a>.)</em></p>
+<p>“But I only want to run it on mount!”, you’ll say. For now, remember: if you specify deps, <strong><em>all</em> values from inside your component that are used by the effect <em>must</em> be there</strong>. Including props, state, functions — anything in your component.</p>
+<p>Sometimes when you do that, it causes a problem. For example, maybe you see an infinite refetching loop, or a socket is recreated too often. <strong>The solution to that problem is <em>not</em> to remove a dependency.</strong> We’ll look at the solutions soon.</p>
+<p>But before we jump to solutions, let’s understand the problem better.</p>
+<h2 id="what-happens-when-dependencies-lie" class="group relative text-3xl font-bold mt-2"><a href="#what-happens-when-dependencies-lie" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>What Happens When Dependencies Lie</a></h2>
+<p>If deps contain every value used by the effect, React knows when to re-run it:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> &#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>;</span></span>
+<span><span>  },</span><span> [</span><span>name</span><span>]);</span></span></code></pre></figure>
+<p><img class="max-w-full" alt="Diagram of effects replacing one another"/></p>
+<p><em>(Dependencies are different, so we re-run the effect.)</em></p>
+<p>But if we specified <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code> for this effect, the new effect function wouldn’t run:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    document</span><span>.</span><span>title </span><span>=</span><span> &#x27;</span><span>Hello, </span><span>&#x27;</span><span> +</span><span> name</span><span>;</span></span>
+<span><span>  },</span><span> []);</span><span> // Wrong: name is missing in deps</span></span></code></pre></figure>
+<p><img class="max-w-full" alt="Diagram of effects replacing one another"/></p>
+<p><em>(Dependencies are equal, so we skip the effect.)</em></p>
+<p>In this case the problem might seem obvious. But the intuition can fool you in other cases where a class solution “jumps out” from your memory.</p>
+<p>For example, let’s say we’re writing a counter that increments every second. With a class, our intuition is: “Set up the interval once and destroy it once”. Here’s an <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/n5mjzjy9kl">example</a> of how we can do it. When we mentally translate this code to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>, we instinctively add <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code> to the deps. “I want it to run once”, right?</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      setCount</span><span>(</span><span>count</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> []);</span></span>
+<span> </span>
+<span><span>  return</span><span> &lt;</span><span>h1</span><span>&gt;{</span><span>count</span><span>}&lt;/</span><span>h1</span><span>&gt;;</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>However, this example <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/91n5z8jo7r">only <em>increments</em> once</a>. <em>Oops.</em></p>
+<p>If your mental model is “dependencies let me specify when I want to re-trigger the effect”, this example might give you an existential crisis. You <em>want</em> to trigger it once because it’s an interval — so why is it causing issues?</p>
+<p>However, this makes sense if you know that dependencies are our hint to React about <em>everything</em> that the effect uses from the render scope. It uses <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> but we lied that it doesn’t with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code>. It’s only a matter of time before this bites us!</p>
+<p>In the first render, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">0</code>. Therefore, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(count + 1)</code> in the first render’s effect means <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(0 + 1)</code>. <strong>Since we never re-run the effect because of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code> deps, it will keep calling <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(0 + 1)</code> every second:</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// First render, state is 0</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect from first render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>        setCount</span><span>(</span><span>0</span><span> +</span><span> 1</span><span>);</span><span> // Always setCount(1)</span></span>
+<span><span>      },</span><span> 1000</span><span>);</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    },</span></span>
+<span><span>    []</span><span> // Never re-runs</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// Every next render, state is 1</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // This effect is always ignored because</span></span>
+<span><span>    // we lied to React about empty deps.</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>        setCount</span><span>(</span><span>1</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>      },</span><span> 1000</span><span>);</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    },</span></span>
+<span><span>    []</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>We lied to React by saying our effect doesn’t depend on a value from inside our component, when in fact it does!</p>
+<p>Our effect uses <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> — a value inside the component (but outside the effect):</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  const </span><span>count</span><span> =</span><span> // ...</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      setCount</span><span>(</span><span>count</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> []);</span></span></code></pre></figure>
+<p>Therefore, specifying <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code> as a dependency will create a bug. React will compare the dependencies, and skip updating this effect:</p>
+<p><img class="max-w-full" alt="Diagram of stale interval closure"/></p>
+<p><em>(Dependencies are equal, so we skip the effect.)</em></p>
+<p>Issues like this are difficult to think about. Therefore, I encourage you to adopt it as a hard rule to always be honest about the effect dependencies, and specify them all. (We provide a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://github.com/facebook/react/issues/14920">lint rule</a> if you want to enforce this on your team.)</p>
+<h2 id="two-ways-to-be-honest-about-dependencies" class="group relative text-3xl font-bold mt-2"><a href="#two-ways-to-be-honest-about-dependencies" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Two Ways to Be Honest About Dependencies</a></h2>
+<p>There are two strategies to be honest about dependencies. You should generally start with the first one, and then apply the second one if needed.</p>
+<p><strong>The first strategy is to fix the dependency array to include <em>all</em> the values inside the component that are used inside the effect.</strong> Let’s include <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> as a dep:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>  const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>    setCount</span><span>(</span><span>count</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>  },</span><span> 1000</span><span>);</span></span>
+<span><span>  return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>},</span><span> [</span><span>count</span><span>]);</span></span></code></pre></figure>
+<p>This makes the dependency array correct. It may not be <em>ideal</em> but that’s the first issue we needed to fix. Now a change to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> will re-run the effect, with each next interval referencing <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> from its render in <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(count + 1)</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// First render, state is 0</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect from first render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>        setCount</span><span>(</span><span>0</span><span> +</span><span> 1</span><span>);</span><span> // setCount(count + 1)</span></span>
+<span><span>      },</span><span> 1000</span><span>);</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    },</span></span>
+<span><span>    [</span><span>0</span><span>]</span><span> // [count]</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>// Second render, state is 1</span></span>
+<span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(</span></span>
+<span><span>    // Effect from second render</span></span>
+<span><span>    ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>        setCount</span><span>(</span><span>1</span><span> +</span><span> 1</span><span>);</span><span> // setCount(count + 1)</span></span>
+<span><span>      },</span><span> 1000</span><span>);</span></span>
+<span><span>      return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    },</span></span>
+<span><span>    [</span><span>1</span><span>]</span><span> // [count]</span></span>
+<span><span>  );</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>That would <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/0x0mnlyq8l">fix the problem</a> but our interval would be cleared and set again whenever the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> changes. That may be undesirable:</p>
+<p><img class="max-w-full" alt="Diagram of interval that re-subscribes"/></p>
+<p><em>(Dependencies are different, so we re-run the effect.)</em></p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<p><strong>The second strategy is to change our effect code so that it wouldn’t <em>need</em> a value that changes more often than we want.</strong> We don’t want to lie about the dependencies — we just want to change our effect to have <em>fewer</em> of them.</p>
+<p>Let’s look at a few common techniques for removing dependencies.</p>
+<hr class="opacity-60 dark:opacity-10 mt-4"/>
+<h2 id="making-effects-self-sufficient" class="group relative text-3xl font-bold mt-2"><a href="#making-effects-self-sufficient" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Making Effects Self-Sufficient</a></h2>
+<p>We want to get rid of the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> dependency in our effect.</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      setCount</span><span>(</span><span>count</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> [</span><span>count</span><span>]);</span></span></code></pre></figure>
+<p>To do this, we need to ask ourselves: <strong>what are we using <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> for?</strong> It seems like we only use it for the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount</code> call. In that case, we don’t actually need <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> in the scope at all. When we want to update state based on the previous state, we can use the <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-reference.html#functional-updates">functional updater form</a> of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setState</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      setCount</span><span>(</span><span>c</span><span> =&gt; </span><span>c</span><span> +</span><span> 1</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> []);</span></span></code></pre></figure>
+<p>I like to think of these cases as “false dependencies”. Yes, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> was a necessary dependency because we wrote <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(count + 1)</code> inside the effect. However, we only truly needed <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> to transform it into <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count + 1</code> and “send it back” to React. But React <em>already knows</em> the current <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code>. <strong>All we needed to tell React is to increment the state — whatever it is right now.</strong></p>
+<p>That’s exactly what <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(c =&gt; c + 1)</code> does. You can think of it as “sending an instruction” to React about how the state should change. This “updater form” also helps in other cases, like when you <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="/react-as-a-ui-runtime/#batching">batch multiple updates</a>.</p>
+<p><strong>Note that we actually <em>did the work</em> to remove the dependency. We didn’t cheat. Our effect doesn’t read the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">counter</code> value from the render scope anymore:</strong></p>
+<p><img class="max-w-full" alt="Diagram of interval that works"/></p>
+<p><em>(Dependencies are equal, so we skip the effect.)</em></p>
+<p>You can try it <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/q3181xz1pj">here</a>.</p>
+<p>Even though this effect only runs once, the interval callback that belongs to the first render is perfectly capable of sending the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">c =&gt; c + 1</code> update instruction every time the interval fires. It doesn’t need to know the current <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">counter</code> state anymore. React already knows it.</p>
+<h2 id="functional-updates-and-google-docs" class="group relative text-3xl font-bold mt-2"><a href="#functional-updates-and-google-docs" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Functional Updates and Google Docs</a></h2>
+<p>Remember how we talked about synchronization being the mental model for effects? An interesting aspect of synchronization is that you often want to keep the “messages” between the systems untangled from their state. For example, editing a document in Google Docs doesn’t actually send the <em>whole</em> page to the server. That would be very inefficient. Instead, it sends a representation of what the user tried to do.</p>
+<p>While our use case is different, a similar philosophy applies to effects. <strong>It helps to send only the minimal necessary information from inside the effects into a component.</strong> The updater form like <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(c =&gt; c + 1)</code> conveys strictly less information than <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(count + 1)</code> because it isn’t “tainted” by the current count. It only expresses the action (“incrementing”). Thinking in React involves <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/thinking-in-react.html#step-3-identify-the-minimal-but-complete-representation-of-ui-state">finding the minimal state</a>. This is the same principle, but for updates.</p>
+<p>Encoding the <em>intent</em> (rather than the result) is similar to how Google Docs <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://medium.com/@srijancse/how-real-time-collaborative-editing-work-operational-transformation-ac4902d75682">solves</a> collaborative editing. While this is stretching the analogy, functional updates serve a similar role in React. They ensure updates from multiple sources (event handlers, effect subscriptions, etc) can be correctly applied in a batch and in a predictable way.</p>
+<p><strong>However, even <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(c =&gt; c + 1)</code> isn’t that great.</strong> It looks a bit weird and it’s very limited in what it can do. For example, if we had two state variables whose values depend on each other, or if we needed to calculate the next state based on a prop, it wouldn’t help us. Luckily, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setCount(c =&gt; c + 1)</code> has a more powerful sister pattern. Its name is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useReducer</code>.</p>
+<h2 id="decoupling-updates-from-actions" class="group relative text-3xl font-bold mt-2"><a href="#decoupling-updates-from-actions" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Decoupling Updates from Actions</a></h2>
+<p>Let’s modify the previous example to have two state variables: <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">count</code> and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code>. Our interval will increment the count by the value of the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> input:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> setCount</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>0</span><span>);</span></span>
+<span><span>  const [</span><span>step</span><span>,</span><span> setStep</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>1</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      setCount</span><span>(</span><span>c</span><span> =&gt; </span><span>c</span><span> +</span><span> step</span><span>);</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> [</span><span>step</span><span>]);</span></span>
+<span> </span>
+<span><span>  return</span><span> (</span></span>
+<span><span>    &lt;&gt;</span></span>
+<span><span>      &lt;</span><span>h1</span><span>&gt;{</span><span>count</span><span>}&lt;/</span><span>h1</span><span>&gt;</span></span>
+<span><span>      &lt;</span><span>input</span><span> value={</span><span>step</span><span>} onChange={</span><span>e</span><span> =&gt;</span><span> setStep</span><span>(</span><span>Number</span><span>(</span><span>e</span><span>.</span><span>target</span><span>.</span><span>value</span><span>))} /&gt;</span></span>
+<span><span>    &lt;/&gt;</span></span>
+<span><span>  );</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>(Here’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/zxn70rnkx">demo</a>.)</p>
+<p>Note that <strong>we’re not cheating</strong>. Since I started using <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> inside the effect, I added it to the dependencies. And that’s why the code runs correctly.</p>
+<p>The current behavior in this example is that changing the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> restarts the interval — because it’s one of the dependencies. And in many cases, that is exactly what you want! There’s nothing wrong with tearing down an effect and setting it up anew, and we shouldn’t avoid that unless we have a good reason.</p>
+<p>However, let’s say we want the interval clock to not reset on changes to the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code>. How do we remove the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> dependency from our effect?</p>
+<p><strong>When setting a state variable depends on the current value of another state variable, you might want to try replacing them both with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useReducer</code>.</strong></p>
+<p>When you find yourself writing <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setSomething(something =&gt; ...)</code>, it’s a good time to consider using a reducer instead. A reducer lets you <strong>decouple expressing the “actions” that happened in your component from how the state updates in response to them</strong>.</p>
+<p>Let’s trade the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> dependency for a <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">dispatch</code> dependency in our effect:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>const [</span><span>state</span><span>,</span><span> dispatch</span><span>] </span><span>=</span><span> useReducer</span><span>(</span><span>reducer</span><span>,</span><span> initialState</span><span>);</span></span>
+<span><span>const { </span><span>count</span><span>,</span><span> step</span><span> } </span><span>=</span><span> state</span><span>;</span></span>
+<span> </span>
+<span><span>useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>  const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>    dispatch</span><span>({</span><span> type</span><span>:</span><span> &#x27;</span><span>tick</span><span>&#x27;</span><span> });</span><span> // Instead of setCount(c =&gt; c + step);</span></span>
+<span><span>  },</span><span> 1000</span><span>);</span></span>
+<span><span>  return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>},</span><span> [</span><span>dispatch</span><span>]);</span></span></code></pre></figure>
+<p>(See the <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/xzr480k0np">demo</a>.)</p>
+<p>You might ask me: “How is this any better?” The answer is that <strong>React guarantees the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">dispatch</code> function to be constant throughout the component lifetime. So the example above doesn’t ever need to resubscribe the interval.</strong></p>
+<p>We solved our problem!</p>
+<p><em>(You may omit <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">dispatch</code>, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">setState</code>, and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useRef</code> container values from the deps because React guarantees them to be static. But it also doesn’t hurt to specify them.)</em></p>
+<p>Instead of reading the state <em>inside</em> an effect, it dispatches an <em>action</em> that encodes the information about <em>what happened</em>. This allows our effect to stay decoupled from the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">step</code> state. Our effect doesn’t care <em>how</em> we update the state, it just tells us about <em>what happened</em>. And the reducer centralizes the update logic:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>const </span><span>initialState</span><span> =</span><span> {</span></span>
+<span><span>  count</span><span>:</span><span> 0</span><span>,</span></span>
+<span><span>  step</span><span>:</span><span> 1</span><span>,</span></span>
+<span><span>};</span></span>
+<span> </span>
+<span><span>function</span><span> reducer</span><span>(</span><span>state</span><span>,</span><span> action</span><span>)</span><span> {</span></span>
+<span><span>  const { </span><span>count</span><span>,</span><span> step</span><span> } </span><span>=</span><span> state</span><span>;</span></span>
+<span><span>  if</span><span> (</span><span>action</span><span>.</span><span>type </span><span>===</span><span> &#x27;</span><span>tick</span><span>&#x27;</span><span>)</span><span> {</span></span>
+<span><span>    return</span><span> {</span><span> count</span><span>:</span><span> count </span><span>+</span><span> step</span><span>,</span><span> step </span><span>};</span></span>
+<span><span>  }</span><span> else</span><span> if</span><span> (</span><span>action</span><span>.</span><span>type </span><span>===</span><span> &#x27;</span><span>step</span><span>&#x27;</span><span>)</span><span> {</span></span>
+<span><span>    return</span><span> {</span><span> count</span><span>,</span><span> step</span><span>:</span><span> action</span><span>.</span><span>step </span><span>};</span></span>
+<span><span>  }</span><span> else</span><span> {</span></span>
+<span><span>    throw</span><span> new</span><span> Error</span><span>();</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>(Here’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/xzr480k0np">demo</a> if you missed it earlier).</p>
+<h2 id="why-usereducer-is-the-cheat-mode-of-hooks" class="group relative text-3xl font-bold mt-2"><a href="#why-usereducer-is-the-cheat-mode-of-hooks" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Why useReducer Is the Cheat Mode of Hooks</a></h2>
+<p>We’ve seen how to remove dependencies when an effect needs to set state based on previous state, or on another state variable. <strong>But what if we need <em>props</em> to calculate the next state?</strong> For example, maybe our API is <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&lt;Counter step={1} /&gt;</code>. Surely, in this case we can’t avoid specifying <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">props.step</code> as a dependency?</p>
+<p>In fact, we can! We can put <em>the reducer itself</em> inside our component to read props:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Counter</span><span>(</span><span>{ step }</span><span>)</span><span> {</span></span>
+<span><span>  const [</span><span>count</span><span>,</span><span> dispatch</span><span>] </span><span>=</span><span> useReducer</span><span>(</span><span>reducer</span><span>,</span><span> 0</span><span>);</span></span>
+<span> </span>
+<span><span>  function</span><span> reducer</span><span>(</span><span>state</span><span>,</span><span> action</span><span>)</span><span> {</span></span>
+<span><span>    if</span><span> (</span><span>action</span><span>.</span><span>type </span><span>===</span><span> &#x27;</span><span>tick</span><span>&#x27;</span><span>)</span><span> {</span></span>
+<span><span>      return</span><span> state </span><span>+</span><span> step</span><span>;</span></span>
+<span><span>    }</span><span> else</span><span> {</span></span>
+<span><span>      throw</span><span> new</span><span> Error</span><span>();</span></span>
+<span><span>    }</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>id</span><span> =</span><span> setInterval</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>      dispatch</span><span>({</span><span> type</span><span>:</span><span> &#x27;</span><span>tick</span><span>&#x27;</span><span> });</span></span>
+<span><span>    },</span><span> 1000</span><span>);</span></span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> clearInterval</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>  },</span><span> [</span><span>dispatch</span><span>]);</span></span>
+<span> </span>
+<span><span>  return</span><span> &lt;</span><span>h1</span><span>&gt;{</span><span>count</span><span>}&lt;/</span><span>h1</span><span>&gt;;</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>This pattern disables a few optimizations so try not to use it everywhere, but you can totally access props from a reducer if you need to. (Here’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/7ypm405o8q">demo</a>.)</p>
+<p><strong>Even in that case, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">dispatch</code> identity is still guaranteed to be stable between re-renders.</strong> So you may omit it from the effect deps if you want. It’s not going to cause the effect to re-run.</p>
+<p>You may be wondering: how can this possibly work? How can the reducer “know” props when called from inside an effect that belongs to another render? The answer is that when you <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">dispatch</code>, React just remembers the action — but it will <em>call</em> your reducer during the next render. At that point the fresh props will be in scope, and you won’t be inside an effect.</p>
+<p><strong>This is why I like to think of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useReducer</code> as the “cheat mode” of Hooks. It lets me decouple the update logic from describing what happened. This, in turn, helps me remove unnecessary dependencies from my effects and avoid re-running them more often than necessary.</strong></p>
+<h2 id="moving-functions-inside-effects" class="group relative text-3xl font-bold mt-2"><a href="#moving-functions-inside-effects" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Moving Functions Inside Effects</a></h2>
+<p>A common mistake is to think functions shouldn’t be dependencies. For example, this seems like it could work:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>data</span><span>,</span><span> setData</span><span>] </span><span>=</span><span> useState</span><span>({</span><span> hits</span><span>:</span><span> []</span><span> });</span></span>
+<span> </span>
+<span><span>  async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>    const </span><span>result</span><span> =</span><span> await </span><span>axios</span><span>(</span></span>
+<span><span>      &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=react</span><span>&#x27;</span><span>,</span></span>
+<span><span>    );</span></span>
+<span><span>    setData</span><span>(</span><span>result</span><span>.</span><span>data</span><span>);</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> []);</span><span> // Is this okay?</span></span>
+<span> </span>
+<span><span>  // ...</span></span></code></pre></figure>
+<p><em>(<a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/8j4ykjyv0">This example</a> is adapted from a great article by Robin Wieruch — <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://www.robinwieruch.de/react-hooks-fetch-data/">check it out</a>!)</em></p>
+<p>And to be clear, this code <em>does</em> work. <strong>But the problem with simply omitting local functions is that it gets pretty hard to tell whether we’re handling all cases as the component grows!</strong></p>
+<p>Imagine our code was split like this and each function was five times larger:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  // Imagine this function is long</span></span>
+<span><span>  function</span><span> getFetchUrl</span><span>()</span><span> {</span></span>
+<span><span>    return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=react</span><span>&#x27;</span><span>;</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  // Imagine this function is also long</span></span>
+<span><span>  async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>    const </span><span>result</span><span> =</span><span> await </span><span>axios</span><span>(</span><span>getFetchUrl</span><span>());</span></span>
+<span><span>    setData</span><span>(</span><span>result</span><span>.</span><span>data</span><span>);</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> []);</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Now let’s say we later use some state or prop in one of these functions:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>query</span><span>,</span><span> setQuery</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span> </span>
+<span><span>  // Imagine this function is also long</span></span>
+<span><span>  function</span><span> getFetchUrl</span><span>()</span><span> {</span></span>
+<span><span>    return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  // Imagine this function is also long</span></span>
+<span><span>  async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>    const </span><span>result</span><span> =</span><span> await </span><span>axios</span><span>(</span><span>getFetchUrl</span><span>());</span></span>
+<span><span>    setData</span><span>(</span><span>result</span><span>.</span><span>data</span><span>);</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> []);</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>If we forget to update the deps of any effects that call these functions (possibly, through other functions!), our effects will fail to synchronize changes from our props and state. This doesn’t sound great.</p>
+<p>Luckily, there is an easy solution to this problem. <strong>If you only use some functions <em>inside</em> an effect, move them directly <em>into</em> that effect:</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  // ...</span></span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    // We moved these functions inside!</span></span>
+<span><span>    function</span><span> getFetchUrl</span><span>()</span><span> {</span></span>
+<span><span>      return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=react</span><span>&#x27;</span><span>;</span></span>
+<span><span>    }</span></span>
+<span> </span>
+<span><span>    async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>      const </span><span>result</span><span> =</span><span> await </span><span>axios</span><span>(</span><span>getFetchUrl</span><span>());</span></span>
+<span><span>      setData</span><span>(</span><span>result</span><span>.</span><span>data</span><span>);</span></span>
+<span><span>    }</span></span>
+<span> </span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> []);</span><span> // ✅ Deps are OK</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>(<a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/04kp3jwwql">Here’s a demo</a>.)</p>
+<p>So what is the benefit? We no longer have to think about the “transitive dependencies”. Our dependencies array isn’t lying anymore: <strong>we truly <em>aren’t</em> using anything from the outer scope of the component in our effect</strong>.</p>
+<p>If we later edit <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> to use the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> state, we’re much more likely to notice that we’re editing it <em>inside</em> an effect — and therefore, we need to add <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> to the effect dependencies:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>query</span><span>,</span><span> setQuery</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    function</span><span> getFetchUrl</span><span>()</span><span> {</span></span>
+<span><span>      return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>    }</span></span>
+<span> </span>
+<span><span>    async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>      const </span><span>result</span><span> =</span><span> await </span><span>axios</span><span>(</span><span>getFetchUrl</span><span>());</span></span>
+<span><span>      setData</span><span>(</span><span>result</span><span>.</span><span>data</span><span>);</span></span>
+<span><span>    }</span></span>
+<span> </span>
+<span><span>    fetchData</span><span>();</span></span>
+<span><span>  },</span><span> [</span><span>query</span><span>]);</span><span> // ✅ Deps are OK</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>(Here’s a <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://codesandbox.io/s/pwm32zx7z7">demo</a>.)</p>
+<p>By adding this dependency, we’re not just “appeasing React”. It <em>makes sense</em> to refetch the data when the query changes. <strong>The design of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> forces you to notice the change in our data flow and choose how our effects should synchronize it — instead of ignoring it until our product users hit a bug.</strong></p>
+<p>Thanks to the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">exhaustive-deps</code> lint rule from the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">eslint-plugin-react-hooks</code> plugin, you can <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://github.com/facebook/react/issues/14920">analyze the effects as you type in your editor</a> and receive suggestions about which dependencies are missing. In other words, a machine can tell you which data flow changes aren’t handled correctly by a component.</p>
+<p><img class="max-w-full" alt="Lint rule gif"/></p>
+<p>Pretty sweet.</p>
+<h2 id="but-i-cant-put-this-function-inside-an-effect" class="group relative text-3xl font-bold mt-2"><a href="#but-i-cant-put-this-function-inside-an-effect" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>But I Can’t Put This Function Inside an Effect</a></h2>
+<p>Sometimes you might not want to move a function <em>inside</em> an effect. For example, several effects in the same component may call the same function, and you don’t want to copy and paste its logic. Or maybe it’s a prop.</p>
+<p>Should you skip a function like this in the effect dependencies? I think not. Again, <strong>effects shouldn’t lie about their dependencies.</strong> There are usually better solutions. A common misconception is that “a function would never change”. But as we learned throughout this article, this couldn’t be further from truth. Indeed, a function defined inside a component changes on every render!</p>
+<p><strong>That by itself presents a problem.</strong> Say two effects call <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  function</span><span> getFetchUrl</span><span>(</span><span>query</span><span>)</span><span> {</span></span>
+<span><span>    return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> []);</span><span> // 🔴 Missing dep: getFetchUrl</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>redux</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> []);</span><span> // 🔴 Missing dep: getFetchUrl</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>In that case you might not want to move <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> inside either of the effects since you wouldn’t be able to share the logic.</p>
+<p>On the other hand, if you’re “honest” about the effect dependencies, you may run into a problem. Since both our effects depend on <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> <strong>(which is different on every render)</strong>, our dependency arrays are useless:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  // 🔴 Re-triggers all effects on every render</span></span>
+<span><span>  function</span><span> getFetchUrl</span><span>(</span><span>query</span><span>)</span><span> {</span></span>
+<span><span>    return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  }</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> [</span><span>getFetchUrl</span><span>]);</span><span> // 🚧 Deps are correct but they change too often</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>redux</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> [</span><span>getFetchUrl</span><span>]);</span><span> // 🚧 Deps are correct but they change too often</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>A tempting solution to this is to just skip the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> function in the deps list. However, I don’t think it’s a good solution. This makes it difficult to notice when we <em>are</em> adding a change to the data flow that <em>needs</em> to be handled by an effect. This leads to bugs like the “never updating interval” we saw earlier.</p>
+<p>Instead, there are two other solutions that are simpler.</p>
+<p><strong>First of all, if a function doesn’t use anything from the component scope, you can hoist it outside the component and then freely use it inside your effects:</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>// ✅ Not affected by the data flow</span></span>
+<span><span>function</span><span> getFetchUrl</span><span>(</span><span>query</span><span>)</span><span> {</span></span>
+<span><span>  return</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> []);</span><span> // ✅ Deps are OK</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>redux</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> []);</span><span> // ✅ Deps are OK</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>There’s no need to specify it in deps because it’s not in the render scope and can’t be affected by the data flow. It can’t accidentally depend on props or state.</p>
+<p>Alternatively, you can wrap it into the <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-reference.html#usecallback"><code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> Hook</a>:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  // ✅ Preserves identity when its own deps are the same</span></span>
+<span><span>  const </span><span>getFetchUrl</span><span> =</span><span> useCallback</span><span>((</span><span>query</span><span>)</span><span> =&gt; </span><span>{</span></span>
+<span><span>    return </span><span>&#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  },</span><span> []);</span><span>  // ✅ Callback deps are OK</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> [</span><span>getFetchUrl</span><span>]);</span><span> // ✅ Effect deps are OK</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>(</span><span>&#x27;</span><span>redux</span><span>&#x27;</span><span>);</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> [</span><span>getFetchUrl</span><span>]);</span><span> // ✅ Effect deps are OK</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> is essentially like adding another layer of dependency checks. It’s solving the problem on the other end — <strong>rather than avoid a function dependency, we make the function itself only change when necessary</strong>.</p>
+<p>Let’s see why this approach is useful. Previously, our example showed two search results (for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&#x27;react&#x27;</code> and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">&#x27;redux&#x27;</code> search queries). But let’s say we want to add an input so that you can search for an arbitrary <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code>. So instead of taking <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> as an argument, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> will now read it from local state.</p>
+<p>We’ll immediately see that it’s missing a <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> dependency:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>query</span><span>,</span><span> setQuery</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span><span>  const </span><span>getFetchUrl</span><span> =</span><span> useCallback</span><span>(()</span><span> =&gt; </span><span>{</span><span> // No query argument</span></span>
+<span><span>    return </span><span>&#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  },</span><span> []);</span><span> // 🔴 Missing dep: query</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>If I fix my <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> deps to include <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code>, any effect with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> in deps will re-run whenever the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> changes:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> SearchResults</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>query</span><span>,</span><span> setQuery</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span> </span>
+<span><span>  // ✅ Preserves identity until query changes</span></span>
+<span><span>  const </span><span>getFetchUrl</span><span> =</span><span> useCallback</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>    return </span><span>&#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>  },</span><span> [</span><span>query</span><span>]);</span><span>  // ✅ Callback deps are OK</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> getFetchUrl</span><span>();</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  },</span><span> [</span><span>getFetchUrl</span><span>]);</span><span> // ✅ Effect deps are OK</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Thanks to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code>, if <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> is the same, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> also stays the same, and our effect doesn’t re-run. But if <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> changes, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">getFetchUrl</code> will also change, and we will re-fetch the data. It’s a lot like when you change some cell in an Excel spreadsheet, and the other cells using it recalculate automatically.</p>
+<p>This is just a consequence of embracing the data flow and the synchronization mindset. <strong>The same solution works for function props passed from parents:</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Parent</span><span>()</span><span> {</span></span>
+<span><span>  const [</span><span>query</span><span>,</span><span> setQuery</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>react</span><span>&#x27;</span><span>);</span></span>
+<span> </span>
+<span><span>  // ✅ Preserves identity until query changes</span></span>
+<span><span>  const </span><span>fetchData</span><span> =</span><span> useCallback</span><span>(()</span><span> =&gt; </span><span>{</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> query</span><span>;</span></span>
+<span><span>    // ... Fetch data and return it ...</span></span>
+<span><span>  },</span><span> [</span><span>query</span><span>]);</span><span>  // ✅ Callback deps are OK</span></span>
+<span> </span>
+<span><span>  return</span><span> &lt;</span><span>Child</span><span> fetchData={</span><span>fetchData</span><span>} /&gt;</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>function</span><span> Child</span><span>(</span><span>{ fetchData }</span><span>)</span><span> {</span></span>
+<span><span>  let [</span><span>data</span><span>,</span><span> setData</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>null</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    fetchData</span><span>().</span><span>then</span><span>(</span><span>setData</span><span>);</span></span>
+<span><span>  },</span><span> [</span><span>fetchData</span><span>]);</span><span> // ✅ Effect deps are OK</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Since <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">fetchData</code> only changes inside <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">Parent</code> when its <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> state changes, our <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">Child</code> won’t refetch the data until it’s actually necessary for the app.</p>
+<h2 id="are-functions-part-of-the-data-flow" class="group relative text-3xl font-bold mt-2"><a href="#are-functions-part-of-the-data-flow" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Are Functions Part of the Data Flow?</a></h2>
+<p>Interestingly, this pattern is broken with classes in a way that really shows the difference between the effect and lifecycle paradigms. Consider this translation:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>class</span><span> Parent</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    query</span><span>:</span><span> &#x27;</span><span>react</span><span>&#x27;</span></span>
+<span><span>  };</span></span>
+<span><span>  fetchData</span><span> =</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> this</span><span>.</span><span>state</span><span>.</span><span>query</span><span>;</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  };</span></span>
+<span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    return</span><span> &lt;</span><span>Child</span><span> fetchData={</span><span>this</span><span>.</span><span>fetchData</span><span>} /&gt;;</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>class</span><span> Child</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    data</span><span>:</span><span> null</span></span>
+<span><span>  };</span></span>
+<span><span>  componentDidMount</span><span>()</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>  }</span></span>
+<span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    // ...</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>You might be thinking: “Come on Dan, we all know that <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> is like <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidMount</code> and <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidUpdate</code> combined, you can’t keep beating that drum!” <strong>Yet this doesn’t work even with <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">componentDidUpdate</code>:</strong></p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>class</span><span> Child</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    data</span><span>:</span><span> null</span></span>
+<span><span>  };</span></span>
+<span><span>  componentDidMount</span><span>()</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>  }</span></span>
+<span><span>  componentDidUpdate</span><span>(</span><span>prevProps</span><span>)</span><span> {</span></span>
+<span><span>    // 🔴 This condition will never be true</span></span>
+<span><span>    if</span><span> (</span><span>this</span><span>.</span><span>props</span><span>.</span><span>fetchData </span><span>!==</span><span> prevProps</span><span>.</span><span>fetchData</span><span>)</span><span> {</span></span>
+<span><span>      this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>    }</span></span>
+<span><span>  }</span></span>
+<span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    // ...</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Of course, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">fetchData</code> is a class method! (Or, rather, a class property — but that doesn’t change anything.) It’s not going to be different because of a state change. So <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.props.fetchData</code> will stay equal to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">prevProps.fetchData</code> and we’ll never refetch. Let’s just remove this condition then?</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  componentDidUpdate</span><span>(</span><span>prevProps</span><span>)</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>  }</span></span></code></pre></figure>
+<p>Oh wait, this fetches on <em>every</em> re-render. (Adding an animation above in the tree is a fun way to discover it.) Maybe let’s bind it to a particular query?</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    return</span><span> &lt;</span><span>Child</span><span> fetchData={</span><span>this</span><span>.</span><span>fetchData</span><span>.</span><span>bind</span><span>(</span><span>this</span><span>, </span><span>this</span><span>.</span><span>state</span><span>.</span><span>query</span><span>)} /&gt;;</span></span>
+<span><span>  }</span></span></code></pre></figure>
+<p>But then <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.props.fetchData !== prevProps.fetchData</code> is <em>always</em> <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">true</code>, even if the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> didn’t change! So we’ll <em>always</em> refetch.</p>
+<p>The only real solution to this conundrum with classes is to bite the bullet and pass the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code> itself into the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">Child</code> component. The <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">Child</code> doesn’t actually end up <em>using</em> the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">query</code>, but it can trigger a refetch when it changes:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>class</span><span> Parent</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    query</span><span>:</span><span> &#x27;</span><span>react</span><span>&#x27;</span></span>
+<span><span>  };</span></span>
+<span><span>  fetchData</span><span> =</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    const </span><span>url</span><span> =</span><span> &#x27;</span><span>https://hn.algolia.com/api/v1/search?query=</span><span>&#x27;</span><span> +</span><span> this</span><span>.</span><span>state</span><span>.</span><span>query</span><span>;</span></span>
+<span><span>    // ... Fetch data and do something ...</span></span>
+<span><span>  };</span></span>
+<span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    return</span><span> &lt;</span><span>Child</span><span> fetchData={</span><span>this</span><span>.</span><span>fetchData</span><span>} query={</span><span>this</span><span>.</span><span>state</span><span>.</span><span>query</span><span>} /&gt;;</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span>
+<span> </span>
+<span><span>class</span><span> Child</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    data</span><span>:</span><span> null</span></span>
+<span><span>  };</span></span>
+<span><span>  componentDidMount</span><span>()</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>  }</span></span>
+<span><span>  componentDidUpdate</span><span>(</span><span>prevProps</span><span>)</span><span> {</span></span>
+<span><span>    if</span><span> (</span><span>this</span><span>.</span><span>props</span><span>.</span><span>query </span><span>!==</span><span> prevProps</span><span>.</span><span>query</span><span>)</span><span> {</span></span>
+<span><span>      this</span><span>.</span><span>props</span><span>.</span><span>fetchData</span><span>();</span></span>
+<span><span>    }</span></span>
+<span><span>  }</span></span>
+<span><span>  render</span><span>()</span><span> {</span></span>
+<span><span>    // ...</span></span>
+<span><span>  }</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>Over the years of working with classes with React, I’ve gotten so used to passing unnecessary props down and breaking encapsulation of parent components that I only realized a week ago why we had to do it.</p>
+<p><strong>With classes, function props by themselves aren’t truly a part of the data flow.</strong> Methods close over the mutable <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this</code> variable so we can’t rely on their identity to mean anything. Therefore, even when we only want a function, we have to pass a bunch of other data around in order to be able to “diff” it. We can’t know whether <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">this.props.fetchData</code> passed from the parent depends on some state or not, and whether that state has just changed.</p>
+<p><strong>With <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code>, functions can fully participate in the data flow.</strong> We can say that if the function inputs changed, the function itself has changed, but if not, it stayed the same. Thanks to the granularity provided by <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code>, changes to props like <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">props.fetchData</code> can propagate down automatically.</p>
+<p>Similarly, <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-reference.html#usememo"><code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useMemo</code></a> lets us do the same for complex objects:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> ColorPicker</span><span>()</span><span> {</span></span>
+<span><span>  // Doesn&#x27;t break Child&#x27;s shallow equality prop check</span></span>
+<span><span>  // unless the color actually changes.</span></span>
+<span><span>  const [</span><span>color</span><span>,</span><span> setColor</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>&#x27;</span><span>pink</span><span>&#x27;</span><span>);</span></span>
+<span><span>  const </span><span>style</span><span> =</span><span> useMemo</span><span>(()</span><span> =&gt; </span><span>({</span><span> color </span><span>}),</span><span> [</span><span>color</span><span>]);</span></span>
+<span><span>  return</span><span> &lt;</span><span>Child</span><span> style={</span><span>style</span><span>} /&gt;;</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><strong>I want to emphasize that putting <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useCallback</code> everywhere is pretty clunky.</strong> It’s a nice escape hatch and it’s useful when a function is both passed down <em>and</em> called from inside an effect in some children. Or if you’re trying to prevent breaking memoization of a child component. But Hooks lend themselves better to <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/docs/hooks-faq.html#how-to-avoid-passing-callbacks-down">avoiding passing callbacks down</a> altogether.</p>
+<p>In the above examples, I’d much prefer if <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">fetchData</code> was either inside my effect (which itself could be extracted to a custom Hook) or a top-level import. I want to keep the effects simple, and callbacks in them don’t help that. (“What if some <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">props.onComplete</code> callback changes while the request was in flight?”) You can <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="#swimming-against-the-tide">simulate the class behavior</a> but that doesn’t solve race conditions.</p>
+<h2 id="speaking-of-race-conditions" class="group relative text-3xl font-bold mt-2"><a href="#speaking-of-race-conditions" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Speaking of Race Conditions</a></h2>
+<p>A classic data fetching example with classes might look like this:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>class</span><span> Article</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    article</span><span>:</span><span> null</span></span>
+<span><span>  };</span></span>
+<span><span>  componentDidMount</span><span>()</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>fetchData</span><span>(</span><span>this</span><span>.</span><span>props</span><span>.</span><span>id</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  async</span><span> fetchData</span><span>(</span><span>id</span><span>)</span><span> {</span></span>
+<span><span>    const </span><span>article</span><span> =</span><span> await </span><span>API</span><span>.</span><span>fetchArticle</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    this</span><span>.</span><span>setState</span><span>({</span><span> article </span><span>});</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>As you probably know, this code is buggy. It doesn’t handle updates. So the second classic example you could find online is something like this:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>class</span><span> Article</span><span> extends</span><span> Component </span><span>{</span></span>
+<span><span>  state </span><span>=</span><span> {</span></span>
+<span><span>    article</span><span>:</span><span> null</span></span>
+<span><span>  };</span></span>
+<span><span>  componentDidMount</span><span>()</span><span> {</span></span>
+<span><span>    this</span><span>.</span><span>fetchData</span><span>(</span><span>this</span><span>.</span><span>props</span><span>.</span><span>id</span><span>);</span></span>
+<span><span>  }</span></span>
+<span><span>  componentDidUpdate</span><span>(</span><span>prevProps</span><span>)</span><span> {</span></span>
+<span><span>    if</span><span> (</span><span>prevProps</span><span>.</span><span>id </span><span>!==</span><span> this</span><span>.</span><span>props</span><span>.</span><span>id</span><span>)</span><span> {</span></span>
+<span><span>      this</span><span>.</span><span>fetchData</span><span>(</span><span>this</span><span>.</span><span>props</span><span>.</span><span>id</span><span>);</span></span>
+<span><span>    }</span></span>
+<span><span>  }</span></span>
+<span><span>  async</span><span> fetchData</span><span>(</span><span>id</span><span>)</span><span> {</span></span>
+<span><span>    const </span><span>article</span><span> =</span><span> await </span><span>API</span><span>.</span><span>fetchArticle</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>    this</span><span>.</span><span>setState</span><span>({</span><span> article </span><span>});</span></span>
+<span><span>  }</span></span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p>This is definitely better! But it’s still buggy. The reason it’s buggy is that the request may come out of order. So if I’m fetching <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 10}</code>, switch to <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code>, but the <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">{id: 20}</code> request comes first, the request that started earlier but finished later would incorrectly overwrite my state.</p>
+<p>This is called a race condition, and it’s typical in code that mixes <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">async</code> / <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">await</code> (which assumes something waits for the result) with top-down data flow (props or state can change while we’re in the middle of an async function).</p>
+<p>Effects don’t magically solve this problem, although they’ll warn you if you try to pass an <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">async</code> function to the effect directly. (We’ll need to improve that warning to better explain the problems you might run into.)</p>
+<p>If the async approach you use supports cancellation, that’s great! You can cancel the async request right in your cleanup function.</p>
+<p>Alternatively, the easiest stopgap approach is to track it with a boolean:</p>
+<figure><pre class="-mx-4 overflow-y-auto p-4 text-sm"><code><span><span>function</span><span> Article</span><span>(</span><span>{ id }</span><span>)</span><span> {</span></span>
+<span><span>  const [</span><span>article</span><span>,</span><span> setArticle</span><span>] </span><span>=</span><span> useState</span><span>(</span><span>null</span><span>);</span></span>
+<span> </span>
+<span><span>  useEffect</span><span>(()</span><span> =&gt;</span><span> {</span></span>
+<span><span>    let </span><span>didCancel</span><span> =</span><span> false</span><span>;</span></span>
+<span> </span>
+<span><span>    async</span><span> function</span><span> fetchData</span><span>()</span><span> {</span></span>
+<span><span>      const </span><span>article</span><span> =</span><span> await </span><span>API</span><span>.</span><span>fetchArticle</span><span>(</span><span>id</span><span>);</span></span>
+<span><span>      if</span><span> (!</span><span>didCancel</span><span>)</span><span> {</span></span>
+<span><span>        setArticle</span><span>(</span><span>article</span><span>);</span></span>
+<span><span>      }</span></span>
+<span><span>    }</span></span>
+<span> </span>
+<span><span>    fetchData</span><span>();</span></span>
+<span> </span>
+<span><span>    return</span><span> ()</span><span> =&gt;</span><span> {</span></span>
+<span><span>      didCancel </span><span>=</span><span> true</span><span>;</span></span>
+<span><span>    };</span></span>
+<span><span>  },</span><span> [</span><span>id</span><span>]);</span></span>
+<span> </span>
+<span><span>  // ...</span></span>
+<span><span>}</span></span></code></pre></figure>
+<p><a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://www.robinwieruch.de/react-hooks-fetch-data/">This article</a> goes into more detail about how you can handle errors and loading states, as well as extract that logic into a custom Hook. I recommend you to check it out if you’re interested to learn more about data fetching with Hooks.</p>
+<h2 id="raising-the-bar" class="group relative text-3xl font-bold mt-2"><a href="#raising-the-bar" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>Raising the Bar</a></h2>
+<p>With the class lifecycle mindset, side effects behave differently from the render output. Rendering the UI is driven by props and state, and is guaranteed to be consistent with them, but side effects are not. This is a common source of bugs.</p>
+<p>With the mindset of <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code>, things are synchronized by default. Side effects become a part of the React data flow. For every <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> call, once you get it right, your component handles edge cases much better.</p>
+<p>However, the upfront cost of getting it right is higher. This can be annoying. Writing synchronization code that handles edge cases well is inherently more difficult than firing one-off side effects that aren’t consistent with rendering.</p>
+<p>This could be worrying if <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> was meant to be <em>the</em> tool you use most of the time. However, it’s a low-level building block. It’s an early time for Hooks so everybody uses low-level ones all the time, especially in tutorials. But in practice, it’s likely the community will start moving to higher-level Hooks as good APIs gain momentum.</p>
+<p>I’m seeing different apps create their own Hooks like <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useFetch</code> that encapsulates some of their app’s auth logic or <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useTheme</code> which uses theme context. Once you have a toolbox of those, you don’t reach for <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> <em>that</em> often. But the resilience it brings benefits every Hook built on top of it.</p>
+<p>So far, <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> is most commonly used for data fetching. But data fetching isn’t exactly a synchronization problem. This is especially obvious because our deps are often <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">[]</code>. What are we even synchronizing?</p>
+<p>In the longer term, <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://reactjs.org/blog/2018/11/27/react-16-roadmap.html#react-16x-mid-2019-the-one-with-suspense-for-data-fetching">Suspense for Data Fetching</a> will allow third-party libraries to have a first-class way to tell React to suspend rendering until something async (anything: code, data, images) is ready.</p>
+<p>As Suspense gradually covers more data fetching use cases, I anticipate that <code class="rounded-[10px] bg-[--inlineCode-bg] text-[--inlineCode-text] px-[0.2em]">useEffect</code> will fade into background as a power user tool for cases when you actually want to synchronize props and state to some side effect. Unlike data fetching, it handles this case naturally because it was designed for it. But until then, custom Hooks like <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://www.robinwieruch.de/react-hooks-fetch-data/">shown here</a> are a good way to reuse data fetching logic.</p>
+<h2 id="in-closing" class="group relative text-3xl font-bold mt-2"><a href="#in-closing" class="no-underline text-inherit"><span class="absolute -translate-x-[1em] opacity-0 group-hover:opacity-70">#</span>In Closing</a></h2>
+<p>Now that you know pretty much everything I know about using effects, check out the <a class="underline decoration-[--link] decoration-1 underline-offset-4" href="#tldr">TLDR</a> in the beginning. Does it make sense? Did I miss something? (I haven’t run out of paper yet!)</p>
+<p>I’d love to hear from you on Twitter! Thanks for reading.</p></div><div class="flex flex-wrap items-baseline gap-4 relative md:-left-8"><a href="https://ko-fi.com/gaearon" class="tip"><span class="tip-bg"></span>Pay what you like</a></div><hr class="opacity-60 dark:opacity-10"/><p><a class="underline decoration-[--link] decoration-1 underline-offset-4" href="https://tangled.org/@danabra.mov/overreacted/blob/main/public/a-complete-guide-to-useeffect/index.md?code=true">Fork on Tangled</a></p></div></article><footer class="mt-20"><a class="__className_64c2fd inline-block text-2xl font-black" href="/"><span>overreacted</span></a></footer></main><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script><script></script></body></html>

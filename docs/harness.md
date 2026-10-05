@@ -32,6 +32,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout, clamped to the time left before `--deadline-secs`) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try; a timed-out attempt is retried at most once) | not a valid `u32` exits `2` (`NotConfigured`) |
 | `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32`, or a window that leaves under 16000 characters of context after the reply reserve, exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
+| `FETCH_ALLOW_PRIVATE` | no | unset (`fetch` refuses private and reserved addresses) | exactly `1` lets `fetch` reach them, for local testing; any other value keeps the policy on. See "Fetch egress policy" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
@@ -126,6 +127,38 @@ Pagination (#73): Yahoo and DuckDuckGo paginate past page 1, internally, up to `
 Hermetic rule: `Searcher::with_bases` and every test use a `Governor` that never persists, never paces, has no cap, always allows concurrency 1 per engine, and always enables every engine, regardless of ambient `SEARCH_*` env vars -- the suite never touches the real cache or the network's pacing state.
 
 Recency (#81): when the `search` tool call's `recency` is set, a leg runs only if its engine applies that window (`SearchProvider::applies_recency`, live-verified 2026-10-02, `docs/research/search-engines.md` "Recency windows (#81)") -- the rest are skipped outright: no request, no `errors` entry, no suspension, no cache lookup or write. DuckDuckGo (`df`) and Startpage (`with_date`) apply every window (`day`/`week`/`month`/`year`); Yahoo (`btf`) applies `day`/`week`/`month` only, no `year`; Brave and Bing apply none (Brave's `tf` is unverified -- the one live probe got HTTP `429` before any filtered-vs-unfiltered comparison was possible; Bing has no recency param to begin with). If `recency` is set and no enabled engine applies that window, the call makes zero HTTP requests and returns a one-line note instead of unfiltered Hits ("recency `<window>` is not supported by the enabled search engines; search again without recency").
+
+## Fetch egress policy (#97)
+
+`fetch` only reaches public addresses. One address table (`web::fetch::egress::is_forbidden_ip`) refuses unspecified (`0.0.0.0/8`, `::`), loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16` incl. cloud metadata `169.254.169.254`, `fe80::/10`), RFC 1918 (`10/8`, `172.16/12`, `192.168/16`), CGNAT (`100.64.0.0/10`), ULA (`fc00::/7`), multicast (`224.0.0.0/4`, `ff00::/8`), broadcast (`255.255.255.255`) and documentation ranges (`192.0.2/24`, `198.51.100/24`, `203.0.113/24`, `2001:db8::/32`, `3fff::/20`), plus the IPv4-mapped (`::ffff:a.b.c.d`) and IPv4-compatible (`::a.b.c.d`) forms of every IPv4 range. It is checked at four points:
+
+- An IP-literal host (including shorthand forms like `http://2130706433/`) is refused before any I/O.
+- The static client resolves names through a filtering resolver: addresses in the table are dropped at connect time, so `localhost`, split-horizon names and DNS rebinding are refused too.
+- Every redirect hop is re-checked (at most 10 hops, as before), so a public page that redirects to `127.0.0.1` is refused.
+- Before Obscura is spawned, the target host is resolved and refused if any address is in the table.
+
+A refused target fails the `fetch` call with `refused private-network target: <url>: <reason>`, which the agent sees as a failed tool call (it counts against the repair budget like any other fetch failure); no byte of the target is read and nothing reaches Evidence, the Session or the Synthesis.
+
+`FETCH_ALLOW_PRIVATE=1` (see "Environment") turns all four checks off, for local testing against `127.0.0.1` servers.
+
+With `FETCH_ALLOW_PRIVATE=1` only the static path reaches a private host: Obscura 0.2.2 refuses private and internal addresses on its own, so a loopback page that would fall back to the browser (JS shell, or under `min_markdown_chars`) still fails.
+
+Residual risk: the policy covers the request `fetch` makes, not what a page makes the browser do. Obscura's own sub-requests (scripts, images, iframes, XHR of a public page it renders) are not filtered, and a DNS answer that changes between the pre-spawn check and the browser's own lookup is not caught. The static path has neither gap.
+
+Obscura's stdout and stderr are read incrementally, each capped at the same 5 MiB as the static body; the child is killed as soon as either stream crosses it (`command failed: <url>: obscura stdout exceeds 5242880 bytes; killed`).
+
+## Main-content extraction (#108)
+
+For an HTML page on the static path, `web::fetch::extract` picks one content subtree with `scraper`: the single `<main>`, else the single `[role=main]`, else the single `<article>` (several matches pick nothing), and only when it holds at least 60% of the page's text. The fail-closed gate `keep_extracted` then keeps the subtree's markdown instead of the whole-page conversion only when all hold:
+
+- the extractor picked a subtree;
+- its markdown is at least `min_markdown_chars` (200) and at least 60% of the whole-page markdown;
+- every fenced code block and every table row of the whole-page markdown is still present;
+- no thread/Q&A marker (`.answer`, `.comment`, schema.org `Answer`/`Comment` microdata) sits outside the subtree.
+
+Otherwise the page is delivered exactly as before. The Obscura path, page parts and `clean_markdown` are unchanged; cleanup runs after the choice.
+
+Thresholds were measured on 40 real pages saved under `tests/fixtures/pages/` (docs.rs, MDN, GitHub READMEs and releases, Stack Exchange threads, release notes, news, blogs, Wikipedia, react.dev, Kubernetes, PostgreSQL docs, Hacker News): 36 kept the extraction, every kept subtree held 80% to 100% of the page text, and kept markdown was 69% to 100% of the baseline. The 4 that keep the baseline have no landmark to select (Paul Graham, PostgreSQL, the Rust blog, Hacker News). On Stack Exchange the answers and comments sit inside `[role=main]`, so the thread guard lets those pages through; the cut is the "Related" and "Hot network questions" sidebars. A table row is a `|`-led line with a second `|`; a lone `|` link separator (the Python docs header) is not one. The test `every_fixture_keeps_every_baseline_fenced_block_and_table_row` re-checks the gate's code and table guarantee on every fixture.
 
 ## Fetch markdown cleanup (#79)
 
