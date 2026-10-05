@@ -1,13 +1,14 @@
-# Sem DB no protótipo — só arquivos (JSONL + cache HTTP em disco)
+# No DB in the prototype: files only
 
-Sessão precisa de recuperação multi-turno desde o dia 1, mas sem operar infra; decidimos JSONL por sessão (`sessions/<id>.jsonl`) + cache de fetch em disco por URL normalizada, e migramos para SQLite quando repetição de fetch ou corrupção de JSONL doer.
+A Session needs multi-turn recovery from day one, but without operating infrastructure; we decided on one JSONL file per Session (`sessions/<id>.jsonl`) plus plain files for other persisted state, and we migrate to SQLite when JSONL corruption or repeated work starts to hurt.
 
 ## Considered Options
 
-- SQLite + cache em disco desde o dia 1 — WAL, tabelas sessions/turns/evidence + fetch_cache; backup é um arquivo, mas exige schema/migrations antes de validar o loop.
-- Postgres + Redis — queries concorrentes e TTL nativo; custo é docker-compose obrigatório até para rodar o CLI, contra a meta de simplicidade.
+- SQLite from day one — WAL, `sessions`/`turns`/`evidence` tables; a backup is one file, but it demands a schema and migrations before the loop is validated.
+- Postgres + Redis — concurrent queries and native TTL; the cost is a mandatory docker-compose just to run the CLI, against the goal of simplicity.
 
 ## Consequences
 
-- Formato do turno em JSONL deve ser migrável 1:1 para futura tabela `turns` (id, session_id, evidências com URL + fetched_at); nada de formato throwaway.
-- Sem TTL/evicção inteligente no início: cache é keyada por URL normalizada + validação por ETag/Last-Modified quando presente.
+- The Turn format in JSONL must migrate 1:1 to a future `turns` table (id, session_id, Evidence with URL + fetched_at); nothing throwaway.
+- No fetch cache exists. The first version of this ADR planned an on-disk fetch cache keyed by normalized URL and validated by ETag/Last-Modified; it was never built, and [ADR-0006](0006-web-search-tool-architecture.md) defers it until repeat fetches are measured. Within one run, a repeat `fetch` of a page already read sends no request.
+- Other persisted state is plain files under the cache root (`web::cache_dir`): the search-leg cache under `search/` and the engine governor state in `engines.json`. There is no eviction policy beyond a size cap and a TTL on the search-leg cache.

@@ -1,16 +1,16 @@
 > **Amended by [ADR-0006](0006-web-search-tool-architecture.md):** fetch is reqwest-first; Obscura is the fallback, not the first path.
 
-# Rust como linguagem âncora
+# Rust as the anchor language
 
-CLI protótipo que evolui para API multi-turno sobre Obscura exige async estável e overhead mínimo; decidimos Rust + tokio, aceitando iteração mais lenta em troca de binário único e afinidade nativa com Obscura (também Rust, via CDP).
+A prototype CLI that grows into a multi-turn API on top of Obscura needs stable async and minimal overhead; we decided on Rust + tokio, accepting slower iteration in exchange for a single binary and native affinity with Obscura (also Rust, driven over CDP).
 
 ## Considered Options
 
-- TypeScript + Node 22 — Playwright/Puppeteer first-class contra Obscura via CDP sem adapter, Vercel AI SDK/Mastra prontos; custo é runtime Node + dois binários.
-- Python 3.12 + FastAPI — maior ecossistema agente/LLM, prototipação mais rápida; custo é GIL, packaging e tipagem mais frágeis.
-- Go — concorrência e CLI simples; custo é ecossistema LLM/agente menor e libs CDP menos maduras.
+- TypeScript + Node 22 — Playwright/Puppeteer are first-class against Obscura over CDP with no adapter, and the Vercel AI SDK/Mastra are ready-made; the cost is a Node runtime and two binaries.
+- Python 3.12 + FastAPI — the largest agent/LLM ecosystem and the fastest prototyping; the cost is the GIL, packaging, and weaker typing.
+- Go — simple concurrency and CLIs; the cost is a smaller LLM/agent ecosystem and less mature CDP libraries.
 
 ## Consequences
 
-- Loop de ferramentas LLM via HTTP OpenAI-compatible próprio (`reqwest` + `serde`), sem SDK dedicado — evita lock-in, exige hand-roll de retries/streaming/structured-output.
-- Integração Obscura primeiro via subprocesso `obscura fetch` / CDP, depois cliente nativo; compilações lentas no loop de protótipo.
+- The LLM tool loop talks to an OpenAI-compatible endpoint over our own HTTP client (`reqwest` + `serde`), with no dedicated SDK — this avoids lock-in and means retries, streaming, and structured output are hand-rolled.
+- Obscura integration starts as a subprocess (`obscura fetch`) or CDP, with a native client later; slow compiles are a cost in the prototype loop.

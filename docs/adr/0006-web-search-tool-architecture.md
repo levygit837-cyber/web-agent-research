@@ -14,7 +14,7 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
                      └──► llm
    ```
 
-   - `web/`: search (fan-out over DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage since #66; originally DDG + Startpage) and fetch (URL → Evidence). No LLM, no Session. Stable on its own.
+   - `web/`: search (fan-out over DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage since #64; originally DDG + Startpage) and fetch (URL → Evidence). No LLM, no Session. Stable on its own.
    - `llm/`: LLM gateway, OpenAI-compatible (ADR-0003) or native Anthropic Messages (ADR-0007). Knows nothing about tools or web.
    - `research/`: the agent. Loop, context, prompts, synthesis, Session JSONL, tool dispatch into `web/`. Only module that knows Research/Turn.
    - `web/` and `llm/` never import `research/` or each other.
@@ -36,7 +36,7 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
 - `ToolRegistry` stub mode, its local schemas (`query`/`top_k`, `url`/`max_chars`), and `SearchHit`/`FetchedPage` are deleted when the real tools are wired; #25 and #26 close there.
 - Empty placeholders (`prompts/classify.rs`, `types/research.rs`) are deleted; classification comes back only with a second Mode.
 - New dependency: `htmd` (HTML→markdown). `scraper` stays for search parsing.
-- The ADR-0002 on-disk fetch cache stays unbuilt; decide after real tools are wired and repeat fetches are measured.
+- The on-disk fetch cache first planned in ADR-0002 stays unbuilt; decide after repeat fetches are measured.
 - `trait` is still banned until a second adapter exists; Obscura is a fallback branch inside `web::fetch`, not an adapter behind a seam.
 - Per-file size and test-module layout (production ~500 lines, split by responsibility; oversized test modules move to `<stem>/tests/<theme>.rs`; shared test fixtures live in `#[cfg(test)] test_support` modules) is ADR-0009's concern, not this one's.
 - SearXNG (AGPL-3.0-or-later, `searxng/searxng`) is prior art, not a code

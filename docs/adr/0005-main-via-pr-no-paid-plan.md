@@ -1,18 +1,18 @@
-# Main só via PR, sem plano pago
+# `main` only via PR, without a paid plan
 
-Repo privado no plano free não tem branch protection nem rulesets (a API retorna 403, verificado em 2026-09-07); decidimos convenção PR-only para a `main` com detecção pós-push (workflow `protect-main`) + bloqueio local (hook `pre-push` em `.githooks/`), aceitando que o push direto não pode ser bloqueado no servidor até migrar para Pro ou repo público.
+A private repo on the free plan has no branch protection or rulesets (the API returns 403, verified on 2026-09-07); we decided on a PR-only convention for `main` with post-push detection (the `protect-main` workflow) and a local block (the `pre-push` hook in `.githooks/`), accepting that a direct push cannot be blocked on the server until we move to Pro or make the repo public.
 
 ## Considered Options
 
-- Tornar o repo público — libera protection/rulesets de graça; custo é expor protótipo e histórico antes da hora.
-- Assinar GitHub Pro — libera protection no privado; custo é mensalidade para um protótipo solo.
-- Só convenção sem enforcement — zero código; custo é depender de disciplina, sem sinal quando falhar.
-- Pre-receive hooks no servidor — bloqueio real customizado; custo é exigir GitHub Enterprise, fora do alcance.
+- Make the repo public — unlocks protection/rulesets for free; the cost is exposing the prototype and its history too early.
+- Subscribe to GitHub Pro — unlocks protection on a private repo; the cost is a monthly fee for a solo prototype.
+- Convention only, no enforcement — zero code; the cost is relying on discipline, with no signal when it fails.
+- Server-side pre-receive hooks — real custom blocking; the cost is requiring GitHub Enterprise, out of reach.
 
 ## Consequences
 
-- Toda mudança na `main` entra por PR com merge commit (`gh pr create` → `gh pr merge`); push direto é violação, mesmo com CI vermelho — emergência se resolve com PR de revert, nunca com push.
-- `protect-main.yml` (push na `main`) falha quando algum commit novo não é merge de PR com estado MERGED nem tem PR mergeado associado via API de commits; a falha traz o passo a passo (revert em branch nova + PR, sem force-push — reescrever a `main` também dispara o gate).
-- Hook `.githooks/pre-push` bloqueia `push` local a `refs/heads/main`; ativar por clone com `git config core.hooksPath .githooks` (hook é opt-in por clone, não versionável como obrigatório).
-- CI (`ci.yml`) roda `lint` (fmt + clippy) e `test` (test + build `--locked`) em push/PR na `main`; na migração, `lint` + `test` + `no-direct-push` viram os checks obrigatórios, com PR exigido, 1 approval, `dismiss stale approvals`, branch atualizada, sem force push nem delete.
-- Sem isenções: recriar a `main` via push falha fechado — até o commit raiz exige PR associado (o bootstrap histórico é anterior ao gate).
+- Every change to `main` enters through a PR with a merge commit (`gh pr create` → `gh pr merge`); a direct push is a violation, even with red CI — an emergency is resolved with a revert PR, never with a push.
+- `protect-main.yml` (on push to `main`) fails when any new commit is neither a merge of a PR in the MERGED state nor associated with a merged PR through the commits API; the failure message carries the steps (revert on a new branch + PR, no force-push — rewriting `main` also trips the gate).
+- The `.githooks/pre-push` hook blocks a local `push` to `refs/heads/main`; enable it per clone with `git config core.hooksPath .githooks` (a hook is opt-in per clone and cannot be versioned as mandatory).
+- CI (`ci.yml`) runs `lint` (fmt + clippy) and `test` (test + `--locked` build) on push/PR to `main`, plus an `msrv` job that checks the declared minimum Rust version; on migration, `lint` + `test` + `no-direct-push` become the required checks, with a PR required, 1 approval, `dismiss stale approvals`, an up-to-date branch, and no force-push or deletion.
+- No exemptions: recreating `main` by push fails closed — even the root commit needs an associated PR (the historical bootstrap predates the gate).

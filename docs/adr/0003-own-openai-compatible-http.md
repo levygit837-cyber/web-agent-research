@@ -1,14 +1,14 @@
-# Sem SDK de LLM — HTTP OpenAI-compatible próprio
+# No LLM SDK: our own OpenAI-compatible HTTP client
 
-Agente precisa chamar qualquer provedor (OpenAI, OpenRouter, Ollama, vLLM) sem lock-in de SDK; decidimos `reqwest` + `serde` na mão contra endpoint OpenAI-compatible, aceitando hand-roll de retries/streaming/structured-output.
+The agent must call any provider (OpenAI, OpenRouter, Ollama, vLLM) without SDK lock-in; we decided on hand-written `reqwest` + `serde` against an OpenAI-compatible endpoint, accepting that retries, streaming, and structured output are hand-rolled.
 
 ## Considered Options
 
-- SDK dedicado (`async-openai`, `rig`) — menos código inicial; custo é amarra de versão e atraso para adotar provedor local.
-- Local-first (Ollama) — zero custo/chave; custo é adiar validação contra provedor remoto. Mantido como modo via mesma interface, não como decisão exclusiva.
+- A dedicated SDK (`async-openai`, `rig`) — less initial code; the cost is version coupling and lag in adopting a local provider.
+- Local-first (Ollama) — no cost or key; the cost is deferring validation against a remote provider. Kept as a mode behind the same interface, not as an exclusive decision.
 
 ## Consequences
 
-- Deps âncora: `tokio` (rt-multi-thread), `reqwest` (rustls-tls, sem default-features), `serde`/`serde_json`, `clap` (derive), `tracing` + `tracing-subscriber` (env-filter), `anyhow`.
-- `SESSION_FORMAT_VERSION` em `src/lib.rs`; formato JSONL migrável 1:1 para futura tabela `turns`.
-- Obscura primeiro via subprocesso `obscura fetch` / CDP; cliente nativo fora do escopo do protótipo.
+- Anchor dependencies: `tokio` (rt-multi-thread), `reqwest` (rustls-tls, no default features), `serde`/`serde_json`, `clap` (derive), `tracing` + `tracing-subscriber` (env-filter), `anyhow`.
+- `SESSION_FORMAT_VERSION` lives in `src/lib.rs`; the JSONL format migrates 1:1 to a future `turns` table.
+- Obscura starts as a subprocess (`obscura fetch`) or CDP; a native client is out of scope for the prototype. [ADR-0006](0006-web-search-tool-architecture.md) later made fetch reqwest-first with Obscura as the fallback.

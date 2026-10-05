@@ -38,8 +38,8 @@ pub const DDG_KL_DEFAULT: &str = "us-en";
 /// `setlang` is always derived from this value's language subtag.
 pub const BING_MARKET_DEFAULT: &str = "en-US";
 
-/// One fetch-only provider. No second adapter is planned; this is an enum,
-/// not a seam (ADR-0006: concrete by default, `trait` only on real variation).
+/// One search engine the fan-out can query. The set is a closed enum, not a
+/// seam (ADR-0006: concrete by default, `trait` only on real variation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SearchProvider {
     DuckDuckGo,
