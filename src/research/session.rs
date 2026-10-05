@@ -3,19 +3,21 @@
 //! Evidence itself is owned by `web::fetch`; this module only records it.
 //!
 //! Record schema (ADR-0002): one JSON object per line in
-//! `sessions/<id>.jsonl`, UTF-8, `\n`-terminated, append-only.
+//! `<data_root>/sessions/<id>.jsonl` (or the explicit `--session-out`), UTF-8,
+//! `\n`-terminated, append-only, created with mode 0600 on unix.
 //! `format_version` rides on EVERY row so a single row stays self-describing
 //! and 1:1 migratable to the future `turns` table (`turn→id`,
 //! `session_id→session_id`, `evidence[].source_url/collected_at→url/fetched_at`).
 
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use crate::research::data_dir;
 use crate::web::fetch::evidence::utc_now_rfc3339;
 use crate::web::fetch::Evidence;
 
-/// Line 0 of `sessions/<id>.jsonl` (SHOULD exist): recalls goal/size.
+/// Line 0 of the Session file (SHOULD exist): recalls goal/size.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionHeader {
     /// Always `"header"`.
@@ -59,7 +61,7 @@ pub struct SessionUsage {
     pub cache_creation_prompt_tokens: u64,
 }
 
-/// Lines 1..N of `sessions/<id>.jsonl`: one per turn, `synthesis` null until
+/// Lines 1..N of the Session file: one per turn, `synthesis` null until
 /// the final turn (which carries the response object as opaque JSON).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TurnRow {
@@ -134,10 +136,15 @@ fn append_line<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     let mut line = serde_json::to_string(value)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     line.push('\n');
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(path)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.append(true).create(true);
+    // Sessions hold fetched page bodies and the goal: owner-only on creation.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
     file.write_all(line.as_bytes())
 }
 
@@ -149,6 +156,95 @@ pub fn append_header(path: &Path, header: &SessionHeader) -> io::Result<()> {
 /// Append one turn row.
 pub fn append_turn(path: &Path, row: &TurnRow) -> io::Result<()> {
     append_line(path, row)
+}
+
+/// Where one run writes its Session, and what a write failure means.
+///
+/// An explicit `--session-out` is the caller's contract: any failure is
+/// returned (exit 6). The defaulted path under the data root is a courtesy
+/// copy: the first failure (or no resolvable data root) prints one warning
+/// to stderr, disables the sink, and the run still exits 0. Only the
+/// defaulted path creates private (0700) directories and is pruned.
+#[derive(Debug)]
+pub(crate) struct SessionSink {
+    path: Option<PathBuf>,
+    explicit: bool,
+    warning: Option<String>,
+}
+
+impl SessionSink {
+    pub(crate) fn new(explicit: Option<PathBuf>, session_id: &str) -> Self {
+        Self::at(explicit, data_dir::default_session_path(session_id))
+    }
+
+    fn at(explicit: Option<PathBuf>, default: Option<PathBuf>) -> Self {
+        let is_explicit = explicit.is_some();
+        let mut sink = Self {
+            path: explicit.or(default),
+            explicit: is_explicit,
+            warning: None,
+        };
+        if sink.path.is_none() {
+            sink.warn(
+                "no data directory: set WEB_AGENT_RESEARCH_HOME, XDG_DATA_HOME or HOME".to_owned(),
+            );
+        }
+        sink
+    }
+
+    fn warn(&mut self, reason: String) {
+        let message = format!("warning: Session not saved: {reason}");
+        eprintln!("{message}");
+        self.warning = Some(message);
+    }
+
+    /// The warning printed for a swallowed defaulted-path failure, if any.
+    #[cfg(test)]
+    pub(crate) fn warning(&self) -> Option<&str> {
+        self.warning.as_deref()
+    }
+
+    fn write(&mut self, write: impl FnOnce(&Path) -> io::Result<()>) -> io::Result<()> {
+        let Some(path) = self.path.clone() else {
+            return Ok(());
+        };
+        let result = if self.explicit {
+            write(&path)
+        } else {
+            path.parent()
+                .map_or(Ok(()), data_dir::create_private_dir_all)
+                .and_then(|()| write(&path))
+        };
+        match result {
+            Err(err) if !self.explicit => {
+                self.path = None;
+                self.warn(format!("{}: {err}", path.display()));
+                Ok(())
+            }
+            other => other,
+        }
+    }
+
+    pub(crate) fn append_header(&mut self, header: &SessionHeader) -> io::Result<()> {
+        self.write(|path| append_header(path, header))
+    }
+
+    pub(crate) fn append_turn(&mut self, row: &TurnRow) -> io::Result<()> {
+        self.write(|path| append_turn(path, row))
+    }
+
+    /// Enforce the retention cap on the data-root sessions directory. No-op
+    /// for an explicit path or a disabled sink.
+    pub(crate) fn finish(&self) {
+        if self.explicit {
+            return;
+        }
+        if let Some(path) = self.path.as_deref() {
+            if let Some(dir) = path.parent() {
+                data_dir::prune_sessions(dir, path);
+            }
+        }
+    }
 }
 
 /// Read every row back, gating on `format_version`.

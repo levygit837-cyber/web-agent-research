@@ -69,7 +69,8 @@ pub struct ResearchRequest {
     /// Defaults to generated `<unix-secs>-<pid>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
-    /// Defaults to `sessions/<id>.jsonl`.
+    /// Defaults to `<data root>/sessions/<id>.jsonl`, written best-effort; an
+    /// explicit path must be writable (failure is `ResearchError::Io`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_out: Option<PathBuf>,
 }

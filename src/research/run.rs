@@ -7,13 +7,13 @@
 //! `exit_for`. The wire DTOs (`ResearchRequest`, `ResearchResponse`, ...)
 //! are in `dto.rs`.
 
-use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::llm::{Gateway, GatewayConfig};
 use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
+use crate::research::data_dir;
 use crate::research::dto::{ResearchRequest, ResearchResponse, SynthesisDTO, UsageDTO};
-use crate::research::session::{append_header, append_turn, SessionHeader, SessionUsage, TurnRow};
+use crate::research::session::{SessionHeader, SessionSink, SessionUsage, TurnRow};
 use crate::web::fetch::{Evidence, Fetcher};
 use crate::web::search::tool::Searcher;
 
@@ -22,7 +22,7 @@ use crate::web::search::tool::Searcher;
 /// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`).
 #[derive(Debug)]
 pub enum ResearchError {
-    /// Empty goal, `max_turns == 0`, missing `GATEWAY_API_KEY` — no I/O attempted.
+    /// Empty goal, `max_turns == 0`, invalid `--session-id`, missing `GATEWAY_API_KEY` — no I/O attempted.
     NotConfigured(String),
     /// Gateway retries exhausted, incl. the 429-credit wall.
     GatewayExhausted(String),
@@ -30,7 +30,8 @@ pub enum ResearchError {
     ToolFailure(String),
     /// `max_turns` consumed with no FINAL parsed.
     BudgetExhausted { turns: u32 },
-    /// Session file write failure.
+    /// Explicit `--session-out` write failure. A defaulted Session path never
+    /// raises this: it warns on stderr and the run still succeeds (#102).
     Io(String),
     /// The run finalized with zero fetched Evidence, no `search` call ever
     /// returned a Hit, and at least one `search` call failed with every
@@ -113,6 +114,9 @@ pub(crate) async fn run_research_with(
             "max_turns must be >= 1".to_owned(),
         ));
     }
+    if let Some(id) = req.session_id.as_deref() {
+        data_dir::validate_session_id(id).map_err(ResearchError::NotConfigured)?;
+    }
     // Generated before the loop (not after) so it can be sent as
     // `prompt_cache_key` on every turn of this run, keeping cache-routing
     // stable across the whole Session rather than only the persisted rows.
@@ -138,10 +142,7 @@ pub(crate) async fn run_research_with(
         .await
         .map_err(map_loop_error)?;
 
-    let session_path = req
-        .session_out
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("sessions").join(format!("{session_id}.jsonl")));
+    let mut sink = SessionSink::new(req.session_out.clone(), &session_id);
     let synthesis_dto = SynthesisDTO::from(report.synthesis);
     // Continuation parts (#80) each carry the page URL; the response lists
     // every fetched source once, in first-fetched order.
@@ -169,7 +170,8 @@ pub(crate) async fn run_research_with(
         req.goal.clone(),
         req.size.as_str().to_owned(),
     );
-    append_header(&session_path, &header).map_err(|err| ResearchError::Io(err.to_string()))?;
+    sink.append_header(&header)
+        .map_err(|err| ResearchError::Io(err.to_string()))?;
     let synthesis_value =
         serde_json::to_value(&synthesis_dto).map_err(|err| ResearchError::Io(err.to_string()))?;
     for turn in 1..=report.turns_used {
@@ -194,8 +196,10 @@ pub(crate) async fn run_research_with(
                 SessionUsage::default()
             },
         );
-        append_turn(&session_path, &row).map_err(|err| ResearchError::Io(err.to_string()))?;
+        sink.append_turn(&row)
+            .map_err(|err| ResearchError::Io(err.to_string()))?;
     }
+    sink.finish();
 
     Ok(ResearchResponse {
         session_id,
@@ -235,5 +239,6 @@ pub fn render(response: &ResearchResponse) -> String {
 mod tests {
     mod gateway_integration;
     mod helpers;
+    mod session_path;
     mod validation;
 }

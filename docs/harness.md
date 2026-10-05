@@ -10,7 +10,8 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 
 - `--size` (default `medium`): answer length.
 - `--max-turns` (default `8`): total LLM calls allowed; a run that reaches this without an answer exits `5`. The agent is told this budget up front and, after each tool turn or empty-reply repair, how many turns are left (#72).
-- `--session-id`, `--session-out`: optional. By default the Session is written to `sessions/<unix-secs>-<pid>.jsonl`.
+- `--session-id`: optional, default `<unix-secs>-<pid>`. It becomes the file name and the `prompt_cache_key`, so it MUST match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` before any LLM call.
+- `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
 
 ## Environment
 
@@ -47,9 +48,29 @@ The binary reads only the process environment; it does not load `.env` itself. L
 - Reasoning/thinking tokens count against `max_completion_tokens`/`max_tokens`, not a separate budget: `GATEWAY_THINKING_BUDGET` must stay strictly below `GATEWAY_MAX_TOKENS` when both are set (some providers, e.g. Anthropic via OpenRouter, enforce this themselves and error otherwise).
 - Claude Haiku 4.5 supports manual thinking only (`budget_tokens`), not `output_config.effort`: leave `GATEWAY_REASONING_EFFORT` unset for it.
 
+### Data root and Sessions
+
+The tool keeps two per-user roots, resolved separately. Neither is ever the current directory, so a Harness can run it from any project without creating files there.
+
+| Root | Holds | Resolution (first non-empty wins) |
+|---|---|---|
+| Data root | Sessions, under `<data_root>/sessions/` | `WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `$HOME/.local/share/web-agent-research` |
+| Cache root | search cache and `engines.json` (disposable), see "Search cache" | `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research` |
+
+| Variable | Required | Default | Invalid value |
+|---|---|---|---|
+| `WEB_AGENT_RESEARCH_HOME` | no | unset (falls back to `XDG_DATA_HOME`/`HOME`) | n/a (any non-empty path accepted) |
+| `SESSION_MAX_BYTES` | no | `268435456` (256 MiB) of `sessions/*.jsonl`, oldest-first eviction by modification time | not a valid `u64` is ignored, default cap applies |
+
+- Defaulted path is best-effort. If the data root cannot be resolved or written (read-only checkout, sandbox, full disk), the run prints `warning: Session not saved: <reason>` to stderr, skips the rest of the Session, and still exits `0` with the Synthesis. Read `session_id` from the JSON to know the Session name; it exists on disk only if there was no warning.
+- An explicit `--session-out` is never best-effort: a write failure exits `6` after the run finished, and nothing is written under the data root.
+- The sessions directory is created with mode `0700` and Session files with `0600` on unix (they hold the goal and fetched page bodies).
+- Retention: after a defaulted write, the oldest `*.jsonl` files in `sessions/` are deleted until the directory fits `SESSION_MAX_BYTES`. The Session just written is never evicted; explicit `--session-out` files are never counted or deleted.
+- To clear Sessions, delete `<data_root>/sessions/`.
+
 ### Search cache
 
-`web::search::cache` (#67) persists search-leg results per (engine, normalized query, recency, page) under `<cache_root>/search/` so a repeated `search` call across turns or runs skips the HTTP request entirely. Cache root resolution (`web::cache_dir`): `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research`; when none of those resolve (both `HOME` and `XDG_CACHE_HOME` unset/empty) caching is silently disabled, never an error.
+`web::search::cache` (#67) persists search-leg results per (engine, normalized query, recency, page) under `<cache_root>/search/` so a repeated `search` call across turns or runs skips the HTTP request entirely. Cache root resolution (`web::cache_dir`): `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research`; when none of those resolve (both `HOME` and `XDG_CACHE_HOME` unset/empty) caching is silently disabled, never an error. The cache root is separate from the data root that holds Sessions (see "Data root and Sessions").
 
 | Variable | Required | Default | Invalid value |
 |---|---|---|---|
@@ -205,11 +226,11 @@ Only Chrome-family profiles exist while the transport is plain `reqwest`/rustls 
 | Code | Meaning | Harness action |
 |---|---|---|
 | 0 | Synthesis on stdout | use it |
-| 2 | Not configured: empty goal, missing key, `max_turns < 1`, an invalid `GATEWAY_*` value, or a `GATEWAY_CONTEXT_WINDOW` too small to leave 16000 characters of context | fix env/args; do not retry |
+| 2 | Not configured: empty goal, missing key, `max_turns < 1`, an invalid `--session-id`, an invalid `GATEWAY_*` value, or a `GATEWAY_CONTEXT_WINDOW` too small to leave 16000 characters of context | fix env/args; do not retry |
 | 3 | Gateway exhausted: retries/rate limit, auth failed (`bad API key`, HTTP 401), or access refused (`refused access (HTTP 403): <upstream message>`) | 401: fix key; 403: the key works but the model/tier is gated upstream, pick another model; otherwise retry later |
 | 4 | Tool failures exceeded the repair budget | retry, or rephrase the goal |
 | 5 | Turn budget exhausted | retry with a higher `--max-turns` |
-| 6 | Session file I/O | check `--session-out` path |
+| 6 | Session I/O failed on an explicit `--session-out` (a defaulted Session path never exits `6`: it warns on stderr and exits `0`) | check the `--session-out` path, or omit it |
 | 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page, Startpage Anubis proof-of-work/CAPTCHA, Brave or Bing HTTP `429`, Bing `challenge/verify` gate, Yahoo consent redirect) or a skip of an engine already suspended *from* such a Challenge (#62). A `search` call narrowed by `recency` never counts, since the same search without `recency` could still reach the skipped engines (#81) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 
 Errors are printed to stderr as `error: <message>`; stdout stays empty.

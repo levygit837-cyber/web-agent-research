@@ -3,6 +3,7 @@
 //! ADR-0006: the only module that knows Research/Turn; consumes `web` and `llm`.
 
 pub mod agent_loop;
+pub(crate) mod data_dir;
 pub mod dto;
 pub mod prompt;
 pub mod run;
