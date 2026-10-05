@@ -14,7 +14,8 @@ pub struct Evidence {
     pub collected_at: String,
     /// Trimmed markdown body (from `FetchedMarkdown::markdown`, stored verbatim).
     pub markdown: String,
-    /// Which engine produced `markdown` (`static` or `browser`), for
+    /// Which engine produced `markdown` (`static`, `browser`, or `api` for
+    /// the crates.io crate-page rewrite), for
     /// debugging; not part of the public tool response (#31). Absent on
     /// Evidence built before this field existed; `SESSION_FORMAT_VERSION`
     /// stays 1 because old rows still deserialize.
