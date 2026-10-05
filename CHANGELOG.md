@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 - Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
+- `search` Hits rank by Reciprocal Rank Fusion over engine x query legs, then query coverage, not engine count first (#110).
 
 ### Fixed
 

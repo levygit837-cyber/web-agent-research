@@ -2,8 +2,8 @@
 //!
 //! The `search` tool fans out agent-loop Queries over the enabled engines
 //! (DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage; all fetch-only
-//! HTML, no credentials), dedups hits by URL key and returns
-//! consensus-ranked merged results. Provider text inside hits is an ungrounded
+//! HTML, no credentials), dedups hits by URL key and returns merged results
+//! ranked by Reciprocal Rank Fusion. Provider text inside hits is an ungrounded
 //! candidate: only fetched page content with URL + time becomes Evidence.
 //!
 //! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
@@ -247,7 +247,8 @@ impl SearchInput {
 /// Output of one fan-out call. Partial success is the norm.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SearchOutput {
-    /// Consensus-ranked merged results, len <= top_k.
+    /// Merged results ranked by Reciprocal Rank Fusion over (provider, query)
+    /// legs, then query coverage, len <= top_k.
     pub results: Vec<MergedResult>,
     /// One entry per failed provider x Query leg, in leg order (deterministic).
     pub errors: Vec<SearchProviderError>,
