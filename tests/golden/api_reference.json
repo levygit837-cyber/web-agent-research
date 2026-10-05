@@ -1,0 +1,311 @@
+{
+  "category": "api_reference",
+  "goals": [
+    {
+      "id": "api_reference-01",
+      "goal": "What does Python's str.removeprefix return when the prefix is absent and since which version does it exist?",
+      "nuggets": [
+        {
+          "text": "If the string starts with the prefix, str.removeprefix returns string[len(prefix):].",
+          "url": "https://docs.python.org/3/library/stdtypes.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If the string does not start with the prefix, str.removeprefix returns a copy of the original string.",
+          "url": "https://docs.python.org/3/library/stdtypes.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "str.removeprefix was added in Python 3.9.",
+          "url": "https://docs.python.org/3/library/stdtypes.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The signature is str.removeprefix(prefix, /), taking a single positional-only argument.",
+          "url": "https://docs.python.org/3/library/stdtypes.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Unlike str.lstrip with an argument, which treats it as a set of characters to strip, removeprefix removes a single prefix string (e.g. 'Arthur: three!'.removeprefix('Arthur: ') gives 'three!').",
+          "url": "https://docs.python.org/3/library/stdtypes.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-02",
+      "goal": "How does Rust's Option::take_if work, what is its signature, and since which Rust version is it stable?",
+      "nuggets": [
+        {
+          "text": "The signature is pub fn take_if<P>(&mut self, predicate: P) -> Option<T> where P: FnOnce(&mut T) -> bool.",
+          "url": "https://doc.rust-lang.org/std/option/enum.Option.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Option::take_if has been stable since Rust 1.80.0.",
+          "url": "https://doc.rust-lang.org/std/option/enum.Option.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "take_if takes the value out of the option, but only if the predicate evaluates to true on a mutable reference to the value.",
+          "url": "https://doc.rust-lang.org/std/option/enum.Option.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If the predicate returns true, take_if replaces self with None.",
+          "url": "https://doc.rust-lang.org/std/option/enum.Option.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "take_if operates similarly to Option::take, but conditionally.",
+          "url": "https://doc.rust-lang.org/std/option/enum.Option.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-03",
+      "goal": "What does JavaScript's Array.prototype.toSorted() return, does it mutate the original array, and what happens if no compare function is given?",
+      "nuggets": [
+        {
+          "text": "toSorted() is the copying version of sort(): it returns a new array with the elements sorted in ascending order.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The original array is not modified by toSorted() (e.g. months.toSorted() leaves months as ['Mar', 'Jan', 'Feb', 'Dec']).",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If compareFn is omitted, the elements are converted to strings and sorted according to each character's Unicode code point value.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "When used on sparse arrays, toSorted() iterates empty slots as if they have the value undefined.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "MDN marks toSorted() as Baseline Widely available, available across browsers since July 2023.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-04",
+      "goal": "How does the Web API AbortSignal.timeout() work: what argument does it take, what does it return, and what error does the signal abort with?",
+      "nuggets": [
+        {
+          "text": "The syntax is AbortSignal.timeout(time), a static method that returns an AbortSignal.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The time parameter is the 'active' time in milliseconds before the signal aborts, and must be between 0 and Number.MAX_SAFE_INTEGER.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "On timeout the signal aborts with its reason set to a TimeoutError DOMException.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The timeout is based on active time rather than elapsed time, so it is effectively paused while a worker is suspended or a document is in the back-forward cache.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "AbortSignal.timeout() does not provide a way to cancel its timeout.",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-05",
+      "goal": "What does Node.js fsPromises.mkdir resolve with, and what does the recursive option do?",
+      "nuggets": [
+        {
+          "text": "The signature is fsPromises.mkdir(path[, options]), and it was added in Node.js v10.0.0.",
+          "url": "https://nodejs.org/api/fs.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The recursive option defaults to false.",
+          "url": "https://nodejs.org/api/fs.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "On success the promise fulfills with undefined if recursive is false.",
+          "url": "https://nodejs.org/api/fs.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "On success the promise fulfills with the first directory path created if recursive is true.",
+          "url": "https://nodejs.org/api/fs.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The mode option defaults to 0o777 and is not supported on Windows.",
+          "url": "https://nodejs.org/api/fs.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-06",
+      "goal": "How does PostgreSQL's date_trunc function work: what arguments and input types does it accept, and what does it return?",
+      "nuggets": [
+        {
+          "text": "The syntax is date_trunc(field, source [, time_zone]).",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The source is a value expression of type timestamp, timestamp with time zone, or interval; date and time values are cast automatically to timestamp or interval.",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The return value has all fields less significant than the selected one set to zero (or one, for day and month).",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Valid values for field include microseconds, milliseconds, second, minute, hour, day, week, month, quarter, year, decade, century and millennium.",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "For timestamp with time zone input, truncation is done with respect to the current TimeZone setting by default, unless a time_zone argument is given.",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Example: date_trunc('hour', timestamp '2001-02-16 20:38:40') returns 2001-02-16 20:00:00.",
+          "url": "https://www.postgresql.org/docs/current/functions-datetime.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-07",
+      "goal": "What are the parameters and defaults of Python's functools.lru_cache, and what does cache_info() return?",
+      "nuggets": [
+        {
+          "text": "The decorator signature is @functools.lru_cache(maxsize=128, typed=False), so maxsize defaults to 128 and typed defaults to False.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If maxsize is set to None, the LRU feature is disabled and the cache can grow without bound.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If typed is true, function arguments of different types are cached separately.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The positional and keyword arguments to the wrapped function must be hashable, because a dictionary is used to cache results.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "cache_info() returns a named tuple showing hits, misses, maxsize and currsize.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The wrapped function also provides cache_clear() to clear or invalidate the cache; the cache is threadsafe.",
+          "url": "https://docs.python.org/3/library/functools.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "api_reference-08",
+      "goal": "How do I create an issue with the GitHub REST API: which endpoint, required parameters, and what status codes can come back?",
+      "nuggets": [
+        {
+          "text": "The endpoint is POST /repos/{owner}/{repo}/issues.",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The title body parameter is required (string or integer); body, milestone, labels and assignees are optional.",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Any user with pull access to a repository can create an issue.",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "If issues are disabled in the repository, the API returns a 410 Gone status.",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Labels, assignees and milestone are silently dropped if the user does not have push access.",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "A successful create returns 201 Created; a 422 means validation failed or the endpoint has been spammed (secondary rate limiting may apply when creating content too quickly).",
+          "url": "https://docs.github.com/en/rest/issues/issues",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    }
+  ]
+}

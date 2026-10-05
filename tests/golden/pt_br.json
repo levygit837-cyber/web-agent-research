@@ -1,0 +1,293 @@
+{
+  "category": "pt_br",
+  "goals": [
+    {
+      "id": "pt_br-01",
+      "goal": "Quais são as regras de ownership em Rust e por que atribuir uma String a outra variável invalida a original?",
+      "nuggets": [
+        {
+          "text": "Rust ownership rule: each value in Rust has an owner.",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rust ownership rule: there can only be one owner at a time.",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rust ownership rule: when the owner goes out of scope, the value is dropped.",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "After `let s2 = s1;` Rust considers s1 no longer valid (the value is moved) to avoid a double free error, where both variables would try to free the same memory when going out of scope.",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Types that implement the Copy trait (such as integers stored on the stack) are trivially copied instead of moved, so the original variable remains valid after assignment.",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-02",
+      "goal": "Como funciona o tratamento de erros com Result em Rust: unwrap, expect e o operador ?",
+      "nuggets": [
+        {
+          "text": "The Result enum is defined as `enum Result<T, E> { Ok(T), Err(E) }`, with the variants Ok and Err.",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`unwrap` returns the value inside Ok if the Result is Ok, and calls the panic! macro if the Result is Err.",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`expect` works like unwrap but lets you choose the panic! error message.",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The `?` operator placed after a Result returns the inner value if it is Ok, and if it is Err, returns the Err from the whole function as if `return` had been used.",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Using `?` in a `main` function that returns `()` does not compile (error E0277), because `?` requires a compatible return type such as Result.",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-03",
+      "goal": "Como criar, ativar e desativar um ambiente virtual em Python e congelar as dependências num requirements.txt?",
+      "nuggets": [
+        {
+          "text": "A virtual environment is created with `python -m venv /path/to/new/virtual/environment`.",
+          "url": "https://docs.python.org/pt-br/3/library/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Creating a venv places a pyvenv.cfg file in the target directory, with a `home` key pointing to the Python installation it was run from.",
+          "url": "https://docs.python.org/pt-br/3/library/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "On Unix or macOS a venv is activated with `source <env>/bin/activate`; on Windows with `<env>\\Scripts\\activate`.",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "An active virtual environment is deactivated by typing `deactivate` in the terminal.",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`python -m pip freeze > requirements.txt` writes the installed packages to requirements.txt, and `python -m pip install -r requirements.txt` installs them all.",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-04",
+      "goal": "Qual a diferença entre var, let e const em JavaScript quanto a escopo, hoisting e reatribuição?",
+      "nuggets": [
+        {
+          "text": "`var` declares a variable globally or in the entire function scope, regardless of block scope, whereas `let` is block-scoped.",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/let",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`var` declarations are hoisted: they are processed before any code runs, so a variable can appear to be used before it is declared (moved to the top of the function or global code).",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/var",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`const` creates a block-scoped variable whose value cannot be changed by assignment and which cannot be redeclared.",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "A `const` must be initialized at declaration; `const FOO;` throws a SyntaxError (missing = in const declaration).",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`const` does not make the value immutable, only the binding: the constant variable cannot be reassigned, but e.g. an object's contents can change.",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-05",
+      "goal": "Como funciona o git rebase e quando não devo usá-lo?",
+      "nuggets": [
+        {
+          "text": "`git rebase` finds the common ancestor of the current branch and the target branch, takes the diff introduced by each commit of the current branch, and replays them on top of the target.",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Basic usage: `git checkout experiment` then `git rebase master` replays the experiment branch's work on top of master.",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rebasing abandons existing commits and creates new ones that are similar but different.",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Rule: do not rebase commits that exist outside your repository and that people may have based work on.",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`git rebase --onto master server client` takes the client branch's patches since it diverged from server and replays them as if client were based directly on master.",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-06",
+      "goal": "Quais obrigações e direitos da LGPD um desenvolvedor precisa considerar: direitos do titular, encarregado, incidentes de segurança e multas?",
+      "nuggets": [
+        {
+          "text": "LGPD Art. 18: the data subject has the right to obtain from the controller, at any time and upon request, confirmation of the existence of processing and access to the data.",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "LGPD Art. 18 also grants the rights to correction of incomplete, inaccurate or outdated data and to data portability to another service or product provider.",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "LGPD Art. 41: the controller must appoint a data protection officer (encarregado), whose identity and contact information must be publicly disclosed, preferably on the controller's website.",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "LGPD Art. 48: the controller must notify the national authority (ANPD) and the data subject of a security incident that may cause relevant risk or damage to data subjects.",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "LGPD Art. 52: a simple fine of up to 2% of the company's revenue in Brazil in its last fiscal year, limited in total to R$ 50,000,000.00 per infraction.",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-07",
+      "goal": "Como escrever uma expressão de agendamento no crontab: quais são os cinco campos, seus intervalos e atalhos como @reboot e @daily?",
+      "nuggets": [
+        {
+          "text": "The crontab time fields are minute (0-59), hour (0-23), day of month (1-31), month (1-12) and day of week (0-7).",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "In the day of week field, both 0 and 7 mean Sunday (names may also be used).",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "An asterisk (*) in a crontab field stands for 'first-last'; ranges are inclusive, e.g. 8-11 in the hour field means hours 8, 9, 10 and 11.",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "`@reboot` runs the job once after reboot, and `@daily` runs once a day, equivalent to `0 0 * * *`.",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "When both the day-of-month and day-of-week fields are restricted, the command runs if at least one of the two day fields matches the current time.",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    },
+    {
+      "id": "pt_br-08",
+      "goal": "O que é o Pix, quem o oferece, quando foi lançado e onde está a especificação da API Pix?",
+      "nuggets": [
+        {
+          "text": "Pix is an instant money transfer and instant electronic payment method in Brazilian reais (R$).",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Pix is offered by the Banco Central do Brasil (central bank) to individuals and companies.",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Pix operates 24 hours a day without interruption.",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "Pix's initial release date was 5 October 2020.",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "never",
+          "verified_on": "2026-10-05"
+        },
+        {
+          "text": "The Pix API functional specification is published in the bacen/pix-api GitHub repository in OpenAPI 3.0 format (openapi.yaml).",
+          "url": "https://github.com/bacen/pix-api",
+          "volatility": "slow",
+          "verified_on": "2026-10-05"
+        }
+      ]
+    }
+  ]
+}
