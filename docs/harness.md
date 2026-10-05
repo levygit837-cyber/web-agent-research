@@ -32,6 +32,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 | `GATEWAY_TIMEOUT_SECS` | no | `60` (per-attempt request timeout, clamped to the time left before `--deadline-secs`) | not a valid integer exits `2` (`NotConfigured`) |
 | `GATEWAY_MAX_ATTEMPTS` | no | `3` (total attempts incl. the first try; a timed-out attempt is retried at most once) | not a valid `u32` exits `2` (`NotConfigured`) |
 | `GATEWAY_CONTEXT_WINDOW` | no | `200000` when `GATEWAY_MODEL` starts with `claude`, else `128000` (tokens) | not a valid `u32`, or a window that leaves under 16000 characters of context after the reply reserve, exits `2` (`NotConfigured`). Sizes the context budget and the `fetch` part size, see "Page parts and context budget" |
+| `FETCH_ALLOW_PRIVATE` | no | unset (`fetch` refuses private and reserved addresses) | exactly `1` lets `fetch` reach them, for local testing; any other value keeps the policy on. See "Fetch egress policy" |
 
 The binary reads only the process environment; it does not load `.env` itself. Locally, keep these in the git-ignored `.env` and export them before a run: `set -a; . ./.env; set +a`.
 
@@ -138,9 +139,9 @@ Recency (#81): when the `search` tool call's `recency` is set, a leg runs only i
 
 A refused target fails the `fetch` call with `refused private-network target: <url>: <reason>`, which the agent sees as a failed tool call (it counts against the repair budget like any other fetch failure); no byte of the target is read and nothing reaches Evidence, the Session or the Synthesis.
 
-| Variable | Required | Default | Invalid value |
-|---|---|---|---|
-| `FETCH_ALLOW_PRIVATE` | no | unset (policy on) | exactly `1` turns all four checks off, for local testing against `127.0.0.1` servers; any other value keeps the policy on |
+`FETCH_ALLOW_PRIVATE=1` (see "Environment") turns all four checks off, for local testing against `127.0.0.1` servers.
+
+With `FETCH_ALLOW_PRIVATE=1` only the static path reaches a private host: Obscura 0.2.2 refuses private and internal addresses on its own, so a loopback page that would fall back to the browser (JS shell, or under `min_markdown_chars`) still fails.
 
 Residual risk: the policy covers the request `fetch` makes, not what a page makes the browser do. Obscura's own sub-requests (scripts, images, iframes, XHR of a public page it renders) are not filtered, and a DNS answer that changes between the pre-spawn check and the browser's own lookup is not caught. The static path has neither gap.
 
