@@ -19,7 +19,10 @@ fn tool_defs_come_from_web_schemas_in_registry_order() {
 
 #[tokio::test]
 async fn stub_pops_in_order_then_exhausts() {
-    let registry = ToolRegistry::stub(VecDeque::from([ToolResult::Search { hits: vec![] }]));
+    let registry = ToolRegistry::stub(VecDeque::from([ToolResult::Search {
+        hits: vec![],
+        engine_status: vec![],
+    }]));
     assert!(matches!(
         registry
             .execute(&call("search", "{}"), TEST_PART_CHARS)

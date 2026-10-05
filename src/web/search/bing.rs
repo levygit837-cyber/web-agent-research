@@ -17,6 +17,7 @@ use scraper::{Html, Selector};
 use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{base64url_decode, collapse_whitespace};
+use crate::web::search::markup::rows_or_drift;
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, BING_MARKET_DEFAULT,
     MAX_NUM_RESULTS,
@@ -89,7 +90,21 @@ pub(crate) fn map_bing_response(
             retry_after_secs,
         });
     }
-    Ok(parse_bing_html(body, query))
+    rows_or_drift(
+        SearchProvider::Bing,
+        status,
+        body,
+        parse_bing_html(body, query),
+        is_bing_serp,
+    )
+}
+
+/// `true` when a Bing page is recognizably a results page (#104): the
+/// `id="b_results"` result list. Bing has no reliable no-results marker
+/// of its own (live 2026-10-05: a nonsense query still renders
+/// `b_results` with a row), so the container alone decides.
+pub fn is_bing_serp(body: &str) -> bool {
+    body.contains("id=\"b_results\"")
 }
 
 /// One Bing GET: `q`/`mkt`/`setlang` query params (mkt/setlang always

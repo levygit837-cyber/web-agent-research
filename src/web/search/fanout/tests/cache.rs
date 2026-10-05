@@ -204,3 +204,71 @@ async fn challenged_leg_is_never_cached() {
     );
     std::fs::remove_dir_all(&root).ok();
 }
+
+#[tokio::test]
+async fn empty_and_drifted_legs_are_never_cached() {
+    // Acceptance (#104): a recognized no-results page (DDG) answers empty
+    // and a drifted page (Startpage) is a typed error; neither writes a
+    // cache entry, so a second call asks both engines again.
+    let _guard = EnvGuard::lock();
+    let root = std::env::temp_dir().join(format!(
+        "war-fanout-empty-test-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&root).expect("create temp cache root");
+    let (base, hits) = StubServer::serve_routes(FanoutStub::single_page(
+        include_str!("../../../../../docs/research/search-engines/fixtures/ddg/no-results.html")
+            .to_string(),
+        sp_home_form(),
+        "<html><body><main class=\"redesign\"></main></body></html>".to_string(),
+        false,
+    ))
+    .await;
+    let client = reqwest::Client::new();
+    let call = || async {
+        let input =
+            SearchInput::validate(vec!["nothing here".to_string()], Some(15), None).expect("valid");
+        search_multi_with_bases(
+            &client,
+            input,
+            &format!("{base}/html/"),
+            &format!("{base}/"),
+            &format!("{base}/sp/search"),
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
+            &Governor::hermetic(),
+            Some(&root),
+        )
+        .await
+        .expect("DDG answered: Ok with no Hits")
+    };
+    let first = call().await;
+    assert!(first.results.is_empty());
+    assert!(first
+        .engine_status
+        .contains(&"duckduckgo: no results".to_string()));
+    assert!(first
+        .engine_status
+        .contains(&"startpage: unrecognized markup".to_string()));
+    let route_hits = |route: &str| hits.lock().expect("hits").get(route).copied().unwrap_or(0);
+    let (ddg_before, sp_before) = (route_hits("/html/"), route_hits("/sp/search"));
+    let entries = std::fs::read_dir(root.join("search"))
+        .map(|dir| dir.flatten().count())
+        .unwrap_or(0);
+    assert_eq!(entries, 0, "no cache entry for an empty or drifted leg");
+    call().await;
+    assert!(
+        route_hits("/html/") > ddg_before,
+        "the empty DDG leg is asked again"
+    );
+    assert!(
+        route_hits("/sp/search") > sp_before,
+        "the drifted leg is asked again"
+    );
+    std::fs::remove_dir_all(&root).ok();
+}

@@ -66,6 +66,7 @@ pub(super) fn canned_search() -> ToolResult {
             "T",
             "https://example.com/t",
         )],
+        engine_status: Vec::new(),
     }
 }
 

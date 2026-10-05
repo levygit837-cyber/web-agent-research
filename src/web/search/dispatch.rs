@@ -4,6 +4,7 @@
 use crate::web::search::bing::bing_search;
 use crate::web::search::brave::brave_search;
 use crate::web::search::ddg::ddg_search;
+use crate::web::search::governor::EnginePermit;
 use crate::web::search::startpage::startpage_search;
 use crate::web::search::types::{Recency, SearchProvider, SearchProviderError, SearchResult};
 use crate::web::search::yahoo::yahoo_search;
@@ -19,19 +20,25 @@ pub(super) struct EngineBases {
     pub(super) bing: String,
 }
 
-/// Run one `query` against `provider`'s own search function.
+/// Run one `query` against `provider`'s own search function. `permit` is
+/// the leg's held engine permit, already paced for the first request;
+/// engines that send follow-up requests inside one leg pace them through
+/// it (#104: DDG's continuation POSTs).
 pub(super) async fn search_engine(
     client: &reqwest::Client,
     provider: SearchProvider,
     query: &str,
     recency: Option<Recency>,
     bases: &EngineBases,
+    permit: &EnginePermit<'_>,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     match provider {
         SearchProvider::Startpage => {
             startpage_search(client, query, recency, &bases.sp_home, &bases.sp_search).await
         }
-        SearchProvider::DuckDuckGo => ddg_search(client, query, recency, &bases.ddg).await,
+        SearchProvider::DuckDuckGo => {
+            ddg_search(client, query, recency, &bases.ddg, Some(permit)).await
+        }
         SearchProvider::Brave => brave_search(client, query, &bases.brave).await,
         SearchProvider::Yahoo => yahoo_search(query, recency, &bases.yahoo).await,
         SearchProvider::Bing => bing_search(client, query, &bases.bing).await,

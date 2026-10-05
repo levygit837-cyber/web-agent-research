@@ -21,6 +21,7 @@ pub mod dedup;
 mod dispatch;
 pub mod fanout;
 pub(crate) mod governor;
+mod markup;
 pub mod startpage;
 #[cfg(test)]
 pub(crate) mod test_support;
