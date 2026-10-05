@@ -12,10 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sessions default to `<data root>/sessions/<id>.jsonl` (`$WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `~/.local/share/web-agent-research`), not `./sessions/` (#102).
 - `--session-id` must match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` (#102).
 - A failed write to the defaulted Session path warns on stderr and exits `0`; exit `6` is only for an explicit `--session-out` (#102).
+- `--json` adds `content_trust: "untrusted-web"`; the Harness snippet now treats the Synthesis as untrusted web content (#98).
+- `--json` citations add `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`; the Synthesis adds `verification` counts (#106).
 
 ### Added
 
 - Session files are created with mode `0600`; `SESSION_MAX_BYTES` (default 256 MiB) evicts the oldest Sessions (#102).
+- Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
+- Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
+
+### Changed
+
+- Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
+- The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 
 ### Fixed
 
