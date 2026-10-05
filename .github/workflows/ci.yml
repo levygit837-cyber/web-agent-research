@@ -35,3 +35,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --locked --all-targets
       - run: cargo build --locked
+
+  # Keep in step with `rust-version` in Cargo.toml.
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --locked --all-targets

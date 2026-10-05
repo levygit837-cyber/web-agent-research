@@ -17,21 +17,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Session files are created with mode `0600`; `SESSION_MAX_BYTES` (default 256 MiB) evicts the oldest Sessions (#102).
 
+### Fixed
+
+- `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
+
 ## [0.3.0] - 2026-10-04
 
 Search runs over four free engines by default, long pages arrive whole in parts, and `recency` is honored per engine.
 
 ### Breaking
 
-- Startpage is off unless listed in the new `SEARCH_ENGINES` allowlist (#64, #66).
+- Startpage is off by default; opt in with the new `SEARCH_ENGINES` allowlist (#64, #66).
 - `web::search::search_multi` is removed; use `web::search::tool::Searcher::search` (#71).
-- `LoopBudget::max_evidence_chars` is now `max_part_chars`; `ToolRegistry::execute` takes `part_chars` (#80).
-- Moved paths: `agent_loop::types::LoopBudget`, `agent_loop::result::ToolResult`, `research::dto` (#83).
-- New enum variants: `ResearchError::SearchBlocked`, `SearchProviderError::{Suspended, Throttled}` (#53, #62).
+- `LoopBudget::max_evidence_chars` is now `max_part_chars`; `ToolRegistry::execute` takes `part_chars`; `build_system_prompt` takes a `&LoopBudget` (#72, #80).
+- Moved: `LoopInput`, `LoopBudget`, `ToolEvidence`, `RunReport`, `LoopError` from `agent_loop::runner` to `agent_loop::types` (#83).
+- Moved: `ToolResult`, `FailureKind` from `agent_loop::registry` to `agent_loop::result` (#83).
+- Moved: `ResearchRequest`, `ResearchResponse`, the `*DTO` types and `default_max_turns` from `research::run` to `research::dto` (#83).
+- New variants: `ResearchError::SearchBlocked`, `SearchProviderError::{Suspended, Throttled}`, `SearchProvider::{Brave, Yahoo, Bing}` (#53, #62, #66).
+- New variants: `ToolResult::SearchNote`, `FetchError::InvalidPart` (#80, #81).
+- New fields: `GatewayConfig::context_window_tokens`, `FetchInput::part`, `SearchOutput::note` (#80, #81).
+- New fields: `SearchProviderError::Upstream::{status, retry_after_secs}`, `AllFailed::all_challenged` (#53, #62).
 
 ### Added
 
 - Brave, Yahoo and Bing search engines (#66).
+- `SEARCH_ENGINES` picks the engines to query; default `duckduckgo,brave,yahoo,bing` (#64, #66).
 - Engine governor: suspends walled engines, paces requests, caps them per run (#62, #63, #73).
 - On-disk search cache with a 24 h TTL; `SEARCH_CACHE=off` disables it (#67).
 - Chrome browser profiles with real header order and compression, for search and fetch (#57, #58, #59, #74).

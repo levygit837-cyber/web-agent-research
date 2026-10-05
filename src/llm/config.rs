@@ -295,7 +295,7 @@ impl GatewayConfig {
         let prompt_cache_key_enabled = std::env::var("GATEWAY_PROMPT_CACHE_KEY")
             .ok()
             .map(|v| v.trim().to_owned())
-            .map_or(true, |v| v != "off");
+            .is_none_or(|v| v != "off");
         let context_window_tokens = std::env::var("GATEWAY_CONTEXT_WINDOW")
             .map(|v| v.trim().to_owned())
             .ok()

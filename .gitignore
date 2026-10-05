@@ -6,7 +6,7 @@ cache/
 *.log
 .DS_Store
 
-# Ensino paralelo — exclusão permanente
+# Local learning material, permanently excluded
 /assets/
 /lessons/
 /learning-records/
