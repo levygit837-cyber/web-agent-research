@@ -1,11 +1,11 @@
 name: protect-main
 
-# Alternativa à branch protection nativa (repo privado no plano free não
-# tem acesso a branch protection nem rulesets — a API retorna 403).
-# Este workflow NÃO bloqueia o push (impossível sem o plano pago): ele
-# detecta push direto na main e falha com instruções de reversão.
-# Bloqueio real no cliente: .githooks/pre-push.
-# Ver docs/adr/0005-protecao-main-sem-plano-pago.md.
+# Alternative to native branch protection (a private repo on the free plan
+# has no access to branch protection or rulesets; the API returns 403).
+# This workflow does NOT block the push (impossible without the paid plan):
+# it detects a direct push to main and fails with revert instructions.
+# Real client-side block: .githooks/pre-push.
+# See docs/adr/0005-main-via-pr-no-paid-plan.md.
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Rejeitar commits sem PR associado
+      - name: Reject commits without an associated PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEFORE: ${{ github.event.before }}
@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
 
           if [ "$FORCED" = "true" ]; then
-            echo "::error::force-push na main: reescrever história pública invalida auditoria por PR"
+            echo "::error::force-push to main: rewriting public history invalidates the per-PR audit"
             exit 1
           fi
 
@@ -44,54 +44,54 @@ jobs:
           mapfile -t commits < <(git rev-list "$range")
 
           if [ "${#commits[@]}" -eq 0 ]; then
-            echo "nenhum commit novo na main; nada a verificar."
+            echo "no new commits on main; nothing to check."
             exit 0
           fi
 
           fail=0
           for c in "${commits[@]}"; do
-            # Sem isenções: até o commit raiz exige PR associado.
-            # Recriar a main via push falha fechado (o bootstrap histórico
-            # é anterior ao gate).
+            # No exemptions: even the root commit needs an associated PR.
+            # Recreating main via push fails closed (the historical
+            # bootstrap predates the gate).
             msg="$(git log -1 --format=%s "$c")"
-            # Landing de PR via merge commit: "Merge pull request #N from ..."
-            # Compara o SHA com o mergeCommit real do PR: forjar a mensagem
-            # num push direto não passa.
+            # PR landing via merge commit: "Merge pull request #N from ..."
+            # Compares the SHA with the PR's real mergeCommit: forging the
+            # message in a direct push does not pass.
             if [[ "$msg" =~ ^Merge\ pull\ request\ #([0-9]+)\  ]]; then
               n="${BASH_REMATCH[1]}"
               IFS=' ' read -r state oid <<< \
                 "$(gh pr view "$n" --json state,mergeCommit --jq '.state + " " + .mergeCommit.oid')"
               if [ "$state" = "MERGED" ] && [ "$oid" = "$c" ]; then
-                echo "ok $c é merge do PR #$n"
+                echo "ok $c is the merge of PR #$n"
                 continue
               fi
-              echo "::error::$c diz ser merge do PR #$n, mas não confere (estado=$state, merge=$oid)"
+              echo "::error::$c claims to merge PR #$n, but it does not match (state=$state, merge=$oid)"
               fail=1
               continue
             fi
-            # Landing via squash/rebase ou commit da branch do PR: a API de
-            # commits associa o SHA ao PR mesmo após o merge.
+            # Landing via squash/rebase or a commit from the PR branch: the
+            # commits API associates the SHA with the PR even after merge.
             assoc="$(gh api "repos/$GITHUB_REPOSITORY/commits/$c/pulls" \
               --jq '[.[] | select(.merged_at != null)] | length')"
             if [ "$assoc" -ge 1 ]; then
-              echo "ok $c associado a PR mergeado"
+              echo "ok $c is associated with a merged PR"
             else
-              echo "::error::$c ($msg) sem PR associado: push direto na main"
+              echo "::error::$c ($msg) has no associated PR: direct push to main"
               fail=1
             fi
           done
 
           if [ "$fail" -ne 0 ]; then
             cat <<'EOF'
-          Push direto na main detectado. Toda mudança entra por PR (ADR-0005).
-          Para regularizar:
-            1. git revert <sha> numa branch nova;
-            2. abra o PR do revert e faça merge por lá.
-          Não use force-push para "desfazer": reescrever a main também
-          dispara este gate (force-push é rejeitado acima). Emergência nunca
-          precisa de push direto: merge de PR funciona mesmo com CI vermelho;
-          quebrou a main, corrija com PR de revert.
+          Direct push to main detected. Every change enters through a PR (ADR-0005).
+          To regularize:
+            1. git revert <sha> on a new branch;
+            2. open the revert PR and merge it there.
+          Do not force-push to "undo": rewriting main also trips this gate
+          (force-push is rejected above). An emergency never needs a direct
+          push: a PR merge works even with red CI; if main broke, fix it
+          with a revert PR.
           EOF
             exit 1
           fi
-          echo "todos os commits novos chegaram via PR."
+          echo "all new commits arrived via PR."

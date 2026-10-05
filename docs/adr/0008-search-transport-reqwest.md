@@ -1,6 +1,6 @@
 # Transport stays `reqwest`; no own build, no `wreq`, no `primp` for now
 
-Answers issue #56. Amends nothing; confirms ADR-0006 §3 ("Fetch is reqwest-first") and its "new dependency needs a stated reason and a measurement, not speculatively" standard.
+Answers issue #56. Amends nothing; confirms ADR-0006 §3 ("Fetch is reqwest-first, Obscura fallback"). It applies the repo rule that a new dependency needs a stated reason and a measurement, which is a repo convention and not a sentence of ADR-0006.
 
 Issue #56 asked whether to keep `reqwest` (generic rustls/`h2` fingerprint, no GREASE, wrong H2 pseudo-header order) or move to a Chrome-impersonating transport (`wreq`, `primp`) or build the equivalent ourselves on top of `reqwest`'s own stack. A research session (`local://transport-decision.md`) measured all three paths directly instead of estimating from docs.
 

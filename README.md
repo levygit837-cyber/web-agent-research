@@ -8,9 +8,9 @@ Private repo: `https://github.com/levygit837-cyber/web-agent-research`
 
 ## Stack (recorded decisions)
 
-- **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-linguagem-ancora.md)
-- **No DB in the prototype**: Session in `sessions/<id>.jsonl`; search-leg cache and engine state on disk under the cache root — [ADR-0002](docs/adr/0002-sem-db-so-arquivos.md)
-- **Own HTTP LLM client** (`reqwest` + `serde`, no SDK): OpenAI-compatible — [ADR-0003](docs/adr/0003-http-openai-compatible-proprio.md) — or native Anthropic Messages via `GATEWAY_API_FORMAT` — [ADR-0007](docs/adr/0007-llm-wire-format-enum.md)
+- **Rust + tokio** as anchor language — [ADR-0001](docs/adr/0001-rust-anchor-language.md)
+- **No DB in the prototype**: Session in `sessions/<id>.jsonl`; search-leg cache and engine state on disk under the cache root — [ADR-0002](docs/adr/0002-no-db-files-only.md)
+- **Own HTTP LLM client** (`reqwest` + `serde`, no SDK): OpenAI-compatible — [ADR-0003](docs/adr/0003-own-openai-compatible-http.md) — or native Anthropic Messages via `GATEWAY_API_FORMAT` — [ADR-0007](docs/adr/0007-llm-wire-format-enum.md)
 - **reqwest-first fetch, Obscura fallback** for JS/blocked pages — [ADR-0006](docs/adr/0006-web-search-tool-architecture.md)
 - **Transport stays `reqwest`**: no own Chrome-impersonation build, no `wreq`, no `primp` for now — [ADR-0008](docs/adr/0008-search-transport-reqwest.md)
 - **Files split by responsibility**: production code ~500 lines per file, oversized test modules in `<stem>/tests/<theme>.rs` — [ADR-0009](docs/adr/0009-file-size-test-layout.md)
@@ -25,7 +25,7 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build) and `protect-main.yml` (fails if any commit landed without a PR). Every change goes through a PR — see [ADR-0005](docs/adr/0005-protecao-main-sem-plano-pago.md). After cloning, enable the local direct-push block: `git config core.hooksPath .githooks`.
+CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build; `msrv`: `cargo check` on the `rust-version` toolchain) and `protect-main.yml` (fails if any commit landed without a PR). Every change goes through a PR — see [ADR-0005](docs/adr/0005-main-via-pr-no-paid-plan.md). After cloning, enable the local direct-push block: `git config core.hooksPath .githooks`.
 
 ## Structure
 
