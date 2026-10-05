@@ -37,6 +37,7 @@ CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build; `
 - `docs/adr/` — architecture decisions
 - `docs/agents/` — engineering skills config (issue tracker, domain docs)
 - `docs/research/` — supporting research
+- `docs/eval.md` — offline eval: golden set, record/replay fixtures, judge, paired comparison; baselines in `docs/eval/`
 - `CHANGELOG.md` — version history (Keep a Changelog + SemVer)
 - `THIRD-PARTY-NOTICES.md` — attribution and license text for ported code (oh-my-pi, Obscura)
 
