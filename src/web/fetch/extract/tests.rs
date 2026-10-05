@@ -27,6 +27,7 @@ fn gate_table() {
     let row = "| a | b |";
     let baseline_table = format!("{row}\n| --- | --- |\n| 1 | 2 |\n\n{body}");
     let unclosed = format!("{body}\n\n```sh\necho tail");
+    let table_missing_row = baseline_table.replace("| 1 | 2 |", "");
 
     struct Case<'a> {
         name: &'a str,
@@ -86,7 +87,7 @@ fn gate_table() {
         Case {
             name: "loses a table row",
             baseline: &baseline_table,
-            extracted: Some((ex("", false), &baseline_table.replace("| 1 | 2 |", ""))),
+            extracted: Some((ex("", false), &table_missing_row)),
             keep: false,
         },
         Case {
