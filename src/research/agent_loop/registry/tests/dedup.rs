@@ -46,7 +46,7 @@ async fn repeat_fetch_skips_network_and_returns_already_fetched() {
         second.is_success(),
         "a skipped repeat is success, not a repair failure"
     );
-    assert!(second.render().contains("ALREADY FETCHED"));
+    assert!(second.render("n").contains("ALREADY FETCHED"));
     assert_eq!(pages.hits("/"), 1, "repeat fetch must not reach the server");
 }
 
@@ -217,7 +217,7 @@ async fn already_fetched_hit_gets_marker_others_dont() {
             TEST_PART_CHARS,
         )
         .await;
-    let rendered = searched.render();
+    let rendered = searched.render("n");
     assert!(
         rendered.contains("A title (already fetched)"),
         "fetched Hit must carry the marker: {rendered}"

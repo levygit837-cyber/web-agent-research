@@ -131,5 +131,5 @@ async fn all_challenged_search_becomes_search_blocked() {
     }
     assert!(!result.is_success(), "SearchBlocked must not be a success");
     assert_eq!(result.failure_kind(), Some(FailureKind::Execution));
-    assert!(result.render().starts_with("FAILED: search blocked:"));
+    assert!(result.render("n").starts_with("FAILED: search blocked:"));
 }

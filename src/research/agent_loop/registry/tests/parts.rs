@@ -28,7 +28,7 @@ async fn long_page_comes_in_parts_served_from_memory() {
         "the fixture must be a 3-part page, got {chars} chars"
     );
     assert_eq!(pages.hits("/"), 1);
-    let rendered = first.render();
+    let rendered = first.render("n");
     assert!(rendered.starts_with(&format!("Source: {}\n", page.source_url)));
     assert!(
         rendered.contains("part=2"),
@@ -55,7 +55,7 @@ async fn long_page_comes_in_parts_served_from_memory() {
         "continuation parts must be served from memory"
     );
     assert!(
-        !third.render().contains("part="),
+        !third.render("n").contains("call fetch"),
         "the last part has no next"
     );
 
@@ -124,7 +124,7 @@ async fn repeat_without_part_points_at_the_parts() {
         matches!(repeat, ToolResult::AlreadyFetched { parts: 3, .. }),
         "got {repeat:?}"
     );
-    let rendered = repeat.render();
+    let rendered = repeat.render("n");
     assert!(rendered.contains("ALREADY FETCHED"), "{rendered}");
     assert!(
         rendered.contains('3'),
