@@ -50,8 +50,10 @@ pub enum FetchPath {
 }
 
 /// Static HTTP request timeout, and the value `FetchError::Timeout` reports
-/// on the static path.
-const STATIC_TIMEOUT: Duration = Duration::from_secs(15);
+/// on the static path. A static attempt that times out plus the Obscura
+/// fallback ([`super::obscura::DEFAULT_TIMEOUT`]) must end inside the agent
+/// loop's per-tool timeout (#100).
+pub const STATIC_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Tags whose text is never content (`head` covers `title`/`meta`/`style`).
 const SKIP_TAGS: &[&str] = &[

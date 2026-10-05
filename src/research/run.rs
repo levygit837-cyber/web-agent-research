@@ -7,7 +7,7 @@
 //! `exit_for`. The wire DTOs (`ResearchRequest`, `ResearchResponse`, ...)
 //! are in `dto.rs`.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::llm::{Gateway, GatewayConfig};
 use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
@@ -22,17 +22,27 @@ use crate::web::search::tool::Searcher;
 
 /// Failures of one research run; each maps to a CLI exit code via
 /// `exit_for` in `main.rs` (`NotConfigured→2`, `GatewayExhausted→3`,
-/// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`).
+/// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`,
+/// `GatewayRejected→8`, `DeadlineExceeded→9`).
 #[derive(Debug)]
 pub enum ResearchError {
-    /// Empty goal, `max_turns == 0`, invalid `--session-id`, missing `GATEWAY_API_KEY` — no I/O attempted.
+    /// Empty goal, `max_turns == 0`, `max_turns_cap < max_turns`,
+    /// `deadline_secs == 0`, invalid `--session-id`, malformed
+    /// `GATEWAY_BASE_URL`, missing `GATEWAY_API_KEY` — no I/O attempted.
     NotConfigured(String),
-    /// Gateway retries exhausted, incl. the 429-credit wall.
+    /// Gateway retries exhausted on a retryable failure (429, 5xx,
+    /// timeout, transport), incl. the 429-credit wall.
     GatewayExhausted(String),
+    /// The gateway rejected the request deterministically (401, 403, other
+    /// 4xx, an error object in a 2xx body, unparsable 2xx, empty choices,
+    /// refusal): retrying cannot help, the configuration must change.
+    GatewayRejected(String),
     /// Invalid tool call or tool failure after `max_repairs`.
     ToolFailure(String),
-    /// `max_turns` consumed with no FINAL parsed.
+    /// The turn budget was consumed with no FINAL parsed.
     BudgetExhausted { turns: u32 },
+    /// The run deadline (`deadline_secs`) passed with no usable answer.
+    DeadlineExceeded { turns: u32 },
     /// Explicit `--session-out` write failure. A defaulted Session path never
     /// raises this: it warns on stderr and the run still succeeds (#102).
     Io(String),
@@ -52,9 +62,16 @@ impl std::fmt::Display for ResearchError {
         match self {
             Self::NotConfigured(reason) => write!(f, "research not configured: {reason}"),
             Self::GatewayExhausted(reason) => write!(f, "gateway exhausted: {reason}"),
+            Self::GatewayRejected(reason) => write!(f, "gateway rejected the request: {reason}"),
             Self::ToolFailure(reason) => write!(f, "tool failure: {reason}"),
             Self::BudgetExhausted { turns } => {
                 write!(f, "turn budget exhausted after {turns} turns")
+            }
+            Self::DeadlineExceeded { turns } => {
+                write!(
+                    f,
+                    "run deadline exceeded after {turns} turns with no answer"
+                )
             }
             Self::Io(reason) => write!(f, "session write failed: {reason}"),
             Self::SearchBlocked(detail) => {
@@ -73,14 +90,17 @@ fn map_loop_error(err: LoopError) -> ResearchError {
             let message = gateway_err.to_string();
             if matches!(gateway_err, crate::llm::GatewayError::RateLimited { .. }) {
                 ResearchError::GatewayExhausted(format!("{message}; retry later or abort"))
-            } else {
+            } else if gateway_err.is_retryable() {
                 ResearchError::GatewayExhausted(message)
+            } else {
+                ResearchError::GatewayRejected(message)
             }
         }
         LoopError::InvalidToolCall { reason } | LoopError::ToolFailed { reason } => {
             ResearchError::ToolFailure(reason)
         }
         LoopError::BudgetExhausted { turns } => ResearchError::BudgetExhausted { turns },
+        LoopError::DeadlineExceeded { turns } => ResearchError::DeadlineExceeded { turns },
     }
 }
 
@@ -117,6 +137,17 @@ pub(crate) async fn run_research_with(
             "max_turns must be >= 1".to_owned(),
         ));
     }
+    if req.max_turns_cap < req.max_turns {
+        return Err(ResearchError::NotConfigured(format!(
+            "max_turns_cap ({}) must be >= max_turns ({})",
+            req.max_turns_cap, req.max_turns
+        )));
+    }
+    if req.deadline_secs < 1 {
+        return Err(ResearchError::NotConfigured(
+            "deadline_secs must be >= 1".to_owned(),
+        ));
+    }
     if let Some(id) = req.session_id.as_deref() {
         data_dir::validate_session_id(id).map_err(ResearchError::NotConfigured)?;
     }
@@ -129,13 +160,21 @@ pub(crate) async fn run_research_with(
         .with_prompt_cache_key(session_id.clone());
     // Sized before `Gateway::new` consumes the config. `--size` does not
     // scale it: the window is a property of the model, not of the answer.
-    let budget = LoopBudget::for_window(
-        req.max_turns,
-        config.context_window_tokens,
-        config.reply_reserve_tokens(),
-    )
-    .map_err(ResearchError::NotConfigured)?;
-    let gateway = Gateway::new(config);
+    let run_time = Duration::from_secs(req.deadline_secs);
+    let budget = LoopBudget {
+        max_turns_cap: req.max_turns_cap,
+        ..LoopBudget::for_window(
+            req.max_turns,
+            config.context_window_tokens,
+            config.reply_reserve_tokens(),
+        )
+        .map_err(ResearchError::NotConfigured)?
+    }
+    .with_deadline(run_time, config.request_timeout);
+    let deadline = budget
+        .deadline
+        .expect("with_deadline always sets the run deadline");
+    let gateway = Gateway::new(config).with_deadline(deadline);
     let input = LoopInput {
         goal: req.goal.clone(),
         size: req.size,
@@ -209,6 +248,7 @@ pub(crate) async fn run_research_with(
         content_trust: CONTENT_TRUST_UNTRUSTED_WEB.to_owned(),
         synthesis: synthesis_dto,
         turns_used: report.turns_used,
+        turn_budget: report.turn_budget,
         evidence_urls,
         usage: usage_dto,
     })

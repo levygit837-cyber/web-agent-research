@@ -158,6 +158,25 @@ fn trim_one_slash(url: &str) -> &str {
     url.strip_suffix('/').unwrap_or(url)
 }
 
+/// A base URL the client can actually send to: absolute, `http`/`https`,
+/// with a host. Checked up front so a typo exits `2` instead of being
+/// retried as a transport failure. The value is not echoed: it may carry
+/// credentials.
+fn validate_base_url(raw: &str) -> anyhow::Result<()> {
+    let url = url::Url::parse(raw)
+        .map_err(|err| anyhow::anyhow!("GATEWAY_BASE_URL is not a valid absolute URL: {err}"))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        anyhow::bail!(
+            "GATEWAY_BASE_URL must use http or https, got scheme {:?}",
+            url.scheme()
+        );
+    }
+    if url.host_str().is_none_or(str::is_empty) {
+        anyhow::bail!("GATEWAY_BASE_URL has no host");
+    }
+    Ok(())
+}
+
 /// Context window, in tokens, assumed for a model when
 /// `GATEWAY_CONTEXT_WINDOW` is unset: 200K for `claude*` ids, 128K for
 /// anything else (the smallest window among common current models).
@@ -212,6 +231,7 @@ impl GatewayConfig {
             .transpose()?
             .unwrap_or_default();
         let base_url = env_or("GATEWAY_BASE_URL", "http://localhost:8317/v1");
+        validate_base_url(&base_url)?;
         let model = env_or("GATEWAY_MODEL", "muse-spark-1.3");
         let default_reasoning_effort = std::env::var("GATEWAY_REASONING_EFFORT")
             .map(|v| v.trim().to_owned())
@@ -703,5 +723,24 @@ mod tests {
         assert_eq!(cfg.reply_reserve_tokens(), 6144);
         cfg.default_max_tokens = None;
         assert_eq!(cfg.reply_reserve_tokens(), 8192 + 2048);
+    }
+
+    /// A base URL with no scheme, a non-HTTP scheme, or no host is a
+    /// configuration error naming the variable, never retried as a
+    /// transport failure.
+    #[test]
+    fn malformed_base_url_errors_naming_the_var() {
+        for bad in ["localhost:8317/v1", "ftp://h/v1", "http://", "not a url"] {
+            let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+            std::env::set_var("GATEWAY_API_KEY", "k");
+            std::env::set_var("GATEWAY_BASE_URL", bad);
+            let err = GatewayConfig::from_env().expect_err(&format!("{bad:?} must fail"));
+            assert!(err.to_string().contains("GATEWAY_BASE_URL"), "{bad}: {err}");
+        }
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_BASE_URL", "https://user:secret@gw.example/v1/");
+        let cfg = GatewayConfig::from_env().expect("https with credentials is valid");
+        assert_eq!(cfg.base_url, "https://user:secret@gw.example/v1");
     }
 }

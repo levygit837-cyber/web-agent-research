@@ -16,10 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--json` citations add `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`; the Synthesis adds `verification` counts (#106).
 - `fetch` refuses loopback, private, link-local and other reserved addresses, incl. via DNS and redirects (#97).
 - New `FetchError::Egress` variant; `Fetcher::with_policy` and `Obscura::with_egress` take an `EgressPolicy` (#97).
+- Exit `8` for requests the gateway rejects (401, 403, other 4xx, error-in-200, empty choices, refusal); `3` is now retryable exhaustion only (#99).
+- `--deadline-secs` (default 300) bounds the run; a deadline with no answer exits `9`; a malformed `GATEWAY_BASE_URL` exits `2` (#99, #100).
+- `--max-turns` defaults to 10; each successful search after the first adds 5 turns up to `--max-turns-cap` (default 25) (#101).
+- The final turn sends `tool_choice: none`; `--json` adds `turn_budget`; logs go to stderr, so stdout is only the response (#99, #101).
+- Rust API: `GatewayError::{Client, Server}` carry `detail`; `LoopBudget` adds `max_turns_cap`, `deadline`, `final_reserve` (#99, #100, #101).
 
 ### Added
 
 - Session files are created with mode `0600`; `SESSION_MAX_BYTES` (default 256 MiB) evicts the oldest Sessions (#102).
+- Gateway retries honor `Retry-After` (seconds or HTTP-date) on 429/503/529 with full-jitter backoff; error messages carry the upstream detail (#99).
 - Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
 - Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
 - `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
@@ -34,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
 - Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
+- Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).
+- A hung gateway or tool no longer stretches a run: `connect_timeout` 10 s, one timeout retry, static fetch 10 s, Obscura 30 s (#100).
 
 ## [0.3.0] - 2026-10-04
 

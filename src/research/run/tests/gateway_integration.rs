@@ -286,6 +286,8 @@ async fn prompt_cache_key_is_the_session_id_generated_before_the_loop_and_stable
         goal: "What is the Obscura headless browser?".to_owned(),
         size: SynthesisSize::Small,
         max_turns: 8,
+        max_turns_cap: 25,
+        deadline_secs: 300,
         session_id: None,
         session_out: Some(temp_session_out("cache-key-stable")),
     };

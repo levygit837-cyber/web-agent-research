@@ -64,6 +64,8 @@ pub(super) fn hermetic_request(session_tag: &str) -> ResearchRequest {
         goal: "What is the Obscura headless browser?".to_owned(),
         size: SynthesisSize::Small,
         max_turns: 8,
+        max_turns_cap: 25,
+        deadline_secs: 300,
         session_id: Some(format!("test-{session_tag}")),
         session_out: Some(temp_session_out(session_tag)),
     }

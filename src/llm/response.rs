@@ -31,6 +31,10 @@ pub(crate) struct ChatResponse {
     pub(crate) choices: Vec<Choice>,
     #[serde(default)]
     pub(crate) usage: Option<ResponseUsage>,
+    /// An error object some gateways return with HTTP 200 instead of a
+    /// 4xx/5xx status; it wins over `choices`.
+    #[serde(default)]
+    pub(crate) error: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,6 +130,9 @@ pub(crate) struct PromptTokensDetails {
 }
 
 pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> {
+    if let Some(error) = resp.error.as_ref().filter(|error| !error.is_null()) {
+        return Err(super::client::error_object(error));
+    }
     let choice = resp
         .choices
         .into_iter()

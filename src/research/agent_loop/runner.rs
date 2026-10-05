@@ -1,4 +1,4 @@
-//! Agent loop runner with turn budget and stop condition.
+//! Agent loop runner with turn budget, run deadline and stop condition.
 //!
 //! One function is the external seam: [`run_loop`] borrows the gateway and
 //! the tool registry, offers `allowed_tools` with `ToolChoice::Auto` (plain
@@ -9,6 +9,14 @@
 //! errors reaching the loop are final for that turn (the gateway owns
 //! retries); tool and dispatch failures are model-visible tool-role
 //! results bounded by `max_repairs`.
+//!
+//! The turn budget starts at `max_turns` and grows by
+//! [`SEARCH_TURN_BONUS`](crate::research::agent_loop::types::SEARCH_TURN_BONUS)
+//! for each successful `search` call after the first, up to
+//! `max_turns_cap` (#101). The final turn (last of the current budget, or
+//! the first turn once the run deadline's final reserve is reached, #100)
+//! sends the same tool defs with `ToolChoice::None`; tool calls in its
+//! reply are not dispatched and count as an empty-answer repair.
 //!
 //! The contract types are in `types.rs`; per-turn dispatch and the prompt
 //! notes are in `dispatch.rs`.
@@ -50,6 +58,12 @@ pub async fn run_loop(
     if budget.max_turns < 1 {
         return Err(LoopError::NoStart("max_turns must be >= 1".to_owned()));
     }
+    if budget.max_turns_cap < budget.max_turns {
+        return Err(LoopError::NoStart(format!(
+            "max_turns_cap ({}) must be >= max_turns ({})",
+            budget.max_turns_cap, budget.max_turns
+        )));
+    }
     if budget.max_context_chars < 1 {
         return Err(LoopError::NoStart(
             "max_context_chars must be >= 1".to_owned(),
@@ -70,20 +84,39 @@ pub async fn run_loop(
     let mut failures_used: u32 = 0;
     let mut search_blocked: Option<String> = None;
     let mut had_search_hits = false;
+    let mut successful_searches: u32 = 0;
+    let mut turn: u32 = 0;
 
-    for turn in 1..=budget.max_turns {
+    loop {
+        let turn_budget = budget.turn_budget(successful_searches);
+        if budget.deadline_passed() {
+            return Err(LoopError::DeadlineExceeded { turns: turn });
+        }
+        turn += 1;
+        let deadline_final = budget.in_final_reserve();
+        let final_turn = turn >= turn_budget || deadline_final;
         let messages = context::assemble(&system_prompt, input, &history, budget);
         let reply = if defs.is_empty() {
             gateway.chat(&messages).await
         } else {
+            // Same defs on the final turn, so the request prefix stays
+            // cacheable; only the choice changes.
+            let choice = if final_turn {
+                ToolChoice::None
+            } else {
+                ToolChoice::Auto
+            };
             gateway
-                .chat_with_tools(&messages, &defs, Some(ToolChoice::Auto))
+                .chat_with_tools(&messages, &defs, Some(choice))
                 .await
         };
         let reply = match reply {
             Ok(reply) => reply,
             Err(GatewayError::MissingApiKey) if turn == 1 => {
                 return Err(LoopError::NoStart("GATEWAY_API_KEY is not set".to_owned()));
+            }
+            Err(GatewayError::Timeout) if budget.deadline_passed() => {
+                return Err(LoopError::DeadlineExceeded { turns: turn });
             }
             Err(err) => return Err(LoopError::Gateway(err)),
         };
@@ -92,46 +125,68 @@ pub async fn run_loop(
             tracing::warn!("agent loop turn {turn} hit the model length limit; continuing");
         }
 
-        if reply.tool_calls.is_empty() {
-            match parse_answer(&reply.output, input.size) {
-                Ok(mut synthesis) => {
-                    let fetched: std::collections::HashSet<String> = evidence
-                        .iter()
-                        .filter_map(|item| item.url.as_deref())
-                        .map(dedup_key)
-                        .collect();
-                    retain_fetched_citations(&mut synthesis, &fetched);
-                    verify_synthesis(&mut synthesis, &evidence);
-                    return Ok(RunReport {
-                        synthesis,
-                        turns_used: turn,
-                        failures_used,
-                        evidence,
-                        usage,
-                        search_blocked,
-                        had_search_hits,
-                    });
-                }
-                Err(_) => {
-                    consecutive_failures += 1;
-                    failures_used += 1;
-                    if consecutive_failures > budget.max_repairs {
-                        return Err(LoopError::InvalidToolCall {
-                            reason: "empty answer".to_owned(),
-                        });
-                    }
-                    let observation =
-                        empty_answer_observation(tools, &input.allowed_tools, turn, budget);
-                    history.push(HistoryEntry::TextTurn {
-                        assistant: reply.output.clone(),
-                        observation,
-                    });
-                    if turn == budget.max_turns {
-                        return Err(LoopError::BudgetExhausted { turns: turn });
-                    }
-                    continue;
-                }
+        // Turns left after this one, as the model is told: none past the
+        // final turn, one once the deadline's final reserve is reached.
+        let turns_left = |turn_budget: u32| {
+            if budget.in_final_reserve() {
+                1
+            } else {
+                turn_budget.saturating_sub(turn)
             }
+        };
+        let end_without_answer = || {
+            if deadline_final {
+                LoopError::DeadlineExceeded { turns: turn }
+            } else {
+                LoopError::BudgetExhausted { turns: turn }
+            }
+        };
+
+        if reply.tool_calls.is_empty() || final_turn {
+            let answer = if reply.tool_calls.is_empty() {
+                parse_answer(&reply.output, input.size).ok()
+            } else {
+                tracing::warn!(
+                    "agent loop turn {turn} called tools on the final turn; not dispatched"
+                );
+                None
+            };
+            if let Some(mut synthesis) = answer {
+                let fetched: std::collections::HashSet<String> = evidence
+                    .iter()
+                    .filter_map(|item| item.url.as_deref())
+                    .map(dedup_key)
+                    .collect();
+                retain_fetched_citations(&mut synthesis, &fetched);
+                verify_synthesis(&mut synthesis, &evidence);
+                return Ok(RunReport {
+                    synthesis,
+                    turns_used: turn,
+                    turn_budget,
+                    failures_used,
+                    evidence,
+                    usage,
+                    search_blocked,
+                    had_search_hits,
+                });
+            }
+            consecutive_failures += 1;
+            failures_used += 1;
+            if consecutive_failures > budget.max_repairs {
+                return Err(LoopError::InvalidToolCall {
+                    reason: "empty answer".to_owned(),
+                });
+            }
+            if final_turn {
+                return Err(end_without_answer());
+            }
+            let observation =
+                empty_answer_observation(tools, &input.allowed_tools, turns_left(turn_budget));
+            history.push(HistoryEntry::TextTurn {
+                assistant: reply.output.clone(),
+                observation,
+            });
+            continue;
         }
 
         let mut outcome = dispatch_turn(
@@ -140,6 +195,7 @@ pub async fn run_loop(
             tools,
             &input.allowed_tools,
             budget,
+            budget.work_cutoff(),
             &nonce,
         )
         .await;
@@ -148,8 +204,10 @@ pub async fn run_loop(
             search_blocked = outcome.search_blocked;
         }
         had_search_hits = had_search_hits || outcome.had_search_hits;
+        successful_searches = successful_searches.saturating_add(outcome.successful_searches);
         if let Some(newest) = outcome.results.last_mut() {
-            newest.content.push_str(&turns_left_note(turn, budget));
+            let left = turns_left(budget.turn_budget(successful_searches));
+            newest.content.push_str(&turns_left_note(left));
         }
         history.push(HistoryEntry::ToolTurn {
             text: reply.output.clone(),
@@ -173,15 +231,7 @@ pub async fn run_loop(
                 };
             }
         }
-
-        if turn == budget.max_turns {
-            return Err(LoopError::BudgetExhausted { turns: turn });
-        }
     }
-
-    Err(LoopError::BudgetExhausted {
-        turns: budget.max_turns,
-    })
 }
 
 #[cfg(test)]
@@ -192,5 +242,6 @@ mod tests {
     mod no_start;
     mod repairs;
     mod search_blocked;
+    mod turn_budget;
     mod wire_shape;
 }

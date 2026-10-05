@@ -24,6 +24,8 @@ fn request(session_id: Option<&str>, session_out: Option<PathBuf>) -> ResearchRe
         goal: "What is the Obscura headless browser?".to_owned(),
         size: SynthesisSize::Small,
         max_turns: 8,
+        max_turns_cap: 25,
+        deadline_secs: 300,
         session_id: session_id.map(str::to_owned),
         session_out,
     }

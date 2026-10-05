@@ -37,11 +37,16 @@ enum ReadFailure {
     Overflow(&'static str),
 }
 
+/// Production per-fetch timeout. Sized so a static attempt that times out
+/// (10 s) plus this fallback fits inside the agent loop's 45 s per-tool
+/// timeout with 5 s to spare (#100); the agent loop asserts the fit. It
+/// matches the CLI's own 30 s navigation ceiling, so a page that needs the
+/// ceiling plus the adaptive settle is reported as `Timeout`.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+
 impl Obscura {
-    /// Production handle: `obscura` on PATH, 60 s per-fetch timeout (headroom
-    /// over the CLI's own 30 s navigation ceiling plus the 5 s adaptive settle,
-    /// mirroring `scrape`'s 60 s per-URL precedent). Egress policy from
-    /// `FETCH_ALLOW_PRIVATE`.
+    /// Handle over `binary` with a per-fetch `timeout` (production uses
+    /// [`Obscura::default`]: `obscura` on PATH, [`DEFAULT_TIMEOUT`]).
     pub fn new(binary: PathBuf, timeout: Duration) -> Self {
         Self {
             binary,
@@ -58,9 +63,8 @@ impl Obscura {
     /// Spawn `obscura fetch <normalized-url> --dump markdown --quiet`,
     /// collect stdout as markdown, classify failures per SPEC §3.
     /// Relies on CLI defaults: `--wait-until load`, adaptive settle when
-    /// `--wait` is omitted. The 60 s engine timeout stays above the CLI's
-    /// internal 30 s navigation ceiling + 5 s settle so a slow-but-healthy
-    /// fetch is not misclassified as `Timeout`.
+    /// `--wait` is omitted. A fetch still running after `timeout` is killed
+    /// and classified `Timeout`.
     pub async fn fetch_markdown(&self, raw_url: &str) -> Result<FetchedMarkdown, FetchError> {
         let normalized = normalize_url(raw_url, self.egress)?;
         let parsed = reqwest::Url::parse(&normalized).expect("normalize_url output parses");
@@ -178,9 +182,9 @@ async fn read_capped(
 }
 
 impl Default for Obscura {
-    /// `obscura` on PATH, 60 s timeout, egress policy from the env.
+    /// `obscura` on PATH, [`DEFAULT_TIMEOUT`], egress policy from the env.
     fn default() -> Self {
-        Self::new("obscura".into(), Duration::from_secs(60))
+        Self::new("obscura".into(), DEFAULT_TIMEOUT)
     }
 }
 

@@ -155,6 +155,9 @@ pub(crate) struct ChatRequest {
     pub(crate) tools: Option<Vec<ToolDef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_choice: Option<ToolChoice>,
+    /// Always `false`: the client reads one complete JSON body. Typed, so
+    /// it wins over `GATEWAY_EXTRA_BODY` and streaming cannot be enabled.
+    pub(crate) stream: bool,
 }
 
 /// One callable function offered to the model. Serializes to the OpenAI
@@ -239,6 +242,7 @@ impl ChatRequest {
             prompt_cache_key: params.prompt_cache_key.clone(),
             tools,
             tool_choice,
+            stream: false,
         }
     }
 
