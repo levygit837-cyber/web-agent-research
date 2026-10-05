@@ -10,5 +10,8 @@ pub mod run;
 pub mod session;
 pub mod synthesis;
 
-pub use dto::{CitationDTO, ResearchRequest, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO};
+pub use dto::{
+    CitationDTO, ResearchRequest, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO,
+    VerificationDTO, CONTENT_TRUST_UNTRUSTED_WEB,
+};
 pub use run::{render, run_research, ResearchError};

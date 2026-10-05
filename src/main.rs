@@ -109,7 +109,11 @@ async fn main() -> Result<()> {
 mod tests {
     use super::*;
     use clap::Parser;
-    use web_agent_research::{CitationDTO, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO};
+    use web_agent_research::research::synthesis::Support;
+    use web_agent_research::{
+        CitationDTO, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO,
+        CONTENT_TRUST_UNTRUSTED_WEB,
+    };
 
     fn parse(args: &[&str]) -> Cli {
         Cli::try_parse_from(args).expect("args must parse")
@@ -185,8 +189,15 @@ mod tests {
 
     #[test]
     fn render_goes_to_stdout_shape() {
+        let cite = |url: &str, support: Support| CitationDTO {
+            url: url.to_owned(),
+            title: Some("t".to_owned()),
+            support,
+            quote: None,
+        };
         let response = ResearchResponse {
             session_id: "s".to_owned(),
+            content_trust: CONTENT_TRUST_UNTRUSTED_WEB.to_owned(),
             synthesis: SynthesisDTO {
                 size: web_agent_research::research::synthesis::SynthesisSize::Small,
                 summary: "summary text".to_owned(),
@@ -195,10 +206,12 @@ mod tests {
                     points: vec!["point one".to_owned()],
                     citations: vec![],
                 }],
-                citations: vec![CitationDTO {
-                    url: "https://example.com/t".to_owned(),
-                    title: Some("t".to_owned()),
-                }],
+                citations: vec![
+                    cite("https://example.com/t", Support::Exact),
+                    cite("https://example.com/u", Support::None),
+                    cite("https://example.com/p", Support::Partial),
+                ],
+                verification: VerificationDTO::default(),
             },
             turns_used: 1,
             evidence_urls: vec!["https://example.com/t".to_owned()],
@@ -214,6 +227,17 @@ mod tests {
         let printed = render(&response);
         assert!(printed.contains("summary text"));
         assert!(printed.contains("Sources:"));
-        assert!(printed.contains("https://example.com/t"));
+        assert!(
+            printed.contains("1. [t](https://example.com/t)\n"),
+            "{printed}"
+        );
+        assert!(
+            printed.contains("2. [t](https://example.com/u) (unsupported:"),
+            "{printed}"
+        );
+        assert!(
+            printed.contains("3. [t](https://example.com/p) (partial:"),
+            "{printed}"
+        );
     }
 }

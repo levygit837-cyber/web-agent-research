@@ -14,5 +14,5 @@ pub mod web;
 
 pub use research::{
     render, run_research, CitationDTO, ResearchError, ResearchRequest, ResearchResponse,
-    SynthesisDTO, ThemeDTO, UsageDTO,
+    SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO, CONTENT_TRUST_UNTRUSTED_WEB,
 };

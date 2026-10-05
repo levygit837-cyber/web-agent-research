@@ -14,6 +14,7 @@ pub mod runner;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
+mod verify;
 
 pub use registry::ToolRegistry;
 pub use result::ToolResult;
