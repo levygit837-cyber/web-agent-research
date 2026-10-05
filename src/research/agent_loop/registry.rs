@@ -184,8 +184,12 @@ impl ToolRegistry {
                     }
                 };
                 match self.search(searcher, input).await {
-                    SearchOutcome::Hits { hits } => ToolResult::Search {
+                    SearchOutcome::Hits {
+                        hits,
+                        engine_status,
+                    } => ToolResult::Search {
                         hits: self.mark_already_fetched(hits),
+                        engine_status,
                     },
                     SearchOutcome::Note { note } => ToolResult::SearchNote { note },
                     SearchOutcome::Blocked { detail } => ToolResult::SearchBlocked { detail },
@@ -280,6 +284,7 @@ impl ToolRegistry {
                 Some(note) => SearchOutcome::Note { note },
                 None => SearchOutcome::Hits {
                     hits: output.results,
+                    engine_status: output.engine_status,
                 },
             },
             Err(crate::web::search::types::SearchProviderError::AllFailed {

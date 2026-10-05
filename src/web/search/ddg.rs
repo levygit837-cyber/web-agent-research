@@ -17,6 +17,8 @@ use crate::web::search::decode::{
     collapse_whitespace, decode_entities, decode_html_text, percent_decode, percent_encode,
     strip_tags,
 };
+use crate::web::search::governor::{EnginePermit, PaceOutcome};
+use crate::web::search::markup::rows_or_drift;
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, DDG_KL_DEFAULT, MAX_NUM_RESULTS,
 };
@@ -37,11 +39,22 @@ pub fn is_ddg_anomaly(body: &str) -> bool {
     body.contains("anomaly-modal") || body.contains("anomaly.js")
 }
 
+/// `true` when a DDG page is recognizably a results page (#104): the
+/// `id="links"` result container, or DDG's own no-results block
+/// (`no-results`, `result--no-result`). Live-verified 2026-10-05 on both
+/// a results page and a nonsense-query page.
+pub fn is_ddg_serp(body: &str) -> bool {
+    body.contains("id=\"links\"")
+        || body.contains("no-results")
+        || body.contains("result--no-result")
+}
+
 /// Map a finished DDG HTTP exchange to rows or a typed leg error: anomaly
 /// body -> `Challenge` (429) even on status 200 (providers soft-block);
 /// non-2xx without markers -> `Upstream` (503, carrying the real `status`
-/// and any parsed `retry_after_secs` for #62's suspension mapping). Empty
-/// with no marker is `Ok(vec![])` (zero results is not an error).
+/// and any parsed `retry_after_secs` for #62's suspension mapping). Zero
+/// rows on a page with neither the result container nor the no-results
+/// marker -> `Upstream { detail: "unrecognized markup" }` (#104).
 pub(crate) fn map_ddg_response(
     status: u16,
     body: &str,
@@ -62,7 +75,13 @@ pub(crate) fn map_ddg_response(
             retry_after_secs,
         });
     }
-    Ok(parse_ddg_html(body, query))
+    rows_or_drift(
+        SearchProvider::DuckDuckGo,
+        status,
+        body,
+        parse_ddg_html(body, query),
+        is_ddg_serp,
+    )
 }
 
 /// Strip `before:`/`after:` date operators from a raw Query (Omp
@@ -161,11 +180,20 @@ async fn ddg_post(
 /// generous safety cap against a pathological continuation cycle, not a
 /// behavior change for any query this repo has measured paginating).
 /// Exact-URL seen dedup across pages; global rank order.
+///
+/// `permit` is the leg's held engine permit (the caller already paced
+/// page 1 with it). Every continuation POST is paced and counted through
+/// it first (#104): it waits the engine gap and reserves the per-run
+/// budget like any other request. A continuation the governor refuses
+/// (engine suspended or budget spent meanwhile) ends pagination; the
+/// rows collected so far are the leg's answer. `None` (the
+/// `ddg_search_with_base` test seam) paginates ungoverned.
 pub(crate) async fn ddg_search(
     client: &reqwest::Client,
     query: &str,
     recency: Option<Recency>,
     base: &str,
+    permit: Option<&EnginePermit<'_>>,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
     // One profile per chain (#59): DDG's `vqd` is bound to the UA, so every
     // page of this same query re-POSTs with the same profile.
@@ -199,6 +227,11 @@ pub(crate) async fn ddg_search(
         let next_s = next.iter().find(|(k, _)| k == "s").cloned().map(|(_, v)| v);
         if next_s.is_some() && next_s == last_s {
             return Ok(rows);
+        }
+        if let Some(permit) = permit {
+            if !matches!(permit.pace().await, PaceOutcome::Proceed) {
+                return Ok(rows);
+            }
         }
         last_s = next_s;
         form = next;
@@ -373,7 +406,7 @@ pub async fn ddg_search_with_base(
     recency: Option<Recency>,
     base: &str,
 ) -> Result<Vec<SearchResult>, SearchProviderError> {
-    ddg_search(client, query, recency, base).await
+    ddg_search(client, query, recency, base, None).await
 }
 
 #[cfg(test)]

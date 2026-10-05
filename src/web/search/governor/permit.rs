@@ -45,29 +45,30 @@ impl<'g> EnginePermit<'g> {
         }
     }
 
-    /// Recheck suspension and the per-run budget (closing the race where a
-    /// sibling leg for the *same* engine settled -- and suspended the
-    /// engine, or exhausted the budget -- while this leg was still queued
-    /// behind it), then wait the jittered gap since the last leg
-    /// dispatched to this engine (initial value seeded from
-    /// `engines.json` on a fresh process), then atomically reserve the
-    /// budget and record *this* moment as the new last-request time,
-    /// persisting both. At most `resolve_concurrency(provider)` tasks may
-    /// be inside this method at once for a given provider (#73: one per
-    /// held [`EnginePermit`]) -- for an engine at concurrency 1 (the
-    /// pre-#73 default for every engine) that is still exactly one, so
-    /// the checks below can never race; for concurrency 2 (Bing/Yahoo)
-    /// two siblings can race here, bounded to at most `concurrency - 1`
-    /// requests over budget or under-gapped before the next check catches
-    /// up (see [`Governor::over_budget`]'s doc comment). Call once per
-    /// leg, immediately after [`Governor::acquire`] and before the leg's
-    /// first wire request. Always [`PaceOutcome::Proceed`], with zero
-    /// wait, for a hermetic `Governor`.
+    /// Refresh `engines.json` under the cross-process lock (#103: another
+    /// process may have suspended this engine, or sent its own request,
+    /// since this one last looked), then recheck suspension and the
+    /// per-run budget (closing the race where a sibling leg for the *same*
+    /// engine settled -- and suspended the engine, or exhausted the budget
+    /// -- while this leg was still queued behind it), then wait the
+    /// jittered gap since the last request any process dispatched to this
+    /// engine, then atomically reserve the budget and record *this* moment
+    /// as the new last-request time, persisting both under the lock. At
+    /// most `resolve_concurrency(provider)` tasks may be inside this method
+    /// at once for a given provider (#73: one per held [`EnginePermit`])
+    /// -- for an engine at concurrency 1 that is exactly one, so the
+    /// checks below can never race in-process; for concurrency 2
+    /// (Bing/Yahoo) two siblings can race here, bounded to at most
+    /// `concurrency - 1` requests over budget or under-gapped before the
+    /// next check catches up (see [`Governor::over_budget`]'s doc
+    /// comment). Call before every wire request of a leg, including DDG's
+    /// continuation POSTs (#104). Always [`PaceOutcome::Proceed`], with
+    /// zero wait, for a hermetic `Governor`.
     pub(crate) async fn pace(&self) -> PaceOutcome {
         if self.governor.0.hermetic {
             return PaceOutcome::Proceed;
         }
-        self.governor.ensure_loaded();
+        self.governor.refresh();
         if let Some((remaining_secs, reason)) = self.governor.suspended_remaining(self.provider) {
             return PaceOutcome::Suspended {
                 remaining_secs,
@@ -95,14 +96,11 @@ impl<'g> EnginePermit<'g> {
         // request resolves, so a leg aborted mid-flight by the fan-out
         // deadline still counts against the cap and still advances the
         // pacing clock -- it did send a real request.
-        let now = Instant::now();
-        {
-            let mut views = self.governor.0.views.lock().expect("governor views lock");
+        self.governor.sync(|views| {
             let view = views.entry(self.provider).or_default();
-            view.last_request = Some(now);
+            view.last_request = Some(Instant::now());
             view.request_count += 1;
-        }
-        self.governor.persist();
+        });
         PaceOutcome::Proceed
     }
 }

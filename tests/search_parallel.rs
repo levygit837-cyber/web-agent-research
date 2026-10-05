@@ -1,8 +1,10 @@
 //! Parallel multi-query fan-out against a local stub (std only).
 //!
 //! N queries x 2 providers over a `TcpListener` stub serving canned provider
-//! HTML with overlapping URLs across legs; asserts merged consensus + error
-//! collection. Uses the `#[doc(hidden)]` base-URL overrides: the stub
+//! HTML with overlapping URLs across legs; asserts that Hits are ordered by
+//! Reciprocal Rank Fusion (k=60) over (engine, query) legs, with query
+//! coverage as the tiebreak, and that leg errors are collected. Uses the
+//! `#[doc(hidden)]` base-URL overrides: the stub
 //! contract is the specified seam (PLAN step 5), doc-hidden so it never
 //! appears in rustdoc.
 

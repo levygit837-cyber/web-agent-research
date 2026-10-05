@@ -43,14 +43,26 @@ const SEARCH_FILE: &str = "search.jsonl";
 const PAGES_FILE: &str = "pages.jsonl";
 
 /// What one `search` call produced, as the model would see it (before the
-/// per-run `(already fetched)` marker).
+/// per-run `(already fetched)` marker). `engine_status` (#104) is the
+/// per-engine status shown on an empty Hit list; recordings that predate
+/// it replay with none.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub(crate) enum SearchOutcome {
-    Hits { hits: Vec<MergedResult> },
-    Note { note: String },
-    Blocked { detail: String },
-    Failed { reason: String },
+    Hits {
+        hits: Vec<MergedResult>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        engine_status: Vec<String>,
+    },
+    Note {
+        note: String,
+    },
+    Blocked {
+        detail: String,
+    },
+    Failed {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -267,7 +279,7 @@ impl Fixture {
         }
         let recorded = || {
             self.searches.iter().flat_map(|entry| match &entry.outcome {
-                SearchOutcome::Hits { hits } => hits.as_slice(),
+                SearchOutcome::Hits { hits, .. } => hits.as_slice(),
                 _ => &[],
             })
         };
@@ -292,7 +304,10 @@ impl Fixture {
         // Stable: recorded pages first, so a replay can read what it finds.
         pool.sort_by_key(|hit| !self.has_page(&hit.display_url));
         let hits = pool.into_iter().take(input.top_k).cloned().collect();
-        SearchOutcome::Hits { hits }
+        SearchOutcome::Hits {
+            hits,
+            engine_status: Vec::new(),
+        }
     }
 
     fn has_page(&self, url: &str) -> bool {
@@ -380,6 +395,7 @@ mod tests {
                     hit("https://tokio.rs/", "Tokio  Runtime"),
                     hit("https://docs.rs/tokio", "Tokio  Runtime"),
                 ],
+                engine_status: Vec::new(),
             },
         );
         recorder.search(
@@ -389,6 +405,7 @@ mod tests {
                     hit("https://serde.rs/derive.html", "serde derive"),
                     hit("https://docs.rs/tokio", "serde derive"),
                 ],
+                engine_status: Vec::new(),
             },
         );
         recorder.search(
@@ -413,7 +430,8 @@ mod tests {
     #[test]
     fn same_normalized_query_set_replays_the_recorded_outcome() {
         let fixture = Fixture::load(&recorded("exact")).expect("fixture loads");
-        let SearchOutcome::Hits { hits } = fixture.search(&input(&["tokio runtime"], 10)) else {
+        let SearchOutcome::Hits { hits, .. } = fixture.search(&input(&["tokio runtime"], 10))
+        else {
             panic!("hits");
         };
         assert_eq!(hits.len(), 2);
@@ -428,7 +446,7 @@ mod tests {
     #[test]
     fn other_queries_get_matching_hits_then_the_deduped_union() {
         let fixture = Fixture::load(&recorded("union")).expect("fixture loads");
-        let SearchOutcome::Hits { hits } =
+        let SearchOutcome::Hits { hits, .. } =
             fixture.search(&input(&["serde derive", "something new"], 10))
         else {
             panic!("hits");
@@ -438,7 +456,7 @@ mod tests {
             urls,
             ["https://serde.rs/derive.html", "https://docs.rs/tokio"]
         );
-        let SearchOutcome::Hits { hits } = fixture.search(&input(&["unrelated"], 2)) else {
+        let SearchOutcome::Hits { hits, .. } = fixture.search(&input(&["unrelated"], 2)) else {
             panic!("hits");
         };
         let urls: Vec<&str> = hits.iter().map(|h| h.display_url.as_str()).collect();

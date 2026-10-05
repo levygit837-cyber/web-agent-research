@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--max-turns` defaults to 10; each successful search after the first adds 5 turns up to `--max-turns-cap` (default 25) (#101).
 - The final turn sends `tool_choice: none`; `--json` adds `turn_budget`; logs go to stderr, so stdout is only the response (#99, #101).
 - Rust API: `GatewayError::{Client, Server}` carry `detail`; `LoopBudget` adds `max_turns_cap`, `deadline`, `final_reserve` (#99, #100, #101).
+- Rust API: `SearchOutput` adds `engine_status`; `ToolResult::Search` adds `engine_status` (#104).
+- Exit `7`'s message names each engine once, not once per Query (#104).
 
 ### Added
 
@@ -37,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 - Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
 - `search` Hits rank by Reciprocal Rank Fusion over engine x query legs, then query coverage, not engine count first (#110).
+- A `search` call with no Hits tells the agent each engine's status: rows, no results, suspended, timed out or unrecognized markup (#104).
+- After the 5 s soft deadline, legs already sending wait up to the 30 s hard deadline; only legs still queued are cancelled (#104).
+- DuckDuckGo continuation pages are paced and counted against the engine's request budget (#104).
 
 ### Fixed
 
@@ -44,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
 - Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).
 - A hung gateway or tool no longer stretches a run: `connect_timeout` 10 s, one timeout retry, static fetch 10 s, Obscura 30 s (#100).
+- Parallel runs on one `SEARCH_CACHE_DIR` no longer overwrite each other's `engines.json`: it is merged under a file lock (#103).
+- `Retry-After` and stored suspensions are capped at the largest `SEARCH_SUSPEND_*_SECS` value (default 1 h) (#103).
+- Transport errors without an HTTP status no longer suspend an engine; they are retried once (#103).
+- Changed engine markup is a typed `unrecognized markup` error, not an empty answer, and zero-row legs are never cached (#104).
+- Failed cache writes remove their temp file, and stale temp files are evicted (#103).
 
 ## [0.3.0] - 2026-10-04
 

@@ -8,26 +8,32 @@
 //! Suspension and pacing both compare against `tokio::time::Instant`, never
 //! wall clock directly, so `tokio::time::pause`/`advance` drive both
 //! deterministically in hermetic tests. Wall clock (`SystemTime`) is used
-//! only to bridge a persisted timestamp across process boundaries: once at
-//! load (`wall_to_mono`) and once at save (`mono_to_wall`), both relative to
-//! one `(base_wall_ms, base_mono)` pair fixed at construction. A persisted
-//! timestamp is loaded lazily (`ensure_loaded`, on first real use of a
-//! non-hermetic `Governor`), not eagerly at construction: `Searcher::new()`
-//! is not fallible and must not touch disk before the first `search` call.
+//! only to bridge a persisted timestamp across process boundaries
+//! (`wall_to_mono`/`mono_to_wall`), both relative to one
+//! `(base_wall_ms, base_mono)` pair fixed at construction. Persisted state
+//! is loaded lazily (`ensure_loaded`, on first real use of a non-hermetic
+//! `Governor`), not eagerly at construction: `Searcher::new()` is not
+//! fallible and must not touch disk before the first `search` call.
 //!
-//! One engine's requests never overlap: [`Governor::acquire`] returns an
-//! [`EnginePermit`] that holds this engine's serial queue for the whole
-//! leg (however many wire requests it turns out to need -- DDG's page-1
-//! POST plus any continuation re-POSTs, Startpage's homepage GET plus its
-//! search POST/GET fallback); [`EnginePermit::pace`], called once right
-//! after acquiring and before the leg's first wire request, rechecks
-//! suspension and the per-run budget (closing the race where a sibling
-//! leg for the same engine settles -- and suspends the engine, or
-//! exhausts the budget -- while this leg was still queued) and then waits
-//! the jittered gap since the last *leg* dispatched to this engine. A
-//! multi-request leg's own internal follow-up requests (DDG continuation
-//! pages, Startpage's GET fallback) are not independently gapped or
-//! re-checked; only each leg's first request is.
+//! Cross-process state (#103): every read or write of `engines.json` goes
+//! through one locked read-merge-write ([`Governor::sync`]) under an
+//! advisory lock on `<cache_root>/engines.lock`, so parallel runs on one
+//! cache dir merge each other's suspensions and pacing clock instead of
+//! the last writer winning. Every suspension, loaded or recorded, is
+//! clamped to the largest configured one ([`max_suspension`]).
+//!
+//! One engine's requests never overlap beyond its concurrency limit:
+//! [`Governor::acquire`] returns an [`EnginePermit`] that holds one of
+//! this engine's queue permits for the whole leg (however many wire
+//! requests it turns out to need). [`EnginePermit::pace`], called right
+//! after acquiring and before the leg's first wire request, refreshes the
+//! shared state, rechecks suspension and the per-run budget (closing the
+//! race where a sibling leg for the same engine settles -- and suspends
+//! the engine, or exhausts the budget -- while this leg was still queued)
+//! and then waits the jittered gap since the last request to this engine.
+//! DDG's continuation POSTs call it again before each page (#104), so
+//! they are gapped and counted like any request; Startpage's GET fallback
+//! and Yahoo's cookie hops are not independently paced.
 //!
 //! Hermetic rule: [`Governor::hermetic`] (used by `Searcher::with_bases`
 //! and every existing fan-out test) never persists, never paces, and always
@@ -65,17 +71,16 @@ use std::sync::Mutex;
 
 use tokio::time::Instant;
 
-use crate::web::cache_dir::write_atomic;
 use crate::web::search::types::{SearchProvider, SearchProviderError};
 pub(crate) use config::resolve_max_pages;
 use config::{
-    enabled_providers, resolve_caps_per_engine, resolve_concurrency,
+    enabled_providers, max_suspension, resolve_caps_per_engine, resolve_concurrency,
     resolve_max_queries_per_engine, suspension_for,
 };
 pub(crate) use permit::{EnginePermit, PaceOutcome};
 use persist::{
-    load_persisted, mono_to_wall, now_wall_ms, wall_to_mono, PersistedEngine, PersistedState,
-    ENGINES_FILE,
+    disk_from_view, load_persisted, lock_state, merge_view, mono_to_wall, now_wall_ms,
+    view_from_disk, write_persisted, PersistedEngine, PersistedState,
 };
 
 /// Every ported provider, in a fixed order used to pre-populate per-engine
@@ -92,8 +97,12 @@ const ALL_PROVIDERS: [SearchProvider; 5] = [
 #[derive(Debug, Default, Clone)]
 struct EngineView {
     suspended_until: Option<Instant>,
+    /// When the active suspension was recorded (#103 merge rule).
+    suspended_at: Option<Instant>,
     suspend_reason: String,
     last_request: Option<Instant>,
+    /// Latest successful leg, from this or any other process (#103).
+    last_success: Option<Instant>,
     request_count: u32,
 }
 
@@ -124,11 +133,6 @@ struct GovernorInner {
     /// permit (the pre-#73 behavior), since the hermetic seam tests
     /// merge/fan-out logic, not pacing/concurrency (see the module doc).
     queues: HashMap<SearchProvider, tokio::sync::Semaphore>,
-    /// Serializes `persist`'s snapshot-then-write so two engines'
-    /// concurrent persists cannot race: without this, engine A could
-    /// snapshot, engine B could snapshot and rename first, then A's
-    /// (older) snapshot renames last and silently drops B's update.
-    persist_lock: Mutex<()>,
     /// Per-engine per-run request cap (#73: [`resolve_caps_per_engine`]);
     /// `u32::MAX` for every provider on a hermetic `Governor` (no cap).
     max_requests_per_engine: HashMap<SearchProvider, u32>,
@@ -186,7 +190,6 @@ impl Governor {
             loaded: AtomicBool::new(true),
             views: Mutex::new(HashMap::new()),
             queues: build_queues(true),
-            persist_lock: Mutex::new(()),
             max_requests_per_engine: all_providers_with(u32::MAX),
             max_queries_per_engine: all_providers_with(usize::MAX),
             base_wall_ms: now_wall_ms(),
@@ -226,7 +229,6 @@ impl Governor {
             loaded: AtomicBool::new(false),
             views: Mutex::new(HashMap::new()),
             queues: build_queues(false),
-            persist_lock: Mutex::new(()),
             max_requests_per_engine,
             max_queries_per_engine,
             base_wall_ms: now_wall_ms(),
@@ -237,29 +239,73 @@ impl Governor {
     /// One-time lazy load of `<cache_root>/engines.json` into `views`, on
     /// first real use of a non-hermetic `Governor` with a cache root.
     /// Idempotent (an `AtomicBool` swap guards the actual read): safe to
-    /// call at the top of every accessor that needs persisted state.
+    /// call at the top of every accessor that needs persisted state. The
+    /// load is a locked [`sync`](Self::sync), so a far-future suspension
+    /// on disk is clamped here and written back clamped (#103).
     fn ensure_loaded(&self) {
         if self.0.loaded.swap(true, Ordering::AcqRel) {
             return;
         }
+        self.sync(|_| ());
+    }
+
+    /// Re-read `engines.json` under the cross-process lock, merging other
+    /// processes' state into `views` (#103, `pace()`'s refresh). Also
+    /// counts as the lazy first load.
+    fn refresh(&self) {
+        self.0.loaded.store(true, Ordering::Release);
+        self.sync(|_| ());
+    }
+
+    /// The single read-merge-write path for governed state (#103). With a
+    /// cache root: take the exclusive `engines.lock`, re-read
+    /// `engines.json`, merge every engine into `views` (see
+    /// [`merge_view`]), apply `mutate`, then write the merged map back
+    /// atomically -- only when it differs from what was read -- before the
+    /// lock drops. Without one, `mutate` only touches `views`. Never held
+    /// across an `.await`: the critical section is one small read and at
+    /// most one small write. Entries for engine ids this build does not
+    /// know are preserved untouched.
+    fn sync<T>(&self, mutate: impl FnOnce(&mut HashMap<SearchProvider, EngineView>) -> T) -> T {
         let Some(cache_root) = &self.0.cache_root else {
-            return;
+            let mut views = self.0.views.lock().expect("governor views lock");
+            return mutate(&mut views);
         };
-        let persisted = load_persisted(cache_root);
+        let _lock = lock_state(cache_root);
+        let disk = load_persisted(cache_root);
+        let mut merged = PersistedState {
+            engines: disk.engines.clone(),
+        };
         let mut views = self.0.views.lock().expect("governor views lock");
+        let now = Instant::now();
+        let cap = now.checked_add(max_suspension()).unwrap_or(now);
+        let (base_wall_ms, base_mono) = (self.0.base_wall_ms, self.0.base_mono);
+        let cap_wall_ms = mono_to_wall(cap, base_wall_ms, base_mono);
         for provider in ALL_PROVIDERS {
-            let entry = persisted.engines.get(provider.id());
-            let view = views.entry(provider).or_default();
-            view.suspended_until = entry
-                .and_then(|e| e.suspended_until_ms)
-                .and_then(|ms| wall_to_mono(ms, self.0.base_wall_ms, self.0.base_mono));
-            view.suspend_reason = entry
-                .and_then(|e| e.suspend_reason.clone())
+            let on_disk = disk
+                .engines
+                .get(provider.id())
+                .map(|entry| view_from_disk(entry, cap_wall_ms, base_wall_ms, base_mono))
                 .unwrap_or_default();
-            view.last_request = entry
-                .and_then(|e| e.last_request_ms)
-                .and_then(|ms| wall_to_mono(ms, self.0.base_wall_ms, self.0.base_mono));
+            merge_view(views.entry(provider).or_default(), on_disk, now, cap);
         }
+        let out = mutate(&mut views);
+        for provider in ALL_PROVIDERS {
+            let entry = views
+                .get(&provider)
+                .map(|view| disk_from_view(view, base_wall_ms, base_mono))
+                .unwrap_or_default();
+            if entry == PersistedEngine::default() {
+                merged.engines.remove(provider.id());
+            } else {
+                merged.engines.insert(provider.id().to_string(), entry);
+            }
+        }
+        drop(views);
+        if merged != disk {
+            write_persisted(cache_root, &merged);
+        }
+        out
     }
 
     /// Providers this fan-out call should attempt, in merge-priority order
@@ -354,38 +400,32 @@ impl Governor {
 
     /// A leg succeeded: clear any residual suspension (a 200 proves the
     /// wall came down; a stale duration should not keep skipping a healthy
-    /// engine). No-op for a hermetic `Governor`.
+    /// engine) and record the success time, so another process's merge
+    /// drops a suspension recorded before it (#103). No-op for a hermetic
+    /// `Governor`.
     pub(crate) fn record_success(&self, provider: SearchProvider) {
         if self.0.hermetic {
             return;
         }
         self.ensure_loaded();
-        let changed = {
-            let mut views = self.0.views.lock().expect("governor views lock");
-            match views.get_mut(&provider) {
-                Some(view) if view.suspended_until.is_some() => {
-                    view.suspended_until = None;
-                    view.suspend_reason.clear();
-                    true
-                }
-                _ => false,
-            }
-        };
-        if changed {
-            self.persist();
-        }
+        self.sync(|views| {
+            let view = views.entry(provider).or_default();
+            view.last_success = Some(Instant::now());
+            view.suspended_until = None;
+            view.suspended_at = None;
+            view.suspend_reason.clear();
+        });
     }
 
     /// A leg failed: suspend `provider` if `err`'s kind maps to a
     /// suspension duration (see [`suspension_for`]); a `None`/zero mapping
     /// is a no-op. Never *shortens* an existing suspension (two concurrent
-    /// legs for the same engine can settle in either order; a live
-    /// `Challenge` at 3600 s must not be overwritten by a slower-arriving
-    /// 503 at 30 s) -- compares the new candidate expiry against the
-    /// current one and keeps whichever is later. Overflow-safe: a
-    /// pathological duration (e.g. a hostile `Retry-After` near `u64::MAX`
-    /// seconds) that cannot be represented as an `Instant` is dropped
-    /// rather than panicking. No-op for a hermetic `Governor`.
+    /// legs -- or two processes -- for the same engine can settle in
+    /// either order; a live `Challenge` at 3600 s must not be overwritten
+    /// by a slower-arriving 503 at 30 s) -- compares the new candidate
+    /// expiry against the merged current one and keeps whichever is later.
+    /// The candidate is clamped to [`max_suspension`] (#103), so no
+    /// duration can overflow `Instant`. No-op for a hermetic `Governor`.
     pub(crate) fn record_failure(&self, provider: SearchProvider, err: &SearchProviderError) {
         if self.0.hermetic {
             return;
@@ -393,66 +433,26 @@ impl Governor {
         let Some(suspension) = suspension_for(err) else {
             return;
         };
-        if suspension.duration.is_zero() {
+        let duration = suspension.duration.min(max_suspension());
+        if duration.is_zero() {
             return;
         }
-        let Some(candidate_until) = Instant::now().checked_add(suspension.duration) else {
-            return;
-        };
         self.ensure_loaded();
-        let changed = {
-            let mut views = self.0.views.lock().expect("governor views lock");
+        self.sync(|views| {
+            let now = Instant::now();
+            let Some(candidate_until) = now.checked_add(duration) else {
+                return;
+            };
             let view = views.entry(provider).or_default();
-            let should_replace = view
+            if view
                 .suspended_until
-                .map(|existing| candidate_until > existing)
-                .unwrap_or(true);
-            if should_replace {
+                .is_none_or(|existing| candidate_until > existing)
+            {
                 view.suspended_until = Some(candidate_until);
+                view.suspended_at = Some(now);
                 view.suspend_reason = suspension.reason.to_string();
             }
-            should_replace
-        };
-        if changed {
-            self.persist();
-        }
-    }
-
-    /// Write the whole engine map back to `<cache_root>/engines.json`,
-    /// atomically. Best-effort: a write failure never fails the search.
-    /// `persist_lock` holds the snapshot-then-write pair together so two
-    /// concurrent persists (typically one per engine) cannot interleave
-    /// their rename and silently drop each other's update.
-    fn persist(&self) {
-        let Some(cache_root) = &self.0.cache_root else {
-            return;
-        };
-        let _order = self.0.persist_lock.lock().expect("governor persist lock");
-        let engines = {
-            let views = self.0.views.lock().expect("governor views lock");
-            ALL_PROVIDERS
-                .into_iter()
-                .filter_map(|provider| {
-                    let view = views.get(&provider)?;
-                    Some((
-                        provider.id().to_string(),
-                        PersistedEngine {
-                            suspended_until_ms: view
-                                .suspended_until
-                                .map(|i| mono_to_wall(i, self.0.base_wall_ms, self.0.base_mono)),
-                            suspend_reason: (!view.suspend_reason.is_empty())
-                                .then(|| view.suspend_reason.clone()),
-                            last_request_ms: view
-                                .last_request
-                                .map(|i| mono_to_wall(i, self.0.base_wall_ms, self.0.base_mono)),
-                        },
-                    ))
-                })
-                .collect::<HashMap<_, _>>()
-        };
-        if let Ok(bytes) = serde_json::to_vec_pretty(&PersistedState { engines }) {
-            let _ = write_atomic(&cache_root.join(ENGINES_FILE), &bytes);
-        }
+        });
     }
 }
 

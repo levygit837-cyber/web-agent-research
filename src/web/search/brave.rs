@@ -15,6 +15,7 @@ use scraper::{Html, Selector};
 use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::collapse_whitespace;
+use crate::web::search::markup::rows_or_drift;
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, MAX_NUM_RESULTS,
 };
@@ -60,7 +61,20 @@ pub(crate) fn map_brave_response(
             retry_after_secs,
         });
     }
-    Ok(parse_brave_html(body, query))
+    rows_or_drift(
+        SearchProvider::Brave,
+        status,
+        body,
+        parse_brave_html(body, query),
+        is_brave_serp,
+    )
+}
+
+/// `true` when a Brave page is recognizably a results page (#104): the
+/// `id="results"` container (present in the live success fixture, absent
+/// from the 429 SvelteKit shell and from the blocked probe pages).
+pub fn is_brave_serp(body: &str) -> bool {
+    body.contains("id=\"results\"")
 }
 
 /// One Brave GET: `q`/`source=web` query params, the default cookie header,
@@ -275,15 +289,17 @@ mod tests {
     async fn brave_sends_q_source_and_cookie() {
         let (stub, captured) = StubServer::serve_capturing_headers().await;
         let client = reqwest::Client::new();
-        // The header-capture stub always replies 200 with an empty page on
-        // the 5th request in its canned sequence, but this leg only ever
-        // makes one request, so it lands on request index 0 (a DDG-shaped
-        // continuation form) -- parse_brave_html tolerates an unrecognized
-        // body by returning zero rows, which is what this test asserts.
-        let rows = brave_search_with_base(&client, "q", None, &format!("{}/search", stub.base()))
+        // The header-capture stub replies with a DDG-shaped page (no Brave
+        // `id="results"` container), so the leg maps it to the typed
+        // unrecognized-markup error (#104) -- the request itself, which
+        // is what this test checks, was still sent exactly once.
+        let err = brave_search_with_base(&client, "q", None, &format!("{}/search", stub.base()))
             .await
-            .expect("stub always replies 200");
-        assert_eq!(rows.len(), 0);
+            .expect_err("a page without Brave's container is drift");
+        assert!(
+            matches!(&err, SearchProviderError::Upstream { detail, status: Some(200), .. } if detail == "unrecognized markup"),
+            "{err:?}"
+        );
         let requests = captured.lock().expect("captured");
         assert_eq!(requests.len(), 1, "Brave is a single GET, no follow-up");
         let names = super::super::test_support::header_names(&requests[0]);

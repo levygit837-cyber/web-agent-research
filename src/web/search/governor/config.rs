@@ -87,17 +87,23 @@ pub(super) struct Suspension {
 /// - `Challenge` (bot wall) -> `SEARCH_SUSPEND_CHALLENGE_SECS`, default
 ///   3600 s: the strongest signal this network is walled; long enough that
 ///   a run a few minutes later does not re-provoke the same challenge.
-/// - `Upstream` with a real `Retry-After` -> that value wins outright,
-///   regardless of status (#62: "Retry-After, when present, wins").
+/// - `Upstream` with a real `Retry-After` -> that value wins over the
+///   status default (#62), clamped to [`max_suspension`] (#103: a hostile
+///   or buggy `Retry-After: 604800` must not park an engine for a week).
 /// - `Upstream` HTTP 403 -> `SEARCH_SUSPEND_403_SECS`, default 180 s: an
 ///   access-denial that is usually IP-reputation based and often lifts
 ///   within minutes.
 /// - `Upstream` HTTP 429 -> `SEARCH_SUSPEND_429_SECS`, default 180 s: a
 ///   rate limit, same reasoning as 403.
-/// - `Upstream` other status (5xx, unknown) -> `SEARCH_SUSPEND_UPSTREAM_SECS`,
-///   default 30 s: most likely a transient server-side error, not a bot
-///   wall; a short backoff avoids hammering during an outage without
-///   punishing the engine once it recovers.
+/// - `Upstream` HTTP 5xx -> `SEARCH_SUSPEND_UPSTREAM_SECS`, default 30 s:
+///   most likely a transient server-side error, not a bot wall; a short
+///   backoff avoids hammering during an outage without punishing the
+///   engine once it recovers.
+/// - `Upstream` with no status (#103: DNS, connect, TLS or body-read
+///   failure -- no response was received) or any other status (a 2xx
+///   with unrecognized markup, a 404) -> never suspends: the engine never
+///   answered with an error of its own. The leg retries a transport
+///   failure once instead (`fanout::leg`).
 /// - `Timeout` -> `SEARCH_SUSPEND_TIMEOUT_SECS`, default 0 (no suspension):
 ///   a slow/hung leg is as likely to be our own network or the fan-out
 ///   deadline as a bot wall; suspending on it would punish the engine for
@@ -111,7 +117,7 @@ pub(super) struct Suspension {
 pub(super) fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
     match err {
         SearchProviderError::Challenge { .. } => Some(Suspension {
-            duration: Duration::from_secs(env_u64("SEARCH_SUSPEND_CHALLENGE_SECS", 3600)),
+            duration: Duration::from_secs(challenge_secs()),
             reason: "challenge",
         }),
         SearchProviderError::Upstream {
@@ -121,7 +127,7 @@ pub(super) fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
         } => {
             if let Some(secs) = retry_after_secs {
                 return Some(Suspension {
-                    duration: Duration::from_secs(*secs),
+                    duration: Duration::from_secs(*secs).min(max_suspension()),
                     reason: "retry_after",
                 });
             }
@@ -134,17 +140,18 @@ pub(super) fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
                     duration: Duration::from_secs(env_u64("SEARCH_SUSPEND_429_SECS", 180)),
                     reason: "http_429",
                 }),
-                _ => {
-                    let secs = env_u64("SEARCH_SUSPEND_UPSTREAM_SECS", 30);
+                Some(500..=599) => {
+                    let secs = upstream_secs();
                     (secs > 0).then(|| Suspension {
                         duration: Duration::from_secs(secs),
                         reason: "upstream",
                     })
                 }
+                _ => None,
             }
         }
         SearchProviderError::Timeout { .. } => {
-            let secs = env_u64("SEARCH_SUSPEND_TIMEOUT_SECS", 0);
+            let secs = timeout_secs();
             (secs > 0).then(|| Suspension {
                 duration: Duration::from_secs(secs),
                 reason: "timeout",
@@ -156,6 +163,39 @@ pub(super) fn suspension_for(err: &SearchProviderError) -> Option<Suspension> {
         | SearchProviderError::Throttled { .. }
         | SearchProviderError::AllFailed { .. } => None,
     }
+}
+
+fn challenge_secs() -> u64 {
+    env_u64("SEARCH_SUSPEND_CHALLENGE_SECS", 3600)
+}
+
+fn upstream_secs() -> u64 {
+    env_u64("SEARCH_SUSPEND_UPSTREAM_SECS", 30)
+}
+
+fn timeout_secs() -> u64 {
+    env_u64("SEARCH_SUSPEND_TIMEOUT_SECS", 0)
+}
+
+/// The longest suspension any configured kind can record (#103): the max
+/// of every `SEARCH_SUSPEND_*_SECS` value (default: the 3600 s challenge
+/// suspension). A `Retry-After` and every suspension loaded from or
+/// recorded to `engines.json` is clamped to `now + max_suspension()`, so a
+/// far-future timestamp (a hostile header, clock skew, a hand-edited file)
+/// converges to this bound instead of parking an engine indefinitely.
+/// Re-read from env on every call, like [`suspension_for`].
+pub(super) fn max_suspension() -> Duration {
+    let secs = [
+        challenge_secs(),
+        env_u64("SEARCH_SUSPEND_403_SECS", 180),
+        env_u64("SEARCH_SUSPEND_429_SECS", 180),
+        upstream_secs(),
+        timeout_secs(),
+    ]
+    .into_iter()
+    .max()
+    .unwrap_or(0);
+    Duration::from_secs(secs)
 }
 
 /// Per-engine hardcoded pacing-gap default `[min, max]` ms (#73, live-
