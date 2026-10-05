@@ -219,18 +219,43 @@ impl StubServer {
     }
 
     pub(crate) async fn serve_slow(delay: std::time::Duration) -> Self {
+        Self::serve_slow_body(delay, "slow".to_string()).await
+    }
+
+    /// Replies 200 with `body` after `delay` (tokio time), counting every
+    /// request under its path key.
+    pub(crate) async fn serve_slow_body(delay: std::time::Duration, body: String) -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("stub bind");
         let addr = listener.local_addr().expect("stub addr");
+        let hits: Arc<Mutex<std::collections::HashMap<String, usize>>> = Default::default();
+        let hits_task = hits.clone();
         tokio::spawn(async move {
             loop {
                 let Ok((mut stream, _)) = listener.accept().await else {
                     return;
                 };
+                let hits = hits_task.clone();
+                let body = body.clone();
                 tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+                        .await
+                        .unwrap_or(0);
+                    let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let path = raw
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("/")
+                        .to_string();
+                    *hits
+                        .lock()
+                        .expect("hits")
+                        .entry(path_key(&path))
+                        .or_insert(0) += 1;
                     tokio::time::sleep(delay).await;
-                    let body = "slow";
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n{body}",
                         body.len(),
@@ -243,7 +268,7 @@ impl StubServer {
         });
         StubServer {
             base_url: format!("http://{addr}"),
-            hits: Default::default(),
+            hits,
         }
     }
 
@@ -298,13 +323,16 @@ impl StubServer {
                         index
                     };
                     captured.lock().expect("captured").push(header_lines);
+                    // Every page carries DDG's `id="links"` results
+                    // container (#104), so a zero-row page is a recognized
+                    // SERP, not drift.
                     let body = if request_index < 4 {
                         let s = (request_index + 1) * 12;
                         format!(
-                            r#"<html><body><form action="/html/" method="post"><input type="hidden" name="s" value="{s}"/><input type="hidden" name="vqd" value="tok"/><input type="hidden" name="q" value="q"/></form></body></html>"#
+                            r#"<html><body><div id="links"></div><form action="/html/" method="post"><input type="hidden" name="s" value="{s}"/><input type="hidden" name="vqd" value="tok"/><input type="hidden" name="q" value="q"/></form></body></html>"#
                         )
                     } else {
-                        "<html><body></body></html>".to_string()
+                        r#"<html><body><div id="links"></div></body></html>"#.to_string()
                     };
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\nContent-Type: text/html\r\n\r\n{body}",
@@ -363,7 +391,8 @@ impl StubServer {
                     captured.lock().expect("captured").push(header_lines);
                     let route = path.split('?').next().unwrap_or("/");
                     let body = if route == "/sp/search" {
-                        "<html><body></body></html>".to_string()
+                        // Startpage's `w-gl` results container (#104).
+                        r#"<html><body><div class="w-gl"></div></body></html>"#.to_string()
                     } else {
                         "<html><body><form action=\"/sp/search\" method=\"post\"><input type=\"hidden\" name=\"sc\" value=\"tok\"/></form></body></html>".to_string()
                     };

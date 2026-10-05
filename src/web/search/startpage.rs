@@ -14,6 +14,7 @@ use scraper::{Html, Selector};
 use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{collapse_whitespace, percent_encode};
+use crate::web::search::markup::rows_or_drift;
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, MAX_NUM_RESULTS,
 };
@@ -72,7 +73,21 @@ pub(crate) fn map_startpage_response(
             retry_after_secs,
         });
     }
-    Ok(parse_startpage_html(body, query))
+    rows_or_drift(
+        SearchProvider::Startpage,
+        status,
+        body,
+        parse_startpage_html(body, query),
+        is_startpage_serp,
+    )
+}
+
+/// `true` when a Startpage page is recognizably a results page (#104):
+/// its `w-gl` result section or its "did not match any results" message.
+/// Not live-verified: every 2026-10-05 probe from this network got the
+/// Anubis wall, so these follow Startpage's documented markup.
+pub fn is_startpage_serp(body: &str) -> bool {
+    body.contains("w-gl") || body.contains("did not match any")
 }
 
 /// Homepage fetch outcome: token inputs, a reached-but-no-token miss (the
@@ -483,10 +498,11 @@ mod tests {
     #[test]
     fn bare_captcha_word_does_not_trigger() {
         // Captcha-topic snippet text is NOT a challenge: parses (possibly
-        // empty) instead of mapping to 429.
+        // empty) instead of mapping to 429. The page carries Startpage's
+        // `w-gl` results container, so zero rows is a real answer (#104).
         let rows = map_startpage_response(
             200,
-            "how do captchas work? explained",
+            "<div class=\"w-gl\">how do captchas work? explained</div>",
             "https://www.startpage.com/sp/search",
             "q",
             None,

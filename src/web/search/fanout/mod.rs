@@ -1,14 +1,17 @@
-//! Parallel fan-out over both provider legs with soft/hard deadlines.
+//! Parallel fan-out over the enabled provider legs with soft/hard
+//! deadlines.
 //!
 //! One leg per agent-loop Query x enabled provider (#64: Startpage is off
-//! by default), merged by consensus ranking; per-leg errors collect into
-//! the output. Partial success is `Ok`; only total-leg failure is
-//! `Err(AllFailed)`.
+//! by default). Hits are ordered by Reciprocal Rank Fusion (k=60) over
+//! (engine, query) legs, with query coverage as the tiebreak; per-leg
+//! errors collect into the output. Partial success is `Ok`; only
+//! total-leg failure is `Err(AllFailed)`.
 //!
 //! Ported from oh-my-pi (MIT, can1357/oh-my-pi@83c9df0); see
 //! `THIRD-PARTY-NOTICES.md`.
 
 mod leg;
+mod report;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -22,6 +25,8 @@ use crate::web::search::types::{
     HARD_DEADLINE_SECS, SOFT_DEADLINE_SECS,
 };
 use leg::{LegEnv, LegOutcome};
+pub use report::all_failed_message;
+use report::{engine_status, error_detail};
 
 /// Build the typed leg-timeout error. Timeout beats Challenge: callers map
 /// transport timeouts (or fan-out deadline cuts) here before inspecting any
@@ -69,31 +74,6 @@ pub(crate) fn parse_retry_after(response: &reqwest::Response) -> Option<u64> {
         .ok()
 }
 
-/// Format leg failures as `"id: msg; id: msg"` (Omp
-/// `formatSearchProviderFailures`).
-pub fn all_failed_message(failures: &[(String, String)]) -> String {
-    failures
-        .iter()
-        .map(|(id, msg)| format!("{id}: {msg}"))
-        .collect::<Vec<_>>()
-        .join("; ")
-}
-
-/// Leg index for `(query_index, provider)` given the enabled-provider list
-/// (#64: Startpage may be absent), so the settle-reconstruction map stays a
-/// dense `0..queries.len() * enabled.len()` range regardless of which, or
-/// how many, providers ran.
-fn leg_slot(query_index: usize, provider: SearchProvider, enabled: &[SearchProvider]) -> usize {
-    let provider_index = enabled
-        .iter()
-        .position(|p| *p == provider)
-        .expect("leg_slot only called for an enabled provider");
-    query_index * enabled.len() + provider_index
-}
-
-/// One settled fan-out leg: spawn index, provider, query, and outcome.
-type SettledLeg = (usize, SearchProvider, String, LegOutcome);
-
 /// Deep-module entry: full fan-out (validate is the caller's job -- this
 /// takes a validated `SearchInput`; run legs under soft/hard deadlines ->
 /// merge -> truncate). Accepts the shared client, base URLs (production
@@ -106,8 +86,17 @@ type SettledLeg = (usize, SearchProvider, String, LegOutcome);
 /// whole batch on one leg: leg errors collect into `output.errors`; only
 /// total-leg failure (`AllFailed`: merged empty AND every leg failed)
 /// returns `Err`. Otherwise `Ok` -- including partial success and empty
-/// results (zero results with no challenge marker is not an error). Leg
+/// results (a recognized no-results page is not an error; a page with
+/// neither rows nor a results/no-results marker is, see `markup`). Leg
 /// panics surface as `Upstream { detail: "leg panicked" }`.
+///
+/// Deadlines (#104): every leg may run until the hard deadline
+/// (`HARD_DEADLINE_SECS`). Once the soft deadline (`SOFT_DEADLINE_SECS`)
+/// has passed and at least one leg succeeded, legs still queued for their
+/// engine (not yet past `pace()`) are cancelled and report `Timeout`;
+/// legs already past `pace()` -- whose request is on the wire -- are
+/// awaited up to the hard deadline. `output.engine_status` carries one
+/// line per enabled engine.
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
 pub async fn search_multi_with_bases(
@@ -152,6 +141,7 @@ pub async fn search_multi_with_bases(
                     "recency `{}` is not supported by the enabled search engines; search again without recency.",
                     window.name()
                 )),
+                engine_status: Vec::new(),
             });
         }
     }
@@ -159,12 +149,10 @@ pub async fn search_multi_with_bases(
     // remaining ones does not mean "every enabled engine is walled": the
     // same search without `recency` could still succeed.
     let narrowed_by_recency = enabled.len() < enabled_before_recency;
-    // Legs in deterministic order: per Query in input order, over `enabled`
-    // in priority order. Each leg keeps its spawn index (query index +
-    // provider): JoinSet returns legs in completion order, so results
-    // reconstruct by index, never by (query, provider) — duplicate query
-    // strings no longer collapse, and a panicked leg maps back to its slot
-    // via JoinError::id.
+    let started_at = tokio::time::Instant::now();
+    let soft_at = started_at + Duration::from_secs(SOFT_DEADLINE_SECS);
+    let deadline = started_at + Duration::from_secs(HARD_DEADLINE_SECS);
+    let leg_count = queries.len() * enabled.len();
     let env = Arc::new(LegEnv {
         client: client.clone(),
         bases: EngineBases {
@@ -178,105 +166,105 @@ pub async fn search_multi_with_bases(
         governor: governor.clone(),
         cache_root: cache_root.map(Path::to_path_buf),
         recency,
+        deadline,
+        states: leg::queued_states(leg_count),
     });
+    // Legs in deterministic order: per Query in input order, over `enabled`
+    // in priority order. A leg's spawn index is its dense slot
+    // (`query_index * enabled.len() + provider_index`): JoinSet returns
+    // legs in completion order, so results reconstruct by index, never by
+    // (query, provider) -- duplicate query strings keep separate slots, and
+    // a panicked leg maps back to its slot via its task id.
     let mut set = tokio::task::JoinSet::new();
-    let leg_count = queries.len() * enabled.len();
-    let mut leg_ids: Vec<tokio::task::Id> = Vec::with_capacity(leg_count);
-    let mut leg_slots: Vec<(usize, SearchProvider)> = Vec::with_capacity(leg_count);
+    let mut handles: Vec<tokio::task::AbortHandle> = Vec::with_capacity(leg_count);
     for (query_index, query) in queries.iter().enumerate() {
         for provider in enabled.iter().copied() {
-            leg_slots.push((query_index, provider));
-            leg_ids.push(
-                set.spawn(leg::run(env.clone(), query_index, provider, query.clone()))
-                    .id(),
-            );
+            let index = handles.len();
+            handles.push(set.spawn(leg::run(
+                env.clone(),
+                index,
+                query_index,
+                provider,
+                query.clone(),
+            )));
         }
     }
-    // Race three exits: all legs settle; soft deadline with >=1 success;
-    // hard cap regardless. Stragglers abort; their legs report `Timeout`.
-    let soft = Duration::from_secs(SOFT_DEADLINE_SECS);
-    let hard = Duration::from_secs(HARD_DEADLINE_SECS);
-    let mut settled: Vec<SettledLeg> = Vec::with_capacity(leg_count);
+    // Cancel every leg still queued (not yet past `pace()`): it has sent
+    // nothing, so aborting it costs no request.
+    let cancel_queued = || {
+        for (index, handle) in handles.iter().enumerate() {
+            if env.cancel_if_queued(index) {
+                handle.abort();
+            }
+        }
+    };
+    let mut by_leg: Vec<Option<LegOutcome>> = (0..leg_count).map(|_| None).collect();
     let mut successes: usize = 0;
-    let deadline = tokio::time::Instant::now() + hard;
     let mut soft_fired = false;
     loop {
-        if settled.len() >= leg_count {
-            break;
-        }
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            break;
-        }
-        let slot = if !soft_fired {
-            let elapsed = hard.saturating_sub(remaining);
-            let to_soft = soft.saturating_sub(elapsed);
+        let next = if soft_fired {
             tokio::select! {
                 next = set.join_next() => next,
-                () = tokio::time::sleep(to_soft) => {
-                    soft_fired = true;
-                    if successes >= 1 {
-                        break;
-                    }
-                    continue;
-                }
+                () = tokio::time::sleep_until(deadline) => break,
             }
         } else {
             tokio::select! {
                 next = set.join_next() => next,
-                () = tokio::time::sleep(remaining) => break,
+                () = tokio::time::sleep_until(soft_at) => {
+                    soft_fired = true;
+                    if successes >= 1 {
+                        cancel_queued();
+                    }
+                    continue;
+                }
             }
         };
-        match slot {
-            Some(Ok(((query_index, provider), query, outcome))) => {
+        match next {
+            Some(Ok((index, outcome))) => {
                 if outcome.is_ok() {
                     successes += 1;
+                    if soft_fired {
+                        cancel_queued();
+                    }
                 }
-                settled.push((query_index, provider, query, outcome));
+                by_leg[index] = Some(outcome);
             }
+            // Cancelled by the soft deadline: its slot reports `Timeout`.
+            Some(Err(join)) if join.is_cancelled() => {}
             Some(Err(join)) => {
                 // Leg task panicked: typed `Upstream` on its own slot, never
-                // propagates. JoinError::id maps back to the spawned leg.
-                let (query_index, provider) = leg_ids
-                    .iter()
-                    .position(|id| *id == join.id())
-                    .map(|spawn_index| leg_slots[spawn_index])
-                    .unwrap_or((0, enabled[0]));
-                let query = queries.get(query_index).cloned().unwrap_or_default();
-                settled.push((
-                    query_index,
-                    provider,
-                    query,
-                    Err(SearchProviderError::Upstream {
-                        provider,
+                // propagates.
+                if let Some(index) = handles.iter().position(|h| h.id() == join.id()) {
+                    by_leg[index] = Some(Err(SearchProviderError::Upstream {
+                        provider: enabled[index % enabled.len()],
                         detail: "leg panicked".to_string(),
                         status: None,
                         retry_after_secs: None,
-                    }),
-                ));
+                    }));
+                }
             }
             None => break,
         }
     }
     set.abort_all();
-    // Legs cut by the deadlines report `Timeout`. Reconstruct leg order by
-    // spawn index: settled legs keep results; missing slots (per Query in
-    // input order, over `enabled` in priority order) time out. Duplicate
-    // query strings keep separate slots.
-    let mut by_leg: std::collections::HashMap<usize, LegOutcome> = std::collections::HashMap::new();
-    for (query_index, provider, _query, outcome) in settled {
-        by_leg.insert(leg_slot(query_index, provider, &enabled), outcome);
-    }
+    // Legs cut by a deadline report `Timeout`, in leg order.
+    let legs: Vec<(SearchProvider, LegOutcome)> = by_leg
+        .into_iter()
+        .enumerate()
+        .map(|(index, outcome)| {
+            let provider = enabled[index % enabled.len()];
+            let outcome = outcome
+                .unwrap_or_else(|| Err(map_timeout(provider, &queries[index / enabled.len()])));
+            (provider, outcome)
+        })
+        .collect();
+    let status = engine_status(&enabled, &legs);
     let mut raw_hits: Vec<SearchResult> = Vec::new();
     let mut errors: Vec<SearchProviderError> = Vec::new();
-    for (query_index, query) in queries.iter().enumerate() {
-        for provider in enabled.iter().copied() {
-            let slot = leg_slot(query_index, provider, &enabled);
-            match by_leg.remove(&slot) {
-                Some(Ok(rows)) => raw_hits.extend(rows),
-                Some(Err(err)) => errors.push(err),
-                None => errors.push(map_timeout(provider, query)),
-            }
+    for (_, outcome) in legs {
+        match outcome {
+            Ok(rows) => raw_hits.extend(rows),
+            Err(err) => errors.push(err),
         }
     }
     let raw_count = raw_hits.len();
@@ -322,31 +310,14 @@ pub async fn search_multi_with_bases(
             merged: merged_count,
         },
         note: None,
+        engine_status: status,
     })
-}
-
-fn error_detail(err: &SearchProviderError) -> String {
-    match err {
-        SearchProviderError::EmptyQuery => "empty query".to_string(),
-        SearchProviderError::TooManyQueries { got, max } => {
-            format!("too many queries: {got} > {max}")
-        }
-        SearchProviderError::Challenge { detail, .. } => detail.clone(),
-        SearchProviderError::Timeout { query, .. } => format!("timed out: {query}"),
-        SearchProviderError::Upstream { detail, .. } => detail.clone(),
-        SearchProviderError::Suspended {
-            remaining_secs,
-            reason,
-            ..
-        } => format!("suspended ({reason}), {remaining_secs}s left"),
-        SearchProviderError::Throttled { detail, .. } => detail.clone(),
-        SearchProviderError::AllFailed { failures, .. } => failures.clone(),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     mod cache;
+    mod deadline;
     mod errors;
     mod governance;
     mod merge;

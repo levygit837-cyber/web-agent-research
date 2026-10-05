@@ -22,6 +22,7 @@ use scraper::{Html, Selector};
 use super::fanout::{map_transport_error, parse_retry_after};
 use crate::web::profile::{pick_profile, BrowserProfile};
 use crate::web::search::decode::{collapse_whitespace, percent_decode};
+use crate::web::search::markup::rows_or_drift;
 use crate::web::search::types::{
     Recency, SearchProvider, SearchProviderError, SearchResult, MAX_NUM_RESULTS,
 };
@@ -76,7 +77,22 @@ pub(crate) fn map_yahoo_response(
             retry_after_secs,
         });
     }
-    Ok(parse_yahoo_html(body, query))
+    rows_or_drift(
+        SearchProvider::Yahoo,
+        status,
+        body,
+        parse_yahoo_html(body, query),
+        is_yahoo_serp,
+    )
+}
+
+/// `true` when a Yahoo page is recognizably a results page (#104): the
+/// `id="results"` container without Yahoo's `zrp` "temporary problems"
+/// message. Live 2026-10-05 the `zrp` page (`msg zrp_yst`/`zrpmsg`) came
+/// back for real queries too, so it is a degraded answer, not a genuine
+/// "no results", and must not be cached as one.
+pub fn is_yahoo_serp(body: &str) -> bool {
+    body.contains("id=\"results\"") && !body.contains("zrpmsg") && !body.contains("zrp_yst")
 }
 
 /// Extract `name=value` pairs from every `Set-Cookie` response header,
@@ -605,7 +621,7 @@ mod tests {
                         }
                         _ => {
                             assert!(has_cookie_v02, "hop 3 must receive the v0.2 cookie from hop 2");
-                            let body = "<div class=\"algo-sr\"></div>";
+                            let body = "<div id=\"results\"><div class=\"algo-sr\"></div></div>";
                             format!(
                                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                                 body.len()

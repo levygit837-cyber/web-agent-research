@@ -15,6 +15,30 @@ fn all_failed_message_format() {
 }
 
 #[test]
+fn all_failed_message_lists_each_engine_once() {
+    // #104: a multi-query call repeated every engine once per Query.
+    let msg = all_failed_message(&[
+        (
+            "yahoo".to_string(),
+            "suspended (challenge), 3412s left".to_string(),
+        ),
+        (
+            "bing".to_string(),
+            "suspended (challenge), 900s left".to_string(),
+        ),
+        (
+            "yahoo".to_string(),
+            "suspended (challenge), 3412s left".to_string(),
+        ),
+        ("bing".to_string(), "Bing blocked the request".to_string()),
+    ]);
+    assert_eq!(
+        msg,
+        "yahoo: suspended (challenge), 3412s left; bing: suspended (challenge), 900s left / Bing blocked the request"
+    );
+}
+
+#[test]
 fn timeout_beats_challenge() {
     let err = map_timeout(SearchProvider::DuckDuckGo, "q");
     assert_eq!(err.http_status(), 504);

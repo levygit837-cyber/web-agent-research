@@ -230,7 +230,7 @@ pub(super) async fn dispatch_turn(
                     id: call.id.clone(),
                     content: excerpt.clone(),
                 });
-                if let ToolResult::Search { hits } = &result {
+                if let ToolResult::Search { hits, .. } = &result {
                     if !hits.is_empty() {
                         had_search_hits = true;
                     }

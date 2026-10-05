@@ -257,6 +257,13 @@ pub struct SearchOutput {
     /// `recency` set and no enabled engine applies that window). `None`
     /// on every call that dispatched at least one leg.
     pub note: Option<String>,
+    /// One short line per engine that ran a leg in this call, in priority
+    /// order (#104): `"<engine>: <n> rows"`, `"<engine>: no results"`, or
+    /// that engine's distinct leg error(s) (`"bing: suspended (challenge),
+    /// 3412s left"`, `"brave: unrecognized markup"`). Shown to the model
+    /// when a call returns no Hits, so an empty answer is never mistaken
+    /// for "nothing exists" when the engines were walled or drifted.
+    pub engine_status: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
