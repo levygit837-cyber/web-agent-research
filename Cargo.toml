@@ -28,6 +28,7 @@ scraper = "0.20"
 url = "2"
 htmd = "=0.5.5"
 rand = "=0.9.5"
+httpdate = "=1.0.3"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "net", "test-util"] }

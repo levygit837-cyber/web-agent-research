@@ -137,3 +137,15 @@ async fn extra_body_collision_typed_field_wins_on_wire() {
         "typed model must win over extra_body on the real wire, got {body}"
     );
 }
+
+/// `stream` is typed `false`, so `GATEWAY_EXTRA_BODY` cannot switch the
+/// gateway to an SSE body the client would fail to parse.
+#[tokio::test]
+async fn stream_is_always_false_even_when_extra_body_asks_for_it() {
+    let mut cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
+    cfg.extra_body = Some(serde_json::json!({"stream": true}));
+    let (_, requests, gateway) = model_gateway(cfg);
+    gateway.chat(&messages()).await.expect("call must succeed");
+    let body = wire_body_of(&requests.requests()[0]);
+    assert_eq!(body["stream"], serde_json::json!(false), "{body}");
+}
