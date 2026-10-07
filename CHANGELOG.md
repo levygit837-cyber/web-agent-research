@@ -9,22 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- Sessions default to `<data root>/sessions/<id>.jsonl` (`$WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `~/.local/share/web-agent-research`), not `./sessions/` (#102).
+- Sessions default to `<data root>/sessions/<id>.jsonl` (`$WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `~/.local/share/web-agent-research`), not `./sessions/`; a failed defaulted write warns and exits `0`, exit `6` is only for an explicit `--session-out` (#102).
 - `--session-id` must match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` (#102).
-- A failed write to the defaulted Session path warns on stderr and exits `0`; exit `6` is only for an explicit `--session-out` (#102).
-- `--json` adds `content_trust: "untrusted-web"`; the Harness snippet now treats the Synthesis as untrusted web content (#98).
-- `--json` citations add `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`; the Synthesis adds `verification` counts (#106).
+- `--json` adds `content_trust: "untrusted-web"`, `turn_budget`, citation `support` (`exact`/`partial`/`none`/`unchecked`) and `quote`, Synthesis `verification` counts, and Evidence `fetch_path: "api"`; the Harness snippet treats the Synthesis as untrusted web content (#98, #101, #106, #109).
 - `fetch` refuses loopback, private, link-local and other reserved addresses, incl. via DNS and redirects (#97).
-- New `FetchError::Egress` variant; `Fetcher::with_policy` and `Obscura::with_egress` take an `EgressPolicy` (#97).
-- Exit `8` for requests the gateway rejects (401, 403, other 4xx, error-in-200, empty choices, refusal); `3` is now retryable exhaustion only (#99).
-- `--deadline-secs` (default 300) bounds the run; a deadline with no answer exits `9`; a malformed `GATEWAY_BASE_URL` exits `2` (#99, #100).
-- `--max-turns` defaults to 10; each successful search after the first adds 5 turns up to `--max-turns-cap` (default 25) (#101).
-- The final turn sends `tool_choice: none`; `--json` adds `turn_budget`; logs go to stderr, so stdout is only the response (#99, #101).
-- Rust API: `GatewayError::{Client, Server}` carry `detail`; `LoopBudget` adds `max_turns_cap`, `deadline`, `final_reserve` (#99, #100, #101).
-- Rust API: `SearchOutput` adds `engine_status`; `ToolResult::Search` adds `engine_status` (#104).
-- Exit `7`'s message names each engine once, not once per Query (#104).
+- Exit `8` for requests the gateway rejects (401, 403, other 4xx, error-in-200, empty choices, refusal), `3` is retryable exhaustion only, `9` is a deadline with no answer, a malformed `GATEWAY_BASE_URL` exits `2`, and exit `7` names each engine once (#99, #100, #104).
+- `--deadline-secs` (default 300) bounds the run; `--max-turns` defaults to 10, and each successful search after the first adds 5 turns up to `--max-turns-cap` (default 25) (#100, #101).
+- The final turn sends `tool_choice: none`; logs go to stderr, so stdout is only the response (#99, #101).
 - `SEARCH_ENGINES` defaults to `duckduckgo,brave,yahoo,bing,cratesio`: the new crates.io vertical is on by default and joins only crate-shaped Queries (#109).
-- Rust API: `SearchProvider::CratesIo`; `Searcher::with_bases` and `search_multi_with_bases` take a crates.io base; Evidence `fetch_path` can be `"api"` (#109).
+- Rust API: `FetchError::Egress`; `Fetcher::with_policy` and `Obscura::with_egress` take an `EgressPolicy`; `GatewayError::{Client, Server}` carry `detail`; `LoopBudget` adds `max_turns_cap`, `deadline`, `final_reserve`; `SearchOutput` and `ToolResult::Search` add `engine_status`; `SearchProvider::CratesIo`; `Searcher::with_bases` and `search_multi_with_bases` take a crates.io base (#97, #99, #100, #101, #104, #109).
 
 ### Added
 
