@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rust API: `GatewayError::{Client, Server}` carry `detail`; `LoopBudget` adds `max_turns_cap`, `deadline`, `final_reserve` (#99, #100, #101).
 - Rust API: `SearchOutput` adds `engine_status`; `ToolResult::Search` adds `engine_status` (#104).
 - Exit `7`'s message names each engine once, not once per Query (#104).
+- `SEARCH_ENGINES` defaults to `duckduckgo,brave,yahoo,bing,cratesio`: the new crates.io vertical is on by default and joins only crate-shaped Queries (#109).
+- Rust API: `SearchProvider::CratesIo`; `Searcher::with_bases` and `search_multi_with_bases` take a crates.io base; Evidence `fetch_path` can be `"api"` (#109).
 
 ### Added
 
@@ -32,11 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
 - `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
 - Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` tool tape, judge, paired compare (#107).
+- crates.io search leg: crate-shaped Queries return a docs.rs Hit (`<name> <version>`, description) from the keyless API, 1 request/s, with an identifying User-Agent; `WEB_AGENT_RESEARCH_CONTACT` sets its contact (#109).
+- `fetch` serves `crates.io/crates/<name>` from the sparse index and API as a markdown block (versions, yanked, `rust_version`, links), without Obscura (#109).
 
 ### Changed
 
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
+- A crates.io Hit weighs 2 in the rank fusion, so its rank 1 is not buried behind a URL two engines return at rank 5 (#109).
 - Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
 - `search` Hits rank by Reciprocal Rank Fusion over engine x query legs, then query coverage, not engine count first (#110).
 - A `search` call with no Hits tells the agent each engine's status: rows, no results, suspended, timed out or unrecognized markup (#104).
