@@ -45,6 +45,7 @@ async fn recency_day_sends_btf_to_yahoo_and_skips_brave_and_bing() {
         &brave_stub.base(),
         &yahoo_stub.base(),
         &bing_stub.base(),
+        &bing_stub.base(),
         &Governor::hermetic(),
         None,
     )
@@ -98,6 +99,7 @@ async fn recency_year_skips_yahoo_too() {
         &brave_stub.base(),
         &yahoo_stub.base(),
         &bing_stub.base(),
+        &bing_stub.base(),
         &Governor::hermetic(),
         None,
     )
@@ -126,6 +128,7 @@ async fn recency_unsupported_by_every_enabled_engine_makes_zero_requests() {
     let out = search_multi_with_bases(
         &client,
         input,
+        "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
@@ -176,6 +179,7 @@ async fn recency_narrowed_wall_is_not_reported_as_every_engine_walled() {
             &brave_stub.base(),
             "http://127.0.0.1:9/",
             "http://127.0.0.1:9/",
+            "http://127.0.0.1:9/",
             &Governor::new(None),
             None,
         )
@@ -212,6 +216,7 @@ async fn no_recency_runs_every_enabled_engine() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),

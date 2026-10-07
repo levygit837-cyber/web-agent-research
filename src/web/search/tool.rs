@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 
 use super::bing::BING_SEARCH_URL;
 use super::brave::BRAVE_SEARCH_URL;
+use super::cratesio::CRATESIO_SEARCH_URL;
 use super::ddg::DDG_HTML_URL;
 use super::startpage::{STARTPAGE_HOME_URL, STARTPAGE_SEARCH_URL};
 use super::yahoo::YAHOO_SEARCH_URL;
@@ -117,6 +118,7 @@ pub struct Searcher {
     brave: String,
     yahoo: String,
     bing: String,
+    cratesio: String,
     /// Engine suspension (#62) + pacing (#63) + allowlist (#64) state.
     /// [`super::governor::Governor::hermetic`] under `with_bases`/every
     /// test constructor: no persisted state, zero pacing delay, every
@@ -130,7 +132,7 @@ pub struct Searcher {
 
 impl Searcher {
     /// Production endpoints (DuckDuckGo HTML, Startpage, Brave, Yahoo,
-    /// Bing), production `Governor` (persists to
+    /// Bing, the crates.io search API), production `Governor` (persists to
     /// `<cache_root>/engines.json`) and disk cache (`web::search::cache`,
     /// under `<cache_root>/search/`), both resolved from
     /// `SEARCH_CACHE_DIR`/`XDG_CACHE_HOME`/`HOME`
@@ -143,6 +145,7 @@ impl Searcher {
             BRAVE_SEARCH_URL,
             YAHOO_SEARCH_URL,
             BING_SEARCH_URL,
+            CRATESIO_SEARCH_URL,
         );
         let cache_root = crate::web::cache_dir::cache_root();
         searcher.governor = super::governor::Governor::new(cache_root.clone());
@@ -168,6 +171,7 @@ impl Searcher {
         brave: &str,
         yahoo: &str,
         bing: &str,
+        cratesio: &str,
     ) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -177,6 +181,7 @@ impl Searcher {
             brave: brave.to_owned(),
             yahoo: yahoo.to_owned(),
             bing: bing.to_owned(),
+            cratesio: cratesio.to_owned(),
             governor: super::governor::Governor::hermetic(),
             cache_root: None,
         }
@@ -193,6 +198,7 @@ impl Searcher {
             &self.brave,
             &self.yahoo,
             &self.bing,
+            &self.cratesio,
             &self.governor,
             self.cache_root.as_deref(),
         )

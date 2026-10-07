@@ -20,8 +20,8 @@ use crate::web::search::types::{Recency, SearchProvider, SearchProviderError, Se
 /// What one leg settled with.
 pub(super) type LegOutcome = Result<Vec<SearchResult>, SearchProviderError>;
 
-/// A leg's spawn index (its dense slot,
-/// `query_index * enabled.len() + provider_index`) and its outcome.
+/// A leg's spawn index (its position in the fan-out's slot list) and its
+/// outcome.
 pub(super) type LegReport = (usize, LegOutcome);
 
 /// Pause before the single retry of a transport failure (#103).
@@ -75,11 +75,12 @@ pub(super) fn queued_states(count: usize) -> Vec<AtomicU8> {
     (0..count).map(|_| AtomicU8::new(QUEUED)).collect()
 }
 
-/// Run one leg (spawn index `index`) to completion.
+/// Run one leg (spawn index `index`) to completion. `ordinal` counts the
+/// Queries this call sent to `provider` before this one.
 pub(super) async fn run(
     env: Arc<LegEnv>,
     index: usize,
-    query_index: usize,
+    ordinal: usize,
     provider: SearchProvider,
     query: String,
 ) -> LegReport {
@@ -101,7 +102,7 @@ pub(super) async fn run(
         }
         return (index, Ok(rows));
     }
-    let outcome = settle(&env, index, query_index, provider, &query).await;
+    let outcome = settle(&env, index, ordinal, provider, &query).await;
     // Store only a settled `Ok` leg with rows (#104): an `Err` never
     // reaches `cache::store`, and neither does a zero-row answer -- an
     // empty page is cheap to ask again and must not hide a later real
@@ -127,7 +128,7 @@ pub(super) async fn run(
 async fn settle(
     env: &LegEnv,
     index: usize,
-    query_index: usize,
+    ordinal: usize,
     provider: SearchProvider,
     query: &str,
 ) -> LegOutcome {
@@ -137,7 +138,7 @@ async fn settle(
     // never counts against the cap) and before suspension/budget:
     // capped-out queries are a local scheduling decision, not a bot-wall
     // signal, so they map to `Throttled`, never `Upstream`.
-    if query_index >= governor.max_queries_per_engine(provider) {
+    if ordinal >= governor.max_queries_per_engine(provider) {
         return Err(SearchProviderError::Throttled {
             provider,
             detail: format!(

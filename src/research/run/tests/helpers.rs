@@ -107,6 +107,7 @@ pub(super) async fn local_web() -> (ToolRegistry, String) {
         &format!("{search_base}/search"),
         &format!("{search_base}/search"),
         &format!("{search_base}/search"),
+        &format!("{search_base}/search"),
     );
     let fetcher = Fetcher::with_policy(
         crate::web::fetch::Obscura::new(
@@ -140,7 +141,7 @@ pub(super) async fn long_page_web() -> (
     let page_url = format!("{}/long", pages.base());
     let dead = "http://127.0.0.1:9/";
     let registry = ToolRegistry::new(
-        Searcher::with_bases(dead, dead, dead, dead, dead, dead),
+        Searcher::with_bases(dead, dead, dead, dead, dead, dead, dead),
         Fetcher::with_policy(
             crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),
@@ -185,6 +186,7 @@ pub(super) async fn walled_web() -> ToolRegistry {
         &format!("{search_base}/sp/search"),
         &brave_stub.base(),
         &yahoo_stub.base(),
+        &bing_stub.base(),
         &bing_stub.base(),
     );
     let fetcher = Fetcher::with_policy(

@@ -62,6 +62,7 @@ const VERTICAL_LEG_WEIGHT: f64 = 2.0;
 /// vertical, `1.0` for a general web engine.
 fn leg_weight(provider: SearchProvider) -> f64 {
     match provider {
+        SearchProvider::CratesIo => VERTICAL_LEG_WEIGHT,
         SearchProvider::DuckDuckGo
         | SearchProvider::Startpage
         | SearchProvider::Brave
@@ -597,6 +598,20 @@ mod tests {
         assert!(vertical_top < three_engines_rank_1, "2/61 < 3/61");
         // Unweighted, the same one-leg rank 1 is buried (1/61 < 2/65).
         assert!(rrf_score(&mut [(0, 1.0)]) < two_engines_rank_5);
+    }
+
+    #[test]
+    fn cratesio_rank_1_is_not_buried_behind_a_two_engine_rank_5() {
+        use SearchProvider::{Brave, CratesIo, Yahoo};
+        // 1-based ranks (`leg_row`): two engines at rank 5, the vertical at 1.
+        let specs: Vec<LegSpec> = vec![
+            (Brave, "q", 5, "https://blog.example/bytes"),
+            (Yahoo, "q", 5, "https://blog.example/bytes"),
+            (CratesIo, "q", 1, "https://docs.rs/bytes"),
+        ];
+        let merged = merge_scored(rows_from(&specs), &["q".to_string()]);
+        assert_eq!(merged[0].0.display_url, "https://docs.rs/bytes");
+        assert_eq!(merged[0].0.providers, vec![CratesIo]);
     }
 
     #[test]

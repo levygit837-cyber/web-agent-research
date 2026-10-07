@@ -87,7 +87,7 @@ async fn unreachable_endpoints_are_execution_failures() {
 async fn private_target_is_a_typed_fetch_failure_the_model_sees() {
     let dead = "http://127.0.0.1:9/";
     let registry = ToolRegistry::new(
-        Searcher::with_bases(dead, dead, dead, dead, dead, dead),
+        Searcher::with_bases(dead, dead, dead, dead, dead, dead, dead),
         Fetcher::with_policy(
             crate::web::fetch::Obscura::new(
                 "/nonexistent/obscura".into(),
@@ -148,6 +148,7 @@ async fn all_challenged_search_becomes_search_blocked() {
             &format!("{search_base}/sp/search"),
             &brave_stub.base(),
             &yahoo_stub.base(),
+            &bing_stub.base(),
             &bing_stub.base(),
         ),
         Fetcher::with_policy(

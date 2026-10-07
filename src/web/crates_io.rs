@@ -5,9 +5,9 @@
 //! The policy: the sparse index (`index.crates.io`) has no rate limit;
 //! the API allows at most 1 request per second per client, with a
 //! User-Agent that names the application and a contact
-//! ([`super::api_user_agent`]). Every API request in the process passes
-//! [`API_GATE`] first, so the search leg and the fetch rewrite together
-//! never exceed that rate.
+//! ([`super::api_user_agent`], sent by `web::search::apply_api_headers`).
+//! Every API request in the process passes [`API_GATE`] first, so the
+//! search leg and the fetch rewrite together never exceed that rate.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -87,18 +87,6 @@ pub(crate) fn index_path(name: &str) -> String {
 /// docs of the crate's library target, whatever its lib name is.
 pub(crate) fn docs_url(name: &str) -> String {
     format!("https://docs.rs/{name}")
-}
-
-/// Headers for a documented keyless API request: the honest
-/// [`super::api_user_agent`] and `accept`. No browser profile, no
-/// `sec-fetch-*`; `reqwest` adds `Accept-Encoding` for its enabled codecs.
-pub(crate) fn apply_api_headers(
-    builder: reqwest::RequestBuilder,
-    accept: &str,
-) -> reqwest::RequestBuilder {
-    builder
-        .header(reqwest::header::USER_AGENT, super::api_user_agent())
-        .header(reqwest::header::ACCEPT, accept)
 }
 
 #[cfg(test)]

@@ -55,6 +55,7 @@ async fn soft_deadline_waits_for_paced_legs_in_flight_and_cancels_queued_ones() 
         &format!("{}/search", brave.base()),
         UNREACHABLE,
         UNREACHABLE,
+        UNREACHABLE,
         &Governor::new(None),
         None,
     )
@@ -142,6 +143,7 @@ async fn bing_only(
         UNREACHABLE,
         UNREACHABLE,
         UNREACHABLE,
+        bing,
         bing,
         governor,
         None,

@@ -38,6 +38,7 @@ async fn fanout_merges_across_queries_and_providers() {
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
@@ -95,6 +96,7 @@ async fn fanout_duplicate_queries_keep_separate_legs() {
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
@@ -148,6 +150,7 @@ async fn fanout_partial_failure_still_ok() {
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
@@ -187,6 +190,7 @@ async fn fanout_all_fail_returns_all_failed_503() {
         &format!("{base}/missing/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
@@ -243,6 +247,7 @@ async fn fanout_all_challenged_marks_all_failed() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",

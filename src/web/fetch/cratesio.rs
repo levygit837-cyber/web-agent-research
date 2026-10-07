@@ -18,9 +18,8 @@ use serde::Deserialize;
 use super::error::FetchError;
 use super::fetcher::{send_error, Fetcher};
 use super::obscura::FetchedMarkdown;
-use crate::web::crates_io::{
-    apply_api_headers, docs_url, index_path, is_crate_name, API_BASE, API_GATE, INDEX_BASE,
-};
+use crate::web::crates_io::{docs_url, index_path, is_crate_name, API_BASE, API_GATE, INDEX_BASE};
+use crate::web::search::apply_api_headers;
 
 /// Versions listed in the block, newest first; the rest are counted only.
 const LISTED_VERSIONS: usize = 15;
