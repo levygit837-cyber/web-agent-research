@@ -1,0 +1,2109 @@
+{
+  "format": 1,
+  "started_unix": 1791401410,
+  "mode": "record",
+  "agent_model": "claude-haiku-4.5",
+  "judge_model": "gpt-5.6-sol",
+  "repeats": 1,
+  "git_rev": "46956ca",
+  "extra_args": [],
+  "rows": [
+    {
+      "goal_id": "crate_docs-01",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 593,
+      "total_tokens": 593,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 2,
+        "exact": 0,
+        "partial": 0,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 17099,
+      "answer": "To use `#[tokio::main]` with the multi-threaded runtime, you need the `macros` and `rt-multi-thread` features ([tokio crate documentation](https://docs.rs/tokio/latest/tokio/)). The `macros` feature enables the `#[tokio::main]` attribute macro itself, while `rt-multi-thread` enables the multi-threaded work-stealing scheduler.\n\n## Required features\n\n- `macros`: Enables the `#[tokio::main]` and `#[tokio::test]` attribute macros ([tokio crate documentation](https://docs.rs/tokio/latest/tokio/))\n- `rt-multi-thread`: Enables the multi-threaded scheduler ([tokio crate documentation](https://docs.rs/tokio/latest/tokio/))\n\n## What the multi-threaded runtime does\n\n- The multi-threaded runtime is the default flavor and executes futures on a thread pool using a work-stealing strategy ([tokio #[tokio::main] documentation](https://docs.rs/tokio/latest/tokio/attr.main.html))\n- It spawns worker threads by default matching the number of CPU cores on the system, though this can be configured with the `worker_threads` option ([tokio #[tokio::main] documentation](https://docs.rs/tokio/latest/tokio/attr.main.html))\n\n## Example Cargo.toml\n\n- In your `Cargo.toml`: `tokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }`\n\nSources:\n1. [tokio crate documentation](https://docs.rs/tokio/latest/tokio/) (unsupported: the cited page does not contain the quoted text)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly identifies the features required for the default multi-threaded runtime, but it does not answer what Tokio's `full` feature does."
+      }
+    },
+    {
+      "goal_id": "crate_docs-02",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 711,
+      "total_tokens": 711,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 5,
+        "exact": 4,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 17303,
+      "answer": "Enabling `#[derive(Serialize, Deserialize)]` in serde requires adding the `derive` feature to your `serde` dependency. To use it, add `serde = { version = \"1.0\", features = [\"derive\"] }` to your Cargo.toml, then import and apply the derive macros to your structs and enums ([Using derive · Serde](https://serde.rs/derive.html)).\n\n## Enabling the derive macros\n\n- Add `serde` with the `derive` feature to Cargo.toml: `serde = { version = \"1.0\", features = [\"derive\"] }` ([Using derive · Serde](https://serde.rs/derive.html)).\n- Import the macros in your module with `use serde::{Serialize, Deserialize};` and apply them to your types with `#[derive(Serialize, Deserialize)]` ([Using derive · Serde](https://serde.rs/derive.html)).\n- The derive feature is behind a feature flag because the macro implementation adds compile time ([Feature flags · Serde](https://serde.rs/feature-flags.html)).\n\n## The Serialize and Deserialize trait methods\n\n- The `Serialize` trait has a single required method `serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>` where `S: Serializer`, which maps your type into the Serde data model by invoking methods on the given Serializer ([Implementing Serialize · Serde](https://serde.rs/impl-serialize.html)).\n- The `Deserialize` trait has a single required method `deserialize<D>(deserializer: D) -> Result<Self, D::Error>` where `D: Deserializer<'de>`, which reconstructs your type from the Serde data model ([serde - Rust - Docs.rs](https://docs.rs/serde/latest/serde/trait.Deserialize.html)).\n- The `'de` lifetime on `Deserialize` represents the lifetime of data that may be borrowed by the type during deserialization ([serde - Rust - Docs.rs](https://docs.rs/serde/latest/serde/trait.Deserialize.html)).\n\nSources:\n1. [Using derive · Serde](https://serde.rs/derive.html)\n2. [Implementing Serialize · Serde](https://serde.rs/impl-serialize.html)\n3. [serde - Rust - Docs.rs](https://docs.rs/serde/latest/serde/trait.Deserialize.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly explains enabling the derive feature and accurately states both required trait method signatures, while omitting Serde's trait-system foundation and structure-format separation."
+      }
+    },
+    {
+      "goal_id": "crate_docs-03",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 487,
+      "total_tokens": 487,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 1,
+        "exact": 1,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 17542,
+      "answer": "The reqwest async `Client` requires Tokio as its async runtime, while the blocking API does not require any runtime. The `.json()` method requires the `json` feature, the `.form()` method requires the `form` feature, and the blocking API requires the `blocking` feature.\n\n## Async Client Runtime\n\n- The async [`Client`](https://docs.rs/reqwest/latest/reqwest/) requires Tokio and cannot be used without an async runtime.\n- Tokio must be set up separately; reqwest does not bundle it, so you need to add it as a dependency in your `Cargo.toml`.\n\n## JSON and Form Features\n\n- The `.json()` method on `RequestBuilder` requires enabling the `json` feature.\n- The `.form()` method on `RequestBuilder` requires enabling the `form` feature.\n- Both features enable serialization helpers on the request builder for the respective content types.\n\n## Blocking API Feature\n\n- The blocking `Client` API requires the `blocking` feature to be enabled.\n- The blocking API runs on the current thread and does not require Tokio or any async runtime; conversely, it must not be used within an async runtime context.\n\nSources:\n1. [`Client`](https://docs.rs/reqwest/latest/reqwest/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly identifies Tokio and the required json, form, and blocking features, while omitting only the unrelated redirect and client-reuse nuggets."
+      }
+    },
+    {
+      "goal_id": "crate_docs-04",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 846,
+      "total_tokens": 846,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 9,
+        "cited": 9,
+        "exact": 5,
+        "partial": 2,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 21872,
+      "answer": "The clap derive API lets you define command-line arguments by deriving `Parser` on a struct, where each field becomes an argument. The `derive` feature flag must be enabled in `Cargo.toml`.\n\n## Setting up the derive API\n\n- Enable the `derive` feature with `cargo add clap --features derive` or by adding `clap = { version = \"...\", features = [\"derive\"] }` to `Cargo.toml` ([Clap Derive Parser Macro](https://rust-lang-nursery.github.io/rust-cookbook/cli/clap-derive.html)).\n- Add `#[derive(Parser)]` to your struct and call `.parse()` to parse arguments ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n\n## Defining different argument types\n\n- **Positional arguments**: By default, struct fields define positional arguments, like `name: String` ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n- **Options (named flags)**: Use `#[arg(short, long)]` to add short (`-n`) and long (`--name`) flags to a field ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n- **Boolean flags**: Fields of type `bool` default to `SetTrue` action, so `--verbose` without a value sets it to true ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n- **Optional arguments**: Wrap the type in `Option<T>` to make an argument optional instead of required ([Clap Derive Parser Macro](https://rust-lang-nursery.github.io/rust-cookbook/cli/clap-derive.html)).\n- **Multiple values**: Use `Vec<T>` to accept multiple values with `Append` action ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n\n## Common attributes\n\n- Use `#[command(...)]` attributes on the struct for application-level settings like `version`, `about`, and `long_about` ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n- Use `#[arg(...)]` attributes on fields for argument-specific settings like `default_value_t`, `value_parser`, and `requires` ([Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)).\n\nSources:\n1. [Clap Derive Parser Macro](https://rust-lang-nursery.github.io/rust-cookbook/cli/clap-derive.html)\n2. [Tutorial for the Derive API](https://docs.rs/clap/latest/clap/_derive/_tutorial/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.16666666666666666,
+        "rationale": "The answer correctly explains clap's struct-and-field derive approach and identifies the required `derive` feature, without contradicting any reference facts."
+      }
+    },
+    {
+      "goal_id": "crate_docs-05",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 694,
+      "total_tokens": 694,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 2,
+        "partial": 3,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 23330,
+      "answer": "Anyhow provides two methods to attach context to errors: `context()` for eager evaluation and `with_context()` for lazy evaluation, and it supports no_std mode by disabling the default \"std\" feature in Cargo.toml while providing a global allocator.\n\n## Attaching context to errors\n\n- Use `.context(msg)` to wrap an error with a static context message ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/trait.Context.html)). The context is evaluated immediately when the method is called.\n- Use `.with_context(|| msg)` to wrap an error with a lazily-evaluated context message ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/trait.Context.html)). The closure is only executed if an error actually occurs, making this more efficient when context computation is expensive.\n- Both methods work on `Result<T, E>` and `Option<T>`, and you can downcast to either the context type or the original error type even after adding context ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/trait.Context.html)).\n\n## Using anyhow in no_std\n\n- Disable the default \"std\" feature in Cargo.toml: `anyhow = { version = \"1.0\", default-features = false }` ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/)).\n- Almost all of the same API is available in no_std mode and works identically to the std version ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/)).\n- For Rust versions older than 1.81, you may need to add `.map_err(Error::msg)` when working with non-Anyhow error types in functions returning Anyhow's error type ([anyhow documentation](https://docs.rs/anyhow/latest/anyhow/)).\n\nSources:\n1. [anyhow documentation](https://docs.rs/anyhow/latest/anyhow/trait.Context.html) (partial: a number or identifier in the claim is not on the cited page)\n2. [anyhow documentation](https://docs.rs/anyhow/latest/anyhow/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          false,
+          false,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.16666666666666666,
+        "rationale": "The answer correctly explains context versus lazy with_context usage and the no_std configuration with a required global allocator, without contradicting any reference fact."
+      }
+    },
+    {
+      "goal_id": "crate_docs-06",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 857,
+      "total_tokens": 857,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 7,
+        "cited": 7,
+        "exact": 4,
+        "partial": 2,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 25787,
+      "answer": "To compile and reuse a regex with Rust's regex crate, use `std::sync::LazyLock` (stable since Rust 1.80) or the `once_cell` crate to create a lazily-initialized static that compiles the regex once and shares it safely across threads. Alternatively, use the `regex!` macro for compile-time compilation. The crate does not support backreferences, lookaround assertions, or atomic groups—deliberate omissions that allow linear-time matching guarantees.\n\n## Compiling and Reusing Regexes\n\n- Use `std::sync::LazyLock` to compile a regex once into a static and reuse it automatically: `static EMAIL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r\"...\").unwrap());` ([Rust regex crate](https://docs.rs/regex/latest/regex/)).\n- The `regex!` macro automatically handles lazy compilation and reuse, useful inside functions to avoid the overhead of repeated `Regex::new` calls ([Rust regex crate](https://docs.rs/regex/latest/regex/)).\n- Regex compilation is expensive (microseconds to milliseconds), so compiling in loops or hot functions is an anti-pattern that prevents internal optimizations ([Rust regex crate](https://docs.rs/regex/latest/regex/)).\n- A single compiled `Regex` is thread-safe and can be freely shared across threads using `Sync`, with no additional memory cost from cloning ([Rust regex crate](https://docs.rs/regex/latest/regex/)).\n\n## Unsupported Features\n\n- The crate does not support backreferences or lookaround assertions, a deliberate design choice to guarantee linear-time matching and prevent catastrophic backtracking ([Rust regex crate](https://docs.rs/regex/latest/regex/)).\n- If backreferences or lookaround are required, use the `fancy-regex` crate, which layers a backtracking engine on top of the standard regex crate ([Rust Regex Guide](https://janeer.com/guides/rust-regex/)).\n- The crate uses finite automata matching (like Go's RE2), which structurally prevents these features to maintain `O(m * n)` worst-case time complexity where `m` is the regex size and `n` is the haystack length ([Rust Regex Guide](https://janeer.com/guides/rust-regex/)).\n\nSources:\n1. [Rust regex crate](https://docs.rs/regex/latest/regex/)\n2. [Rust Regex Guide](https://janeer.com/guides/rust-regex/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly explains compiling once with Regex::new via LazyLock or once_cell, identifies unsupported look-around and backreferences, and states the O(m * n) bound, though it omits the match API distinctions and regex-lite."
+      }
+    },
+    {
+      "goal_id": "crate_docs-07",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 634,
+      "total_tokens": 634,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 3,
+        "partial": 0,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 17346,
+      "answer": "Rayon parallel iterators allow you to write iterator-style parallel code across multiple threads, and you can control the global thread pool size using `ThreadPoolBuilder`.\n\n## Using Parallel Iterators\n\n- Import the traits with `use rayon::prelude::*`, then call parallel iterator methods on collections. Rayon provides methods like `par_iter()`, `map()`, `filter()`, `reduce()`, and `for_each()` that work similarly to standard iterators but execute in parallel ([ParallelIterator trait](https://docs.rs/rayon/latest/rayon/iter/trait.ParallelIterator.html)).\n\n## Controlling Thread Pool Size\n\n- **Environment variable**: Set `RAYON_NUM_THREADS` to your desired number of threads before running your program ([FAQ](https://github.com/rayon-rs/rayon/blob/main/FAQ.md)).\n- **ThreadPoolBuilder for custom pools**: Create a local thread pool with specific thread count using `ThreadPoolBuilder::new().num_threads(22).build()` ([ThreadPoolBuilder](https://docs.rs/rayon/latest/rayon/struct.ThreadPoolBuilder.html)).\n- **ThreadPoolBuilder for global pool**: Configure the global pool at startup with `ThreadPoolBuilder::new().num_threads(22).build_global()`, but this must be called before any parallel work begins ([ThreadPoolBuilder](https://docs.rs/rayon/latest/rayon/struct.ThreadPoolBuilder.html)).\n- **Default behavior**: If you don't set thread count explicitly, Rayon defaults to the number of logical CPU cores, which can be overridden via the `RAYON_NUM_THREADS` environment variable ([ThreadPoolBuilder](https://docs.rs/rayon/latest/rayon/struct.ThreadPoolBuilder.html)).\n\nSources:\n1. [ParallelIterator trait](https://docs.rs/rayon/latest/rayon/iter/trait.ParallelIterator.html) (unsupported: the cited page does not contain the quoted text)\n2. [FAQ](https://github.com/rayon-rs/rayon/blob/main/FAQ.md)\n3. [ThreadPoolBuilder](https://docs.rs/rayon/latest/rayon/struct.ThreadPoolBuilder.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains parallel iterator imports and both custom and global thread-pool configuration without contradiction, but omits the num_threads(0) case, rayon::join behavior, work stealing, and the data-race-free guarantee."
+      }
+    },
+    {
+      "goal_id": "crate_docs-08",
+      "category": "crate_docs",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 951,
+      "total_tokens": 951,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 7,
+        "exact": 6,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 28732,
+      "answer": "The `tracing` crate records spans and events using macros, and you install a subscriber in an executable to collect that trace data. Spans represent periods of time with beginning and end points, while events represent moments in time; both are recorded through macros and then collected by a subscriber that you set globally or locally.\n\n## Recording Spans and Events\n\n- Create spans with the [`span!`](https://docs.rs/tracing/latest/tracing/macro.span.html) macro, which returns a `Span` struct, then call [`Span::enter()`](https://docs.rs/tracing/latest/tracing/struct.Span.html#method.enter) to enter it and get a RAII guard that exits when dropped ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n- Use the [`#[instrument]`](https://docs.rs/tracing-attributes/latest/tracing_attributes/attr.instrument.html) attribute macro on functions to automatically create and enter a span with the function's name, recording function arguments as fields ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n- Record events with the [`event!`](https://docs.rs/tracing/latest/tracing/macro.event.html) macro or shorthand macros like `info!`, `debug!`, `warn!`, and `error!` ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n- Add structured fields to spans and events using the syntax `field_name = field_value`, separated by commas ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n\n## Installing a Subscriber in an Executable\n\n- Use [`tracing_subscriber::fmt::init()`](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/fmt/fn.init.html) to create and globally install a subscriber configured by the `RUST_LOG` environment variable ([GitHub - tokio-rs/tracing](https://github.com/tokio-rs/tracing)):\n- Alternatively, build a subscriber manually and install it with [`tracing::subscriber::set_global_default()`](https://docs.rs/tracing/latest/tracing/subscriber/fn.set_global_default.html) or use [`tracing::subscriber::with_default()`](https://docs.rs/tracing/latest/tracing/subscriber/fn.with_default.html) to set it locally for a closure ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n- Libraries should **not** call `set_global_default()` to avoid conflicts; only executables should install the global subscriber ([Tracing docs](https://docs.rs/tracing/latest/tracing/)):\n\nSources:\n1. [Tracing docs](https://docs.rs/tracing/latest/tracing/)\n2. [GitHub - tokio-rs/tracing](https://github.com/tokio-rs/tracing)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.16666666666666666,
+        "rationale": "The answer correctly explains the core span, event, and subscriber workflow without contradictions, but omits the async guard warning, Debug formatting detail, events occurring inside spans, tracing’s lack of subscriber implementations, and the full library guidance."
+      }
+    },
+    {
+      "goal_id": "api_reference-01",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 708,
+      "total_tokens": 708,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 4,
+      "verification": {
+        "bullets": 4,
+        "cited": 4,
+        "exact": 3,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 66216,
+      "answer": "Python's `str.removeprefix()` returns the original string unchanged when the prefix is absent, and it has been available since Python 3.9 ([PEP 616 – String methods to remove prefixes and suffixes](https://peps.python.org/pep-0616/), [What's New In Python 3.9](https://docs.python.org/3.9/whatsnew/3.9.html)).\n\n## Return value when prefix is absent\n\n- When the string does not start with the specified prefix, `removeprefix()` returns the original string unmodified ([A Friendly Guide to Python's removeprefix(): Pitfalls and Sample Code](https://runebook.dev/en/docs/python/library/stdtypes/str.removeprefix)).\n- The specification in PEP 616 confirms this behavior with the implementation: when `self.startswith(prefix)` is false, it returns `self[:]`, which is a copy of the original string ([PEP 616 – String methods to remove prefixes and suffixes](https://peps.python.org/pep-0616/)).\n\n## Version availability\n\n- `str.removeprefix()` was introduced in Python 3.9, released on October 5, 2020 ([What's New In Python 3.9](https://docs.python.org/3.9/whatsnew/3.9.html)).\n- Corresponding methods were also added to `bytes`, `bytearray`, and `collections.UserString` in the same version ([PEP 616 – String methods to remove prefixes and suffixes](https://peps.python.org/pep-0616/)).\n\nSources:\n1. [PEP 616 – String methods to remove prefixes and suffixes](https://peps.python.org/pep-0616/)\n2. [What's New In Python 3.9](https://docs.python.org/3.9/whatsnew/3.9.html)\n3. [A Friendly Guide to Python's removeprefix(): Pitfalls and Sample Code](https://runebook.dev/en/docs/python/library/stdtypes/str.removeprefix)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "The answer correctly states that an absent prefix yields a copy of the original string and that removeprefix was introduced in Python 3.9, without contradicting any nuggets."
+      }
+    },
+    {
+      "goal_id": "api_reference-02",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 6,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 650,
+      "total_tokens": 650,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 1,
+        "exact": 0,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 81595,
+      "answer": "`Option::take_if` is a method that conditionally takes the value out of an `Option`, leaving `None` in its place only if a predicate function returns `true` on a mutable reference to the value. It has been stable since [Rust 1.80.0](https://blog.rust-lang.org/2024/07/25/Rust-1.80.0.html), released July 25, 2024.\n\n## Signature and behavior\n\n- The signature is `pub fn take_if<P>(&mut self, predicate: P) -> Option<T> where P: FnOnce(&mut T) -> bool` ([std::option::Option](https://doc.rust-lang.org/std/option/enum.Option.html#method.take_if))\n- It takes a mutable reference to `self` and a predicate function that receives a mutable reference to the contained value\n- If the `Option` is `None`, it returns `None` without calling the predicate\n- If the `Option` is `Some(v)`, it calls the predicate with `&mut v`; if the predicate returns `true`, it replaces `self` with `None` and returns `Some(v)`; if the predicate returns `false`, it leaves `self` unchanged and returns `None`\n\n## Use case and motivation\n\n- The method operates similar to `Option::take` but with a condition, allowing you to extract a value only when specific criteria are met\n- The predicate has mutable access to the value, making it possible to inspect or modify the value during the decision process before extraction\n\nSources:\n1. [Rust 1.80.0](https://blog.rust-lang.org/2024/07/25/Rust-1.80.0.html)\n2. [std::option::Option](https://doc.rust-lang.org/std/option/enum.Option.html#method.take_if) (unsupported: the cited page does not contain the quoted text)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 1.0,
+        "rationale": "The answer accurately states the exact signature, Rust 1.80.0 stabilization, conditional extraction via a mutable-reference predicate, replacement with None when true, and its similarity to Option::take."
+      }
+    },
+    {
+      "goal_id": "api_reference-03",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 522,
+      "total_tokens": 522,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 4,
+        "cited": 4,
+        "exact": 3,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 18973,
+      "answer": "`Array.prototype.toSorted()` returns a new sorted array without mutating the original array. When no compare function is provided, elements are converted to strings and sorted according to Unicode code point values in ascending order.\n\n## Return value and mutation\n\n- `toSorted()` returns a new array with elements sorted in ascending order, leaving the original array unchanged ([Array.prototype.toSorted() - JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted)).\n- The method is the copying version of `sort()`, designed to avoid mutating the original array ([Array.prototype.toSorted() - JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted)).\n\n## Default sorting behavior without a compare function\n\n- When no compare function is provided, array elements are converted to strings and sorted according to each character's Unicode code point value ([Array.prototype.toSorted() - JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted)).\n- This default behavior means numeric arrays sort lexicographically rather than numerically; for example, `[1, 10, 21, 2].toSorted()` produces `[1, 10, 2, 21]` rather than numeric order ([Array.prototype.toSorted() - JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted)).\n\nSources:\n1. [Array.prototype.toSorted() - JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSorted)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly states that toSorted() returns a new ascending-sorted array without mutating the original and describes the default Unicode string sorting behavior, while omitting sparse-array and browser-availability details not required by the question."
+      }
+    },
+    {
+      "goal_id": "api_reference-04",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 426,
+      "total_tokens": 426,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 1,
+      "verification": {
+        "bullets": 4,
+        "cited": 4,
+        "exact": 2,
+        "partial": 1,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 11797,
+      "answer": "`AbortSignal.timeout()` is a static method that creates an `AbortSignal` that automatically aborts after a specified duration, aborting with a `TimeoutError` DOMException when the timeout expires.\n\n## Arguments and return value\n\n- Takes a single argument `time`: the number of milliseconds (an \"active\" time value between 0 and `Number.MAX_SAFE_INTEGER`) before the signal aborts ([AbortSignal: timeout() static method](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static))\n- Returns an `AbortSignal` object that can be passed to operations like `fetch()` ([AbortSignal: timeout() static method](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static))\n\n## Error on timeout\n\n- The signal aborts with a `TimeoutError` DOMException, which can be caught and identified by checking `err.name === \"TimeoutError\"` ([AbortSignal: timeout() static method](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static))\n- This differs from `AbortError`, which occurs when the user cancels the operation through browser actions like pressing the stop button or closing the tab ([AbortSignal: timeout() static method](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static))\n\nSources:\n1. [AbortSignal: timeout() static method](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly states the method’s argument, range, return type, and TimeoutError DOMException, but omits active-time suspension behavior and the inability to cancel the timeout."
+      }
+    },
+    {
+      "goal_id": "api_reference-05",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 581,
+      "total_tokens": 581,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 4,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 19934,
+      "answer": "`fsPromises.mkdir()` resolves with `undefined` when `recursive` is false, or with the first directory path created when `recursive` is true (or `undefined` if the entire path already existed). The `recursive` option, when set to `true`, creates all missing parent directories and prevents errors if the target directory already exists.\n\n## Return value\n\n- Without `recursive` or with `recursive: false`, the promise always resolves with `undefined` ([fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)).\n- With `recursive: true`, the promise resolves with the first directory path that was created, or `undefined` if the entire path already existed ([fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)).\n\n## The recursive option\n\n- When `recursive: true` is set, `fsPromises.mkdir()` behaves like the Unix `mkdir -p` command, creating all missing parent directories in the path ([fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)).\n- With `recursive: true`, the method resolves without error even if the directory already exists, instead of throwing `EEXIST` ([fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)).\n- The `recursive` option is useful to detect whether you created the directory yourself: if the resolved value is `undefined`, the path already existed ([fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)).\n\nSources:\n1. [fsPromises.mkdir() — Node.js Function Reference](https://soundscode.com/nodejs/fs-promises-mkdir)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly explains the fulfillment values and recursive behavior without contradicting any reference fact, though it omits the signature, version, and mode details."
+      }
+    },
+    {
+      "goal_id": "api_reference-06",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 796,
+      "total_tokens": 796,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 4,
+        "partial": 1,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 31037,
+      "answer": "PostgreSQL's `date_trunc` function truncates a timestamp, timestamp with time zone, or interval value to a specified precision level, discarding all less significant fields by setting them to zero (or one for day and month) ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n\n## Function Signature and Arguments\n\n- `date_trunc(field, source [, time_zone])`: The `field` parameter (text) specifies the precision level for truncation, `source` is the timestamp or interval to truncate, and an optional `time_zone` parameter can be provided for timestamp with time zone inputs ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n\n## Supported Precision Levels\n\n- Valid `field` values include: `microseconds`, `milliseconds`, `second`, `minute`, `hour`, `day`, `week`, `month`, `quarter`, `year`, `decade`, `century`, and `millennium` ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n\n## Input Types and Return Values\n\n- Accepts `timestamp without time zone`, `timestamp with time zone`, or `interval` as input; `date` and `time` values are cast automatically to `timestamp` or `interval` respectively ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n- Returns the same type as the input: `timestamp`, `timestamp with time zone`, or `interval` ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n\n## Time Zone Behavior\n\n- For `timestamp with time zone` inputs, truncation respects the specified time zone; if no time zone is provided, it uses the current session `TimeZone` setting ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n- A time zone cannot be specified for `timestamp without time zone` or `interval` inputs ([date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)).\n\nSources:\n1. [date_trunc · PostgreSQL](https://www.postgresql.org/docs/current/functions-datetime.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.8333333333333334,
+        "rationale": "The answer accurately explains the syntax, accepted input types, truncation behavior, valid fields, return types, and time-zone handling, but omits the specific example result."
+      }
+    },
+    {
+      "goal_id": "api_reference-07",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 560,
+      "total_tokens": 560,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 6,
+        "cited": 3,
+        "exact": 2,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 25265,
+      "answer": "Python's `functools.lru_cache` decorator has two parameters with defaults: `maxsize=128` and `typed=False` ([functools — Higher-order functions and operations on callable objects](https://docs.python.org/3/library/functools.html)). The `cache_info()` method returns a named tuple containing cache statistics.\n\n## Parameters and Defaults\n\n- `maxsize=128`: The maximum number of function results to store in the cache. Set to `None` to disable the LRU feature and allow unlimited cache growth ([functools — Higher-order functions and operations on callable objects](https://docs.python.org/3/library/functools.html)).\n- `typed=False`: When `False`, arguments of different types are cached together; when `True`, they are cached separately. For example, `f(3)` and `f(3.0)` are treated as different calls only when `typed=True` ([Python Functools - lru_cache()](https://www.geeksforgeeks.org/python/python-functools-lru_cache/)).\n\n## cache_info() Return Value\n\n- `cache_info()` returns a named tuple with four fields: `hits`, `misses`, `maxsize`, and `currsize` ([functools — Higher-order functions and operations on callable objects](https://docs.python.org/3/library/functools.html)).\n- `hits`: Number of cache hits (calls with arguments already in the cache).\n- `misses`: Number of cache misses (calls with arguments not in the cache).\n- `currsize`: Current number of entries in the cache.\n\nSources:\n1. [functools — Higher-order functions and operations on callable objects](https://docs.python.org/3/library/functools.html)\n2. [Python Functools - lru_cache()](https://www.geeksforgeeks.org/python/python-functools-lru_cache/) (partial: a number or identifier in the claim is not on the cited page)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly states both lru_cache parameters and defaults, explains maxsize=None and typed=True, and identifies all four cache_info() fields, while merely omitting hashability, cache_clear(), and thread-safety details."
+      }
+    },
+    {
+      "goal_id": "api_reference-08",
+      "category": "api_reference",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 662,
+      "total_tokens": 662,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 3,
+        "partial": 0,
+        "none": 3
+      },
+      "replay_misses": 0,
+      "wall_ms": 21489,
+      "answer": "To create an issue with the GitHub REST API, use the `POST /repos/{owner}/{repo}/issues` endpoint. The only required parameter is `title`; optional body parameters include `body`, `milestone`, `labels`, `assignees`, `issue_field_values`, `type`, and `parent_issue_id` ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)) (quote: \"The title of the issue\").\n\n## Endpoint and path parameters\n\n- The endpoint is `POST /repos/{owner}/{repo}/issues`, where `owner` is the account owner of the repository and `repo` is the repository name without `.git` ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n\n## Required and optional parameters\n\n- `title` (string, required): The title of the issue ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n- `body` (string, optional): The contents of the issue; `assignees` (array, optional): Logins for users to assign to the issue ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n- `milestone`, `labels`, `issue_field_values`, `type`, and `parent_issue_id` are also optional parameters with specific constraints ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n\n## Status codes\n\n- `201`: Created (successful issue creation) ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n- `400`: Bad Request; `403`: Forbidden; `404`: Resource not found; `410`: Gone (if issues are disabled); `422`: Validation failed or endpoint has been spammed; `503`: Service unavailable ([REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)).\n\nSources:\n1. [REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The endpoint and 410 behavior are correct, but the answer incorrectly restricts `title` to a string rather than string or integer and omits the access, silent-dropping, and secondary-rate-limiting facts."
+      }
+    },
+    {
+      "goal_id": "exact_error-01",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 736,
+      "total_tokens": 736,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 1,
+        "exact": 0,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 19774,
+      "answer": "Error E0502 occurs when you try to mutate data while an immutable reference to it is still active. Rust enforces a strict rule: you can have many immutable references or exactly one mutable reference, but never both at the same time. This prevents data races and undefined behavior.\n\n## What the error means\n\n- [The official Rust documentation](https://doc.rust-lang.org/error_codes/E0502.html) explains that \"a variable already borrowed with a certain mutability (either mutable or immutable) was borrowed again with a different mutability.\" The compiler blocks this because allowing mutation while a reference is reading the data could cause the reference to read garbage, partial updates, or corrupted values.\n\n## How to fix it\n\n- [Separate the borrows into distinct scopes](https://www.rustfaq.org/en/error-e0502-cannot-borrow-as-mutable/): ensure the immutable borrow ends before the mutable borrow begins. Modern Rust uses Non-Lexical Lifetimes (NLL), which end borrows at the last use of a reference rather than at the end of a scope block. Move the mutation after the last use of the immutable reference.\n\n## Common patterns and solutions\n\n- **Extract values before mutating**: If you need to read a field and then mutate the struct, clone or copy the value first to break the borrow chain.\n- **Use the `entry` API for HashMap**: When checking if a key exists and conditionally inserting, use `entry().or_insert()` instead of separate `get()` and `insert()` calls, which avoids holding a reference while mutating.\n- **Use `split_at_mut` for slices**: When you need two mutable references to non-overlapping parts of a collection, `split_at_mut()` lets the compiler verify they don't conflict.\n- **Use `retain` for filtering collections**: Instead of iterating and mutating a vector, use methods like `retain()` that handle the borrow internally.\n- **Interior mutability as a last resort**: `RefCell<T>` allows mutation through an immutable reference but moves the check to runtime; use it only when the borrow checker's compile-time restrictions are too rigid.\n\nSources:\n1. [The official Rust documentation](https://doc.rust-lang.org/error_codes/E0502.html) (unsupported: the cited page does not contain the quoted text)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "The answer correctly explains E0502 as overlapping incompatible borrows and says to end the immutable borrow before mutating, without contradicting the reference facts."
+      }
+    },
+    {
+      "goal_id": "exact_error-02",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 748,
+      "total_tokens": 748,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 3,
+        "partial": 2,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 30007,
+      "answer": "Rust error E0382 occurs when a value is used after its ownership has been moved to another variable, violating Rust's ownership system that prevents multiple owners from trying to clean up the same allocation. This error protects against use-after-free bugs by ensuring each non-`Copy` value has only one owner at a time.\n\n## What causes the error\n\n- **Moving a value to a function:** When a function takes a value by ownership (not by reference), ownership transfers and the original binding cannot be used afterward ([Fix Rust E0382: use of moved value](https://learningrust.org/guides/fix-rust-e0382)).\n- **Non-Copy types:** Types like `String`, `Vec<T>`, and custom structs without the `Copy` trait trigger this error. Primitive types like `i32` implement `Copy` and avoid E0382 because they are implicitly duplicated ([Error code E0382](https://doc.rust-lang.org/error_codes/E0382.html)).\n\n## Ways to fix it\n\n- **Use references (preferred):** Pass a reference `&value` instead of moving the value, letting the function borrow without taking ownership ([Fix Rust E0382: use of moved value](https://learningrust.org/guides/fix-rust-e0382)).\n- **Clone the value:** Call `.clone()` to create a duplicate owned allocation, allowing both the original and the function to have separate copies ([Error code E0382](https://doc.rust-lang.org/error_codes/E0382.html)).\n- **Implement Copy:** For simple types you control, derive or implement `Copy` to enable implicit cloning with no runtime cost ([Error code E0382](https://doc.rust-lang.org/error_codes/E0382.html)).\n- **Use Rc and RefCell for shared ownership:** When you need multiple owners and mutable shared access, wrap the value in `Rc<RefCell<T>>` for reference counting and runtime borrow checking ([Error code E0382](https://doc.rust-lang.org/error_codes/E0382.html)).\n\nSources:\n1. [Fix Rust E0382: use of moved value](https://learningrust.org/guides/fix-rust-e0382)\n2. [Error code E0382](https://doc.rust-lang.org/error_codes/E0382.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          false,
+          true
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly explains E0382 and valid fixes without contradicting the reference facts, though it omits the specific &mut syntax, deriving Clone, and the full #[derive(Copy, Clone)] requirement."
+      }
+    },
+    {
+      "goal_id": "exact_error-03",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 688,
+      "total_tokens": 688,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 4,
+      "verification": {
+        "bullets": 7,
+        "cited": 4,
+        "exact": 4,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 29552,
+      "answer": "The \"refusing to merge unrelated histories\" error occurs when Git tries to merge two branches or repositories that don't share a common commit history, which Git prevents by default to avoid potential confusion and conflicts ([How to Fix Git \"Refusing to Merge Unrelated Histories\"?](https://www.geeksforgeeks.org/git/how-to-fix-git-refusing-to-merge-unrelated-histories/)).\n\n## What causes it\n\n- Merging two completely separate repositories\n- Merging a branch initialized separately with no shared history\n- Pulling from a remote that was initialized independently of your local repo\n\n## How to fix it\n\n- Use `--allow-unrelated-histories` flag: Run `git pull origin main --allow-unrelated-histories` (replacing `main` with your branch name if different) to explicitly tell Git to merge the unrelated histories ([Fix fatal: refusing to merge unrelated histories on git pull](https://github.com/orgs/community/discussions/183320)).\n- For `git merge`, use the same flag: `git merge other-branch --allow-unrelated-histories` on your target branch ([How to Fix Git \"Refusing to Merge Unrelated Histories\"?](https://www.geeksforgeeks.org/git/how-to-fix-git-refusing-to-merge-unrelated-histories/)).\n- Resolve conflicts and complete the merge: After running the command with the flag, resolve any merge conflicts that appear, then commit and push the result ([Fix fatal: refusing to merge unrelated histories on git pull](https://github.com/orgs/community/discussions/183320)).\n- Alternative approach if you don't need local history: If your local repository has no important commits and you only want the remote version, re-clone the repository instead ([Fix fatal: refusing to merge unrelated histories on git pull](https://github.com/orgs/community/discussions/183320)).\n\nSources:\n1. [How to Fix Git \"Refusing to Merge Unrelated Histories\"?](https://www.geeksforgeeks.org/git/how-to-fix-git-refusing-to-merge-unrelated-histories/)\n2. [Fix fatal: refusing to merge unrelated histories on git pull](https://github.com/orgs/community/discussions/183320)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly explains the lack of a common ancestor and gives the proper override for merge and pull, but omits the lack of a default-enabling configuration and the limitation that the pull option applies only when merging, not rebasing."
+      }
+    },
+    {
+      "goal_id": "exact_error-04",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 948,
+      "total_tokens": 948,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 4,
+        "exact": 1,
+        "partial": 1,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 33656,
+      "answer": "The error `[ERR_REQUIRE_ESM]: require() of ES Module not supported` occurs when you try to use CommonJS `require()` to import an ES Module (ESM) in a Node.js project. It happens because packages like `chalk`, `node-fetch`, `got`, and others have converted to ESM-only releases, and Node's synchronous `require()` cannot load modules designed for the asynchronous ESM system.\n\n## What changed in recent Node versions\n\n- **Node 20.19.0+, 22.12.0+, and 23.0.0+**: ESM can be required directly by default without flags or code changes\n- **Older versions**: The error still occurs and requires fixes\n\n## How to fix it\n\n- **Upgrade Node first** to 20.19.0, 22.12.0, or 23.0.0+, which handles most ESM packages automatically ([FixDevs](https://fixdevs.com/blog/node-err-require-esm/))\n- **Use dynamic import()** for cases that still fail (top-level await, or older Node versions). Wrap in an async function and use `await import('package-name')` instead of `require()` ([www.tutorialpedia.org](https://www.tutorialpedia.org/blog/instead-change-the-require-of-index-js-to-a-dynamic-import-which-is-available-in-all-commonjs-modules/))\n- **Convert your project to ESM** by adding `\"type\": \"module\"` to `package.json` and replacing all `require()` with `import` statements ([bobbyhadz.com](https://bobbyhadz.com/blog/javascript-error-err-require-esm-require-of-es-module-not-supported))\n- **Downgrade the package** to its last CommonJS-compatible version (e.g., `chalk@4`, `node-fetch@2`, `nanoid@3`) if you cannot modify your codebase right away ([fixdevs.com](https://fixdevs.com/blog/node-err-require-esm/))\n\nSources:\n1. [FixDevs](https://fixdevs.com/blog/node-err-require-esm/) (unsupported: the cited page does not contain the quoted text)\n2. [www.tutorialpedia.org](https://www.tutorialpedia.org/blog/instead-change-the-require-of-index-js-to-a-dynamic-import-which-is-available-in-all-commonjs-modules/) (partial: a number or identifier in the claim is not on the cited page)\n3. [bobbyhadz.com](https://bobbyhadz.com/blog/javascript-error-err-require-esm-require-of-es-module-not-supported)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly explains the error and current synchronous ESM support without flags at the specified versions, while omitting the deprecation status, ESM file qualification rules, and ERR_REQUIRE_ASYNC_MODULE name."
+      }
+    },
+    {
+      "goal_id": "exact_error-05",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 743,
+      "total_tokens": 743,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 8,
+        "cited": 1,
+        "exact": 1,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 19805,
+      "answer": "PostgreSQL error SQLSTATE 23505 is a \"unique constraint violation\" that occurs when you try to insert or update a row with a value that already exists in a column (or combination of columns) protected by a unique constraint or primary key. The error message names the specific constraint and conflicting value to help you diagnose the issue.\n\n## What the Error Means\n\n- [PostgreSQL Error 23505](https://www.sqliz.com/posts/fix-error-23505-postgresql-unique-violation/) means \"an INSERT or UPDATE would duplicate a value protected by a primary key, unique constraint, or unique index\". The error details show which constraint was violated and what value caused the conflict.\n\n## Common Causes\n\n- **Explicit duplicates**: Trying to insert a row with a value that already exists in a unique column like email or username.\n- **Out-of-sync sequences**: After bulk imports or manual data inserts, the auto-increment sequence can fall behind the actual maximum ID in the table, causing new inserts to collide with existing IDs.\n- **Race conditions**: Multiple concurrent transactions attempting to insert the same unique value simultaneously.\n\n## How to Avoid the Error on Insert\n\n- **Use ON CONFLICT DO NOTHING**: Skip the insert silently if a duplicate exists: `INSERT INTO users (email) VALUES ('john@example.com') ON CONFLICT (email) DO NOTHING;`.\n- **Use ON CONFLICT DO UPDATE** (upsert): Update the existing row instead of inserting: `INSERT INTO users (email, name) VALUES ('john@example.com', 'John') ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name;`.\n- **Reset out-of-sync sequences**: After data imports with explicit IDs, resync the sequence: `SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT MAX(id) FROM users));`.\n- **Handle errors in application code**: Catch the unique violation exception and respond gracefully rather than letting it propagate to users.\n\nSources:\n1. [PostgreSQL Error 23505](https://www.sqliz.com/posts/fix-error-23505-postgresql-unique-violation/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          false,
+          false,
+          false,
+          true
+        ],
+        "nugget_recall": 0.2,
+        "rationale": "The answer correctly explains SQLSTATE 23505 and the two ON CONFLICT behaviors without contradiction, but it omits the exact condition name, Class 23 context, code-versus-message guidance, and the separate constraint-name error field."
+      }
+    },
+    {
+      "goal_id": "exact_error-06",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 852,
+      "total_tokens": 852,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 5,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 24365,
+      "answer": "HTTP 429 Too Many Requests indicates the client has sent too many requests in a given amount of time; the server is rate-limiting you and asking you to slow down. Your client should not retry immediately, but instead honor the `Retry-After` header if present, implement exponential backoff with jitter, and reduce its steady request rate to avoid hitting the limit again.\n\n## Understanding the response\n\n- 429 means the server rejected your request without processing it, so the request is safe to retry even for non-idempotent methods like POST ([429 Too Many Requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429)).\n- Rate limits can be per API key, per IP address, per account, per endpoint, or per token count; multiple limits can apply simultaneously ([Handling HTTP 429 Too Many Requests: Rate Limiting Headers, Exponential Backoff & Jitter](https://wtool.dev/guides/http-429-rate-limiting-retry-after-backoff)).\n\n## How to respond\n\n- **Honor Retry-After:** If the response includes a `Retry-After` header (either a number of seconds or an HTTP date), wait at least that long before retrying ([429 Too Many Requests: Fix It with Retry-After and Backoff](https://howhttpworks.com/debug/429-too-many-requests-fix)).\n- **Use exponential backoff with full jitter:** When there's no `Retry-After`, apply exponential backoff where the delay for attempt `n` is a random value between 0 and `min(cap, base * 2^n)`. This breaks synchronization between clients and prevents \"thundering herd\" retries that crash the server ([429 Too Many Requests: Fix It with Retry-After and Backoff](https://howhttpworks.com/debug/429-too-many-requests-fix)).\n- **Cap retry attempts and surface failures:** Set a maximum number of retries (typically 4-5) and a total wait time cap, then fail rather than loop forever ([429 Too Many Requests: Fix It with Retry-After and Backoff](https://howhttpworks.com/debug/429-too-many-requests-fix)).\n- **Reduce your request rate:** Implement client-side pacing by limiting concurrency, batching calls, caching responses, and spreading scheduled jobs to stay below the limit in the first place ([429 Too Many Requests: Fix It with Retry-After and Backoff](https://howhttpworks.com/debug/429-too-many-requests-fix)).\n\nSources:\n1. [429 Too Many Requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429)\n2. [Handling HTTP 429 Too Many Requests: Rate Limiting Headers, Exponential Backoff & Jitter](https://wtool.dev/guides/http-429-rate-limiting-retry-after-backoff) (unsupported: the cited page does not contain the quoted text)\n3. [429 Too Many Requests: Fix It with Retry-After and Backoff](https://howhttpworks.com/debug/429-too-many-requests-fix)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly explains 429 as rate limiting and advises honoring Retry-After, but it does not state that limits are typically IP-based or that RFC 6585 section 4 defines the status."
+      }
+    },
+    {
+      "goal_id": "exact_error-07",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 7,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 969,
+      "total_tokens": 969,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 4,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 5,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 34370,
+      "answer": "Python's `RecursionError: maximum recursion depth exceeded` occurs when a recursive function call chain grows deeper than Python's configured recursion limit, which defaults to 1000. The error is a safety mechanism to prevent the C stack from overflowing and crashing the interpreter.\n\n## What Triggers RecursionError\n\n- **Missing or incorrect base case**: A recursive function without a stopping condition, or one that never reaches the stopping condition, causes infinite recursion ([How To Fix Recursionerror In Python](https://www.geeksforgeeks.org/python/how-to-fix-recursionerror-in-python/)).\n- **Exceeding the default limit**: Even correctly implemented recursive functions can hit the limit when the recursion depth is genuinely large—for example, `factorial(1001)` exceeds the default 1000-call limit ([How To Fix Recursionerror In Python](https://www.geeksforgeeks.org/python/how-to-fix-recursionerror-in-python/)).\n\n## Raising the Recursion Limit\n\n- **Use `sys.setrecursionlimit()`**: Import `sys` and call `sys.setrecursionlimit(new_limit)` to increase the maximum recursion depth ([Get/Set the Recursion Limit in Python: sys.getrecursionlimit, sys.setrecursionlimit](https://note.nkmk.me/en/python-sys-recursionlimit/)).\n- **Platform and stack size constraints**: The highest possible limit is platform-dependent and constrained by available stack memory. On Unix systems, you can also increase stack size with the `resource` module to support deeper recursion ([Get/Set the Recursion Limit in Python: sys.getrecursionlimit, sys.setrecursionlimit](https://note.nkmk.me/en/python-sys-recursionlimit/)).\n- **Use caution with high limits**: Setting the limit too high can cause a program crash; if the new limit is too low for the current recursion depth, a `RecursionError` is raised ([sys.setrecursionlimit() — Python 3.14.8 documentation](https://docs.python.org/3/library/sys.html)).\n\n## Alternatives\n\n- **Convert to iteration**: Replacing recursion with loops avoids the limit entirely ([How To Fix Recursionerror In Python](https://www.geeksforgeeks.org/python/how-to-fix-recursionerror-in-python/)).\n\nSources:\n1. [How To Fix Recursionerror In Python](https://www.geeksforgeeks.org/python/how-to-fix-recursionerror-in-python/)\n2. [Get/Set the Recursion Limit in Python: sys.getrecursionlimit, sys.setrecursionlimit](https://note.nkmk.me/en/python-sys-recursionlimit/)\n3. [sys.setrecursionlimit() — Python 3.14.8 documentation](https://docs.python.org/3/library/sys.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly explains what triggers RecursionError, how and why to raise the limit, and the associated risks, but omits its inheritance/version history and sys.getrecursionlimit()."
+      }
+    },
+    {
+      "goal_id": "exact_error-08",
+      "category": "exact_error",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 537,
+      "total_tokens": 537,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 4,
+        "cited": 2,
+        "exact": 1,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 22497,
+      "answer": "This Docker warning occurs when the `~/.docker/` directory and its files are created with incorrect permissions, typically because you ran Docker commands with `sudo` before adding your user to the docker group. [Docker stores unencrypted credentials in config.json](https://bobcares.com/blog/how-to-fix-docker-error-loading-config-file/), and permission mismatches prevent Docker from reading the file.\n\n## Root cause\n\n- Running `docker` with `sudo` before joining the docker group creates `~/.docker/` owned by root, not your user\n- Your user cannot read the config.json file because of these restrictive permissions\n\n## Fix the permissions\n\n- Use these commands to fix ownership and permissions: `sudo chown \"$USER\":\"$USER\" /home/\"$USER\"/.docker -R` and `sudo chmod g+rwx \"$HOME/.docker\" -R` ([How to fix docker: Got permission denied while trying to connect to the Docker daemon socket](https://betterstack.com/community/questions/how-to-fix-docker-got-permission-denied/))\n\n## Alternative: remove and recreate\n\n- Delete the `~/.docker/` directory entirely with `rm -rf ~/.docker/`; [Docker will recreate it automatically with correct permissions when you next run a command](https://bobcares.com/blog/how-to-fix-docker-error-loading-config-file/), but this loses any custom settings in the config file\n\nSources:\n1. [Docker stores unencrypted credentials in config.json](https://bobcares.com/blog/how-to-fix-docker-error-loading-config-file/) (partial: a number or identifier in the claim is not on the cited page)\n2. [How to fix docker: Got permission denied while trying to connect to the Docker daemon socket](https://betterstack.com/community/questions/how-to-fix-docker-got-permission-denied/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly identifies sudo-created ownership and permission issues and gives both verified fixes, while merely omitting the optional docker-group setup and its root-level privilege warning."
+      }
+    },
+    {
+      "goal_id": "recent_news-01",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 913,
+      "total_tokens": 913,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 8,
+        "cited": 7,
+        "exact": 5,
+        "partial": 1,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 18617,
+      "answer": "Rust 1.99.0, released on October 1, 2026, introduces C-variadic function definitions, layout information APIs for raw pointers, and numerous standard library stabilizations. [Announcing Rust 1.99.0 | Rust Blog](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/)\n\n## Language and compiler features\n\n- [Rust 1.99.0 stabilizes defining C-ABI variadic functions](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/), enabling functions with variable argument lists (`...`) using `extern \"C\"` and `extern \"C-unwind\"` ABIs that are compatible with C's `va_list` type.\n- [Three memory layout APIs were stabilized for raw pointers](https://releases.rs/docs/1.99.0/): `Layout::for_value_raw`, `mem::size_of_val_raw`, and `mem::align_of_val_raw`, settling safety requirements for retrieving size and alignment on both `Sized` and non-`Sized` types.\n- [The `#[my_macro] mod foo;` syntax was stabilized](https://releases.rs/docs/1.99.0/), allowing outlined modules anywhere in the body of a custom attribute or derive macro.\n\n## Standard library additions\n\n- [IntoIterator traits for boxed arrays were stabilized](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/): `IntoIterator` for `Box<[T; N]>`, `&Box<[T; N]>`, and `&mut Box<[T; N]>`.\n- [`Box::into_non_null`, `Box::from_non_null`, `Vec::into_parts`, and `Vec::from_parts` were stabilized](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/) for lower-level memory manipulation.\n- [`String::from_utf8_lossy_owned` and `FromUtf8Error::into_utf8_lossy` were added](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/) for UTF-8 conversion, and `std::fs::set_times` and `std::fs::set_times_nofollow` for file timestamp control.\n\n## Breaking changes and deprecations\n\n- [Legacy integral modules like `std::i32::MAX` are fully deprecated](https://releases.rs/docs/1.99.0/); use `i32::MAX` instead.\n- [`no_mangle_generic_items` was upgraded to a hard error](https://releases.rs/docs/1.99.0/), and `Box::leak` documentation now recommends against round-trip unleaking patterns due to problematic interactions with compiler optimizations.\n\nSources:\n1. [Announcing Rust 1.99.0 | Rust Blog](https://blog.rust-lang.org/2026/10/01/Rust-1.99.0/)\n2. [Three memory layout APIs were stabilized for raw pointers](https://releases.rs/docs/1.99.0/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "The answer correctly describes major Rust 1.99.0 changes without contradiction, but omits the announcing Rust Release Team, the `VaList` and `VaArgSafe` details, and the specific recommendation to prefer `Box::into_non_null` or `Box::into_raw` over later deallocating leaked memory."
+      }
+    },
+    {
+      "goal_id": "recent_news-02",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 673,
+      "total_tokens": 673,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 1,
+      "verification": {
+        "bullets": 4,
+        "cited": 4,
+        "exact": 4,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 18457,
+      "answer": "With Rust 1.100.0, the i686 Windows targets will be demoted from supporting host tools to \"std-only\" targets: [i686-pc-windows-msvc will be demoted from Tier 1 with host tools to Tier 1 without host tools, and i686-pc-windows-gnu will be demoted from Tier 2 with host tools to Tier 2 without host tools](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/). The standard library will continue to be distributed, but developers will no longer be able to install Rust toolchains directly on 32-bit Windows hosts.\n\n## What is changing\n\n- `i686-pc-windows-msvc` will lose host tools and become a cross-compilation-only target, though it remains Tier 1 and will continue to receive CI testing ([Demoting i686 Windows targets to std-only](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/)).\n- `i686-pc-windows-gnu` will similarly lose host tools, demoting from Tier 2 with host tools to Tier 2 without host tools ([Demoting i686 Windows targets to std-only](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/)).\n- Prebuilt standard libraries remain available for cross-compilation workflows, allowing developers to still target 32-bit Windows from 64-bit hosts ([Demoting i686 Windows targets to std-only](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/)).\n\n## Rationale\n\n- 32-bit Windows support ended in October 2025, and building i686 Windows toolchains has encountered significant technical problems including compiler crashes and out-of-memory errors ([Demoting i686 Windows targets to std-only](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/)).\n\nSources:\n1. [i686-pc-windows-msvc will be demoted from Tier 1 with host tools to Tier 1 without host tools, and i686-pc-windows-gnu will be demoted from Tier 2 with host tools to Tier 2 without host tools](https://blog.rust-lang.org/2026/10/02/demoting-i686-windows-targets-to-std-only/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly states the target-tier demotions and cross-compilation impact, but it does not explicitly state the Oct. 2, 2026 announcement date or identify RFC 3999 and MCP 1020."
+      }
+    },
+    {
+      "goal_id": "recent_news-03",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 705,
+      "total_tokens": 705,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 1,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 5,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 24670,
+      "answer": "The Rust Security Response Team's September 2026 advisory warned that Miri stores all environment variables to `target/`, which can expose secrets to PRs when combined with GitHub Actions caching, as the cache is readable by PR workflows. Projects running Miri in CI with cached `target/` directories and access to secrets are vulnerable to attackers extracting environment variables from the cache.\n\n## Vulnerability Details\n\n- Miri stores all environment variables to `target/` to preserve build-relevant context between runs, causing secrets to persist in caches ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- GitHub Actions cache is typically readable by PRs while only writable by main branch, allowing attackers who can open PRs to extract cached secrets ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n\n## How to Respond\n\n- Vulnerable projects should disable cache for Miri jobs, scope secrets to non-Miri steps, or temporarily disable Miri as quick fixes ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- After applying fixes, clear existing caches and rotate any potentially leaked secrets ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- The Miri nightly release from September 22, 2026 onwards only preserves `CARGO_*` variables (excluding `CARGO_*_TOKEN`) and `OUT_DIR`, fixing the issue at the source ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n\nSources:\n1. [GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          false,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "The answer covers Miri’s environment-variable persistence, the fix, affected nightly, and mitigations, but incorrectly implies that anyone able to open a PR can extract secrets without stating the required condition that they had previously landed a change."
+      }
+    },
+    {
+      "goal_id": "recent_news-04",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1254,
+      "total_tokens": 1254,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 10,
+        "cited": 10,
+        "exact": 8,
+        "partial": 1,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 36459,
+      "answer": "Go 1.27 (released August 2026) introduces generic methods as its main language milestone, a rewritten JSON implementation, post-quantum cryptography support, and performance improvements to memory allocation. [What's New in Go 1.27: A Complete Guide](https://levelupgo.dev/blog/whats-new-in-go-1-27)\n\n## Language changes\n\n- Generic methods now allow a method declaration to declare its own type parameters, independent of the receiver type, enabling method chaining and better API design for concrete types. However, interface methods still cannot declare type parameters, and generic methods cannot implement interface methods. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n- Struct literals now accept any valid field selector as a key, not just top-level field names, which simplifies embedded field initialization. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n- Function type inference is generalized to apply whenever a generic function is assigned to or converted to a matching function type, not only at call sites. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n\n## Standard library and security\n\n- `encoding/json` is now backed by the v2 implementation with preserved v1 behavior by default, while `encoding/json/v2` offers stricter defaults (rejects invalid UTF-8, duplicate object keys), and `encoding/json/jsontext` provides lower-level token and value processing. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n- A new `uuid` package in the standard library eliminates the need for third-party dependencies, with `UUID` defined as `[16]byte` making values comparable and usable as map keys, and generators including `New`, `NewV4`, and `NewV7` for time-sortable keys. [What's New in Go 1.27: A Developer's Practical Guide](https://www.adilaidev.com/blog/whats-new-in-go-127-a-developers-practical-guide/)\n- `crypto/mldsa` implements the post-quantum ML-DSA signature scheme from FIPS 204 with three parameter sets (44, 65, 87), supported in `crypto/x509` and `crypto/tls`, plus `MLKEM1024` key exchange for quantum-safe TLS 1.3 handshakes. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n\n## Tooling and performance\n\n- `go test` now runs the `stdversion` vet check by default to catch use of standard library symbols newer than the module's Go version directive allows. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n- `go fix` adds new modernizers (`atomictypes`, `embedlit`, `slicesbackward`, `unsafefuncs`) to rewrite older patterns to current idioms, and `go mod tidy` now automatically consolidates duplicate require blocks for modules on Go 1.27 or later. [What's New in Go 1.27: A Developer's Practical Guide](https://www.adilaidev.com/blog/whats-new-in-go-127-a-developers-practical-guide/)\n- Memory allocations under 80 bytes are up to 30% faster through size-specialized allocation routines, with approximately 1% overall improvement in allocation-heavy programs at the cost of 60 KB additional binary size. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n- Goroutine leak profiling is now generally available (graduated from experimental), and tracebacks now include `runtime/pprof` goroutine labels for modules with Go 1.27 or later directives, improving debuggability. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n\nSources:\n1. [What's New in Go 1.27: A Complete Guide](https://levelupgo.dev/blog/whats-new-in-go-1-27)\n2. [Go 1.27 Release Notes](https://go.dev/doc/go1.27)\n3. [What's New in Go 1.27: A Developer's Practical Guide](https://www.adilaidev.com/blog/whats-new-in-go-127-a-developers-practical-guide/) (partial: a number or identifier in the claim is not on the cited page)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer correctly addresses Go 1.27 changes without contradicting the reference facts, but omits the exact release date, go doc version queries, the precise two-block tidy behavior, and removal of bzr support."
+      }
+    },
+    {
+      "goal_id": "recent_news-05",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 864,
+      "total_tokens": 864,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 10,
+        "cited": 10,
+        "exact": 7,
+        "partial": 0,
+        "none": 3
+      },
+      "replay_misses": 0,
+      "wall_ms": 20570,
+      "answer": "Python 3.15's headline features include lazy imports for faster startup, new built-in types (`frozendict` and `sentinel`), UTF-8 as the default encoding, unpacking in comprehensions, and a stable ABI for free-threaded builds. The final 3.15.0 release is scheduled for [Friday, October 9, 2026](https://www.python.org/downloads/release/python-3150rc3/).\n\n## Language and interpreter improvements\n\n- [Lazy imports](https://docs.python.org/3.15/whatsnew/3.15.html) via the `lazy` keyword reduce startup time by deferring module loading until first use.\n- [`frozendict`](https://docs.python.org/3.15/whatsnew/3.15.html) is a new immutable mapping type added as a builtin.\n- [`sentinel`](https://docs.python.org/3.15/whatsnew/3.15.html) is a new builtin type for creating unique sentinel values with concise representation.\n- [UTF-8 is now the default encoding](https://docs.python.org/3.15/whatsnew/3.15.html) across the interpreter.\n- [Unpacking in comprehensions](https://docs.python.org/3.15/whatsnew/3.15.html) allows `*` and `**` operators in list, set, and dict comprehensions.\n\n## Performance and profiling\n\n- The [experimental JIT compiler](https://www.python.org/downloads/release/python-3150rc3/) has been significantly upgraded, with 7-8% geometric mean performance improvement on x86-64 Linux and 11-12% speedup on AArch64 macOS.\n- [Tachyon](https://docs.python.org/3.15/whatsnew/3.15.html), a new high-frequency statistical sampling profiler, enables low-overhead performance analysis at rates up to 1,000,000 Hz.\n- [Frame pointers are enabled by default](https://docs.python.org/3.15/whatsnew/3.15.html) for improved system-level observability.\n\n## C API and typing\n\n- [Stable ABI for free-threaded builds](https://www.python.org/downloads/release/python-3150rc3/) is now available.\n- New typing features including [TypedDict with typed extra items](https://docs.python.org/3.15/whatsnew/3.15.html), [`TypeForm`](https://docs.python.org/3.15/whatsnew/3.15.html), and [disjoint bases in the type system](https://docs.python.org/3.15/whatsnew/3.15.html).\n\nSources:\n1. [Friday, October 9, 2026](https://www.python.org/downloads/release/python-3150rc3/) (unsupported: the cited page does not contain the quoted text)\n2. [Lazy imports](https://docs.python.org/3.15/whatsnew/3.15.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false,
+          true
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly gives the main 3.15 features and exact final-release date without contradiction, though it omits the dedicated `profiling` package detail and the surprise rc3 release circumstances."
+      }
+    },
+    {
+      "goal_id": "recent_news-06",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1470,
+      "total_tokens": 1470,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 12,
+        "cited": 12,
+        "exact": 12,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 29319,
+      "answer": "PostgreSQL 19 Beta 4, released September 24, 2026, is a stabilization release focused on hardening new features rather than adding major functionality, with significant feature reverts to prioritize reliability and predictable release schedules ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n\n## Key Features in PostgreSQL 19 Beta 4\n\n- **REPACK CONCURRENTLY:** A built-in replacement for VACUUM FULL that reclaims dead tuples and reorganizes the heap while allowing reads and writes to continue uninterrupted, eliminating the need for the third-party `pg_repack` extension ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n- **Parallel Autovacuum with Priority Scoring:** A new `pg_stat_autovacuum_scores` view provides visibility into why tables are queued for autovacuum, with parallel index processing and tunable `autovacuum_max_parallel_workers` and per-table `autovacuum_parallel_workers` settings ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n- **Async I/O Auto-Scaling:** The `io_method=worker` feature now auto-scales background worker count based on actual I/O demand with new GUCs (`io_min_workers`, `io_max_workers`, `io_worker_idle_timeout`), and EXPLAIN ANALYZE now includes per-node AIO statistics ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n- **ON CONFLICT Upsert Improvements:** The new ON CONFLICT syntax lets developers see which row caused the conflict and return its current data in a single query ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n- **Monitoring Enhancements:** New `pg_stat_lock` view surfaces per-lock-type contention statistics, and per-process `log_min_messages` configuration allows granular logging control ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n\n## Reverted Features\n\n- **SQL Property Graph Queries (SQL/PGQ):** Support for property graph queries was reverted due to unresolved design concerns ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n- **Partition Operations:** Both `ALTER TABLE ... MERGE PARTITIONS` and `ALTER TABLE ... SPLIT PARTITIONS` were reverted due to design issues discovered during beta review ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n- **Temporal Updates/Deletes:** Support for the `FOR PORTION OF` clause for temporal updates and deletes was reverted ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n- **Online Data Checksum Control:** Online enabling and disabling of data checksums was reverted ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n- **LC_COLLATE Postmaster Change:** A change that forced `LC_COLLATE` to `C` in the postmaster process was reverted ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n- **Removed Functions:** The functions `pg_get_role_ddl()`, `pg_get_tablespace_ddl()`, and `pg_get_database_ddl()` were removed ([PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)).\n\n## Context on Reverts\n\n- Across four beta rounds, the development team reverted 53 features total, reflecting the PostgreSQL community's commitment to reliability and predictable release schedules ([PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)).\n\nSources:\n1. [PostgreSQL 19 Beta 4 Released!](https://www.postgresql.org/about/news/postgresql-19-beta-4-released-3386/)\n2. [PostgreSQL 19 Beta 4: What Survived 53 Feature Reverts](https://byteiota.com/postgresql-19-beta-4-whats-actually-in-it/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "The answer gives the correct release date and all specified feature reverts without contradicting the reference facts, though it omits the planned early-October release candidate and possible October GA."
+      }
+    },
+    {
+      "goal_id": "recent_news-07",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1372,
+      "total_tokens": 1372,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 11,
+        "cited": 11,
+        "exact": 8,
+        "partial": 0,
+        "none": 3
+      },
+      "replay_misses": 0,
+      "wall_ms": 30187,
+      "answer": "Kubernetes v1.37 (Garhwal), released August 26, 2026, includes 67 enhancements with 16 graduating to Stable, 23 to Beta, and 27 entering Alpha, focused on improving AI/ML workload scheduling, storage efficiency, and control plane resilience [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n\n## Stable Graduations\n\n- **Resilient watchcache initialization** prevents traffic spikes against etcd during API server startup and recovery by safely rejecting excess requests with HTTP 429 responses rather than overwhelming the cache [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **HorizontalPodAutoscaler scale to zero** enables workloads using object or external metrics to scale down to zero Pods when idle, reducing costs for queue consumers and batch jobs [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **metrics.k8s.io API** graduates to Stable after nearly nine years in Beta, providing a standard way to retrieve CPU and memory usage for pods and nodes [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **Pod certificates and ClusterTrustBundles** provide first-class support for distributing private keys, X.509 certificates, and trust bundles to Pods via projected volumes [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **DRA features** including ResourceClaim status with network interface data, extended resource request handling, device taints and tolerations, and standard NUMA node attributes all reach Stable [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n\n## Beta Features\n\n- **Gang scheduling** graduates to Beta with workload-aware preemption, ensuring that defined Pod groups are scheduled only when the cluster has sufficient resources for the entire group [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **Native histogram support for Kubernetes metrics** uses dynamic exponential bucket boundaries instead of fixed ones, improving storage efficiency and query performance [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **etcd RangeStream support** adds server-streaming RPC to paginate responses with adaptive chunk sizing, significantly reducing memory usage during watch cache initialization [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **Memory QoS** graduates to Beta, using cgroups v2 controls to protect requested memory from reclamation and throttle usage before reaching hard limits [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n\n## Notable Deprecations\n\n- **kube-dns is deprecated**, with CoreDNS as the standard since v1.13; no new packages expected after v1.40 [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n- **kube-proxy's ipvs mode is deprecated**, expected to be disabled by default in v1.40 and removed entirely by v1.43 [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/).\n\nSources:\n1. [Kubernetes v1.37: Garhwal](https://kubernetes.io/blog/2026/08/26/kubernetes-v1-37-release/)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.2,
+        "rationale": "The answer correctly states the release theme and date, but omits the one deprecation/removal from the enhancement breakdown and incorrectly says HPA scale-to-zero graduated to Stable rather than Beta and enabled by default."
+      }
+    },
+    {
+      "goal_id": "recent_news-08",
+      "category": "recent_news",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 840,
+      "total_tokens": 840,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 9,
+        "cited": 9,
+        "exact": 7,
+        "partial": 0,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 29660,
+      "answer": "Node.js 26.10.0 introduced several new APIs and enhancements across multiple modules including crypto, filesystem, networking, performance monitoring, utilities, and virtual filesystem support.\n\n## Cryptography and Key Management\n\n- `crypto.parsePKCS12()` was added to parse PKCS#12 formatted key material ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n- Support for Hybrid KEMs in Web Cryptography was added for enhanced key exchange capabilities ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n\n## Filesystem and Performance APIs\n\n- `fs.openAsBlobSync()` was introduced for synchronously opening files as Blob objects ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n- FFI now supports loading libraries from a mounted VFS (virtual file system) ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n- New performance monitoring tools: `SlidingWindowHistogram` for histograms and QRDE analysis support for better performance tracking ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n\n## Networking and Utilities\n\n- `net.BoundSocket` can now be sent to worker threads and child processes for better socket sharing ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n- Two new utility functions: `util.throttle()` and `util.debounce()` for function rate-limiting and debouncing ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n- `util.markPromiseAsHandled()` was added to mark promises as handled to prevent unhandled rejection warnings ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n\n## Database and Data Binding\n\n- SQLite binding now treats `undefined` values as `NULL` in queries for more intuitive data handling ([Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0))\n\nSources:\n1. [Node.js 26.10.0 Release](https://nodejs.org/en/blog/release/v26.10.0)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "The answer states four of the five reference facts accurately, omitting only the 2026-09-22 release date, and contradicts none of the nuggets."
+      }
+    },
+    {
+      "goal_id": "how_to-01",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 906,
+      "total_tokens": 906,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 5,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 4,
+        "partial": 1,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 29990,
+      "answer": "Cross-compiling a Rust binary for aarch64 Linux with cargo requires adding the target and then building with the `--target` flag. For pure Rust projects, `rustup target add aarch64-unknown-linux-gnu` followed by `cargo build --target aarch64-unknown-linux-gnu` is often sufficient ([Cross-compilation - The rustup book](https://rust-lang.github.io/rustup/cross-compilation.html)) (quote: \"To compile to other platforms you must install other target platforms. This is done with the rustup target add command\").\n\n## Basic setup\n\n- Add the aarch64 target with `rustup target add aarch64-unknown-linux-gnu` ([The rustup book](https://rust-lang.github.io/rustup/cross-compilation.html)).\n- Build using `cargo build --target aarch64-unknown-linux-gnu`, which places binaries in `target/aarch64-unknown-linux-gnu/debug/` ([Cross-Compiling - Rust Project Primer](https://rustprojectprimer.com/building/cross.html)).\n- Optionally set a default target in `.cargo/config.toml` to avoid repeating the flag ([Cross-Compiling - Rust Project Primer](https://rustprojectprimer.com/building/cross.html)).\n\n## When complications arise\n\n- If your crate has native C dependencies (like OpenSSL), you need those libraries compiled for the target. On Debian-based systems, install the cross-compiler and target libraries: `sudo apt install gcc-aarch64-linux-gnu libssl-dev:arm64`, then set `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc` ([Cross-Compiling - Rust Project Primer](https://rustprojectprimer.com/building/cross.html)).\n- The `cross` tool automates this by running compilation in Docker containers with preinstalled toolchains, eliminating the need to install cross-compilation dependencies on your host: `cargo install cross` followed by `cross build --target aarch64-unknown-linux-gnu` ([Cross-Compiling - Rust Project Primer](https://rustprojectprimer.com/building/cross.html)).\n- `aarch64-unknown-linux-gnu` is Tier 1 supported, so binaries built for it are widely compatible; the target can be cross-compiled from any host ([aarch64-unknown-linux-gnu - The rustc book](https://doc.rust-lang.org/nightly/rustc/platform-support/aarch64-unknown-linux-gnu.html)).\n\nSources:\n1. [Cross-compilation - The rustup book](https://rust-lang.github.io/rustup/cross-compilation.html) (unsupported: the cited page does not contain the quoted text)\n2. [Cross-Compiling - Rust Project Primer](https://rustprojectprimer.com/building/cross.html)\n3. [aarch64-unknown-linux-gnu - The rustc book](https://doc.rust-lang.org/nightly/rustc/platform-support/aarch64-unknown-linux-gnu.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          false,
+          true,
+          false,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer gives the target-add and Cargo build commands and the linker environment variable, but it omits that rustup installs only the target standard library, fails to show Cargo's linker config key, incompletely describes the target tier and requirements, and misleadingly suggests a linker is generally needed only for native dependencies."
+      }
+    },
+    {
+      "goal_id": "how_to-02",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 647,
+      "total_tokens": 647,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 4,
+        "partial": 1,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 21583,
+      "answer": "To squash the last 3 commits in git, use `git rebase -i HEAD~3` to start an interactive rebase, then change `pick` to `squash` (or `s`) for the commits you want to combine, keeping `pick` for the first commit as the base.\n\n## Interactive Rebase Method\n\n- Run `git rebase -i HEAD~3` to open an editor with the last 3 commits listed ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n- Replace `pick` with `squash` (or `s`) for the second and third commits, leaving the first as `pick` ([How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)).\n- Save the file and git will open another editor for you to write a new combined commit message ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n\n## After Squashing\n\n- If the commits are already pushed to a remote repository, use `git push origin <branch-name> --force` to update the remote with your squashed history ([How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)).\n- Verify the result by running `git log --oneline` to see the combined commit ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n\nSources:\n1. [Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)\n2. [How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly explains the interactive rebase steps, but it omits `fixup` and contradicts the warning against rebasing shared pushed commits by recommending a force push."
+      }
+    },
+    {
+      "goal_id": "how_to-03",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 521,
+      "total_tokens": 521,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 1,
+        "partial": 2,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 20246,
+      "answer": "To set a default value for a column in PostgreSQL using ALTER TABLE, use the `ALTER COLUMN SET DEFAULT` syntax with the column name and the default value you want to assign.\n\n## Basic Syntax\n\n- The standard syntax is `ALTER TABLE table_name ALTER COLUMN column_name SET DEFAULT value;` ([Tutorialsteacher](https://www.tutorialsteacher.com/postgresql/alter-column-default)).\n\n## Examples\n\n- Setting a simple default value: `ALTER TABLE employee ALTER COLUMN salary SET DEFAULT 0;` ([Tutorialsteacher](https://www.tutorialsteacher.com/postgresql/alter-column-default)).\n- Setting a function-based default: `ALTER TABLE user_accounts ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;` ([Sling Academy](https://www.slingacademy.com/article/postgresql-how-to-set-default-value-for-a-column/)).\n\n## Important Notes\n\n- The new default value only applies to subsequent INSERT or UPDATE commands; existing rows are not affected ([PostgreSQL Documentation](https://www.postgresql.org/docs/current/sql-altertable.html)).\n- To remove an existing default value, use `ALTER TABLE table_name ALTER COLUMN column_name DROP DEFAULT;` ([Tutorialsteacher](https://www.tutorialsteacher.com/postgresql/alter-column-default)).\n\nSources:\n1. [Tutorialsteacher](https://www.tutorialsteacher.com/postgresql/alter-column-default) (partial: a number or identifier in the claim is not on the cited page)\n2. [Sling Academy](https://www.slingacademy.com/article/postgresql-how-to-set-default-value-for-a-column/) (unsupported: the cited page does not contain the quoted text)\n3. [PostgreSQL Documentation](https://www.postgresql.org/docs/current/sql-altertable.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "The answer gives the correct ALTER COLUMN SET DEFAULT syntax, explains that existing rows are unaffected, and provides the DROP DEFAULT syntax without contradicting any nugget."
+      }
+    },
+    {
+      "goal_id": "how_to-04",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 930,
+      "total_tokens": 930,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 5,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 29861,
+      "answer": "To pin a GitHub Action to a commit SHA in your workflow, replace the version tag with the full commit SHA in the `uses` statement. For example, instead of `uses: actions/checkout@v4`, use `uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683`, with an optional comment to keep the version human-readable. This immutable reference guarantees that your workflow runs exactly the code you expect, every time.\n\n## How to Pin an Action\n\n- Replace the version tag with the full commit SHA in your workflow YAML file. Change from `uses: <owner>/<repo>@<version>` to `uses: <owner>/<repo>@<commit-SHA>` ([Pinning GitHub Actions to Commit SHAs: A Practical Security Step](https://www.romainlespinasse.dev/posts/github-actions-commit-sha-pinning/)).\n- Find the commit SHA by navigating to the action's repository releases, identifying the release version you want, and copying the corresponding commit hash ([Pinning GitHub Actions for Enhanced Security: Everything You Should Know](https://www.stepsecurity.io/blog/pinning-github-actions-for-enhanced-security-a-complete-guide)).\n- Add a version comment after the SHA for human readability, though this has no effect on execution ([Pinning GitHub Actions to Commit SHAs: A Practical Security Step](https://www.romainlespinasse.dev/posts/github-actions-commit-sha-pinning/)).\n\n## Why Pinning to SHA Matters\n\n- Commit SHAs are immutable—once a commit exists, its SHA cannot change without changing its content, preventing supply chain attacks where malicious actors could update version tags to point to compromised code ([Pinning GitHub Actions for Enhanced Security: Everything You Should Know](https://www.stepsecurity.io/blog/pinning-github-actions-for-enhanced-security-a-complete-guide)).\n- GitHub now supports an organization-level policy that can mandate SHA pinning for all actions, including sub-actions that internal action consumers do not control ([Pinning GitHub Actions to Commit SHAs: A Practical Security Step](https://www.romainlespinasse.dev/posts/github-actions-commit-sha-pinning/)).\n\n## Automating Updates\n\n- Use Dependabot to automatically detect SHA-pinned actions and propose updates when new versions are released by adding a configuration to `.github/dependabot.yml` ([Pinning GitHub Actions to Commit SHAs: A Practical Security Step](https://www.romainlespinasse.dev/posts/github-actions-commit-sha-pinning/)).\n\nSources:\n1. [Pinning GitHub Actions to Commit SHAs: A Practical Security Step](https://www.romainlespinasse.dev/posts/github-actions-commit-sha-pinning/)\n2. [Pinning GitHub Actions for Enhanced Security: Everything You Should Know](https://www.stepsecurity.io/blog/pinning-github-actions-for-enhanced-security-a-complete-guide)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains pinning an action by placing its full commit SHA after `@` and contains no contradiction, but it omits fork verification, the unique immutability comparison with tags, the update tradeoff, and repository-level policy support."
+      }
+    },
+    {
+      "goal_id": "how_to-05",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 786,
+      "total_tokens": 786,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 8,
+        "cited": 8,
+        "exact": 4,
+        "partial": 3,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 22779,
+      "answer": "To roll back a Kubernetes Deployment to a previous revision, use the `kubectl rollout undo` command, which reverts to a prior pod template and performs a rolling update to restore the previous version [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/).\n\n## Basic Rollback Commands\n\n- Roll back to the immediately previous revision with `kubectl rollout undo deployment/<deployment-name>` [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/)\n- Roll back to a specific revision using `kubectl rollout undo deployment/<deployment-name> --to-revision=<revision-number>` [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n\n## Viewing Revision History\n\n- Check the deployment's revision history with `kubectl rollout history deployment/<deployment-name>` to see all available revisions and their change causes [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n- Inspect a specific revision using `kubectl rollout history deployment/<deployment-name> --revision=<number>` [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n\n## Monitoring and Validation\n\n- Monitor rollback progress with `kubectl rollout status deployment/<deployment-name>` to confirm the rolling update completes successfully [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n- Use `kubectl rollout undo deployment/<deployment-name> --dry-run=server -o yaml` to preview the rollback without making changes [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/)\n\n## Important Limitations\n\n- Rollbacks depend on retained revision history, controlled by `.spec.revisionHistoryLimit` (default: 10), and older revisions may be garbage-collected [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n- In GitOps environments, `kubectl rollout undo` creates state drift from your Git repository, so the preferred approach is to revert the problematic commit in Git and let controllers apply the change [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n\nSources:\n1. [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/) (partial: a number or identifier in the claim is not on the cited page)\n2. [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n3. [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "The answer correctly gives the history, inspection, previous-revision, and specific-revision commands, but contradicts the reference by saying the default revision history limit is 10 rather than that all rollout history is kept by default."
+      }
+    },
+    {
+      "goal_id": "how_to-06",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 611,
+      "total_tokens": 611,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 3,
+        "partial": 2,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 25984,
+      "answer": "To build only one stage of a multi-stage Dockerfile, use the `docker build --target <stage>` flag to specify which stage you want to build and stop at [Docker Docs - Multi-stage builds](https://docs.docker.com/build/building/multi-stage/). By default, Docker builds only the last stage, but `--target` lets you build any named stage instead.\n\n## Using the --target flag\n\n- Name your stages with `AS <name>` in the `FROM` instruction, then reference them with `--target`. For example: `docker build --target build -t myapp:build .` stops the build at the `build` stage ([Docker Multi-Stage Builds](https://dockerbuild.com/tutorials/multi-stage-builds)).\n- Without `--target`, `docker build` produces the last stage by default. With BuildKit (the default since Docker 23.0), only the stages that your target depends on are built; unused stages are skipped ([Docker Docs - Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)).\n\n## Common use cases\n\n- Debug a specific stage by building it independently with `--target debug` to inspect intermediate build artifacts ([Docker Docs - Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)).\n- Build different variants from one Dockerfile: `docker build --target dev -t myapp:dev .` for development and `docker build --target prod -t myapp:prod .` for production ([Docker Multi-Stage Builds](https://dockerbuild.com/tutorials/multi-stage-builds)).\n- Export build artifacts without creating an image using `--target export -o build/out .`, which writes a stage's filesystem to your host ([Docker Multi-Stage Builds](https://dockerbuild.com/tutorials/multi-stage-builds)).\n\nSources:\n1. [Docker Docs - Multi-stage builds](https://docs.docker.com/build/building/multi-stage/) (partial: a number or identifier in the claim is not on the cited page)\n2. [Docker Multi-Stage Builds](https://dockerbuild.com/tutorials/multi-stage-builds)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "The answer correctly explains using --target with a stage named via AS and accurately notes BuildKit dependency pruning, but it omits COPY --from, numeric stage indexes, and the legacy-builder comparison."
+      }
+    },
+    {
+      "goal_id": "how_to-07",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 893,
+      "total_tokens": 893,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 4,
+      "verification": {
+        "bullets": 6,
+        "cited": 5,
+        "exact": 1,
+        "partial": 0,
+        "none": 4
+      },
+      "replay_misses": 0,
+      "wall_ms": 28488,
+      "answer": "Node.js offers multiple ways to automatically restart your script when files change. The simplest approach is to use Node.js's built-in `--watch` flag (available since v18.11.0), but popular third-party tools like Nodemon and PM2 provide more features and configuration options.\n\n## Built-in Node.js Watch Mode\n\n- Node.js has native watch mode built into the runtime. [To start your application in watch mode, prepend the `--watch` flag](https://salivity.github.io/node.js/article/node-js-watch-mode-how-to-auto-restart-with-watch) to your execution command.\n\n## Using Nodemon (Popular Third-Party Tool)\n\n- [Nodemon is a lightweight, open-source tool designed specifically to monitor Node.js applications for file changes and automatically restart the server](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/). Install it with `npm install --save-dev nodemon` and then run `npx nodemon app.js` or add `\"dev\": \"nodemon app.js\"` to your `package.json` scripts. [Nodemon works out of the box, but you can customize its behavior using a `nodemon.json` configuration file](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/) to ignore specific files, watch specific directories, or adjust restart delays.\n\n## Using PM2 (Production-Ready Process Manager)\n\n- [PM2 is a production-grade process manager for Node.js applications that includes a built-in watch mode for auto-reloading](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/). Install globally with `npm install -g pm2`, then start your app with `pm2 start app.js --watch`. [PM2 is designed for both development (auto-reload) and production (monitoring, clustering, logging)](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n\n## Choosing the Right Approach\n\n- [Use Nodemon if you need a lightweight, simple tool focused solely on auto-reloading during development](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n- Use Node.js's native `--watch` if you want zero dependencies and are on Node.js v18.11.0 or later.\n- [Use PM2 if you want a process manager that handles both development (auto-reload) and production (monitoring, clustering, logging)](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n\nSources:\n1. [To start your application in watch mode, prepend the `--watch` flag](https://salivity.github.io/node.js/article/node-js-watch-mode-how-to-auto-restart-with-watch) (unsupported: the cited page does not contain the quoted text)\n2. [Nodemon is a lightweight, open-source tool designed specifically to monitor Node.js applications for file changes and automatically restart the server](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.2,
+        "rationale": "The answer correctly recommends Node.js’s built-in `--watch` flag, but it omits the default watched modules, `--watch-path`, stability versions, and restrictions, while incorrectly implying the feature is only available from v18.11.0 despite also being added in v16.19.0."
+      }
+    },
+    {
+      "goal_id": "how_to-08",
+      "category": "how_to",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 787,
+      "total_tokens": 787,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 7,
+        "exact": 6,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 18733,
+      "answer": "To create and activate a Python virtual environment with venv, use `python -m venv` to create it and then run the appropriate activation script for your operating system. A virtual environment is an isolated Python installation that lets you manage project-specific dependencies without affecting other projects or your system Python.\n\n## Creating a virtual environment\n\n- Run `python -m venv .venv` on Unix/macOS or `py -m venv .venv` on Windows to create a new environment in a `.venv` directory ([Install packages in a virtual environment using pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)).\n- The venv module creates a directory containing a copy of the Python interpreter, supporting files, and an isolated `site-packages` directory ([`venv` — Creation of virtual environments](https://docs.python.org/3/library/venv.html)).\n- You can specify any directory path as the environment location, not just `.venv` ([12. Virtual Environments and Packages — Python 3.14.8](https://docs.python.org/3/tutorial/venv.html)).\n\n## Activating a virtual environment\n\n- On Unix/macOS with bash/zsh, run `source .venv/bin/activate` ([Install packages in a virtual environment using pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)).\n- On Windows, run `.venv\\Scripts\\activate` in cmd.exe or `.venv\\Scripts\\Activate.ps1` in PowerShell ([`venv` — Creation of virtual environments](https://docs.python.org/3/library/venv.html)).\n- After activation, your shell prompt will show the environment name, and `python` will reference that environment's interpreter ([12. Virtual Environments and Packages — Python 3.14.8](https://docs.python.org/3/tutorial/venv.html)).\n- To deactivate, simply type `deactivate` in the terminal ([Install packages in a virtual environment using pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)).\n\nSources:\n1. [Install packages in a virtual environment using pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)\n2. [`venv` — Creation of virtual environments](https://docs.python.org/3/library/venv.html)\n3. [12. Virtual Environments and Packages — Python 3.14.8](https://docs.python.org/3/tutorial/venv.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly explains how to create, activate, and deactivate a venv, though it omits the explicit .bat suffix for cmd.exe and does not mention system site-packages or environment portability/source-control guidance."
+      }
+    },
+    {
+      "goal_id": "pt_br-01",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 797,
+      "total_tokens": 797,
+      "cached_prompt_tokens": 0,
+      "citations": 1,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 8,
+        "cited": 8,
+        "exact": 8,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 18197,
+      "answer": "Rust usa um sistema de ownership que gerencia automaticamente a memória sem garbage collector. Cada valor tem exatamente um proprietário, e quando você atribui uma String a outra variável, a propriedade é transferida (chamada de \"move\"), invalidando a variável original para evitar erros de double free e garantir segurança de memória.\n\n## As três regras de ownership\n\n- [Cada valor em Rust tem exatamente um proprietário](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n- [Há apenas um proprietário por vez](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n- [Quando o proprietário sai do escopo, o valor é liberado](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n\n## Por que String se move e não é copiada\n\n- [String armazena dados na heap, não na stack como inteiros](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html), portanto ao atribuir `s1` a `s2`, Rust copia apenas o ponteiro, comprimento e capacidade (metadados na stack), não os dados reais\n- [Se ambas as variáveis tentassem liberar a mesma memória na heap, causaria um \"double free\" error](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n- [Rust invalida a variável original para prevenir esse erro](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n\n## Copy vs Move\n\n- [Tipos primitivos como inteiros implementam o trait Copy e permanecem válidos após atribuição](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n- [Para copiar explicitamente um tipo não-Copy como String, use .clone()](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n\nSources:\n1. [Cada valor em Rust tem exatamente um proprietário](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 1.0,
+        "rationale": "A resposta apresenta corretamente as três regras de ownership, explica o move de String e a invalidação de s1 para evitar double free, e distingue tipos Copy, que permanecem válidos após atribuição."
+      }
+    },
+    {
+      "goal_id": "pt_br-02",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 1191,
+      "total_tokens": 1191,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 9,
+        "cited": 9,
+        "exact": 5,
+        "partial": 2,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 32284,
+      "answer": "O tratamento de erros com `Result` em Rust oferece três principais abordagens: `unwrap`, `expect` e o operador `?`. Cada uma serve a um propósito diferente e deve ser usada em contextos específicos.\n\n## unwrap e expect\n\n- `unwrap()` extrai o valor de sucesso de um `Result`. Se o resultado for `Err`, causa um pânico com mensagem padrão ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n- `expect()` funciona como `unwrap()`, mas permite fornecer uma mensagem de erro personalizada que facilita a depuração ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n- Em código de produção, `expect()` é preferido porque fornece contexto adicional sobre por que a operação deveria sempre ter sucesso ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n\n## O operador ?\n\n- O operador `?` propaga erros para o chamador em vez de fazer pânico. Se o resultado for `Ok`, extrai o valor; se for `Err`, retorna o erro imediatamente ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n- O `?` só pode ser usado em funções cujo tipo de retorno é `Result` ou `Option` ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n- O operador também aplica conversão de tipos de erro através da trait `From`, permitindo transformar tipos de erro diferentes ([Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)).\n\n## Quando usar cada abordagem\n\n- Use `expect()` para situações irrecuperáveis onde o programa não pode continuar, como arquivos de configuração obrigatórios ([Rust error handling explained](https://webcrafted.dev/rust-error-handling-explained-when-to-use-match-and-expect/)).\n- Use `?` na maioria das funções de aplicação para propagar erros de forma limpa e concisa ([Rust error handling explained](https://webcrafted.dev/rust-error-handling-explained-when-to-use-match-and-expect/)).\n- Evite `unwrap()` em código de produção, pois fornece mensagens genéricas sem contexto ([Rust error handling explained](https://webcrafted.dev/rust-error-handling-explained-when-to-use-match-and-expect/)).\n\nSources:\n1. [Recoverable Errors with Result](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)\n2. [Rust error handling explained](https://webcrafted.dev/rust-error-handling-explained-when-to-use-match-and-expect/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "A resposta explica corretamente unwrap, expect e ?, sem contradizer os nuggets, mas não apresenta a definição formal de Result nem menciona especificamente main retornando (), o erro E0277 e a exigência de retorno compatível."
+      }
+    },
+    {
+      "goal_id": "pt_br-03",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1197,
+      "total_tokens": 1197,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 12,
+        "cited": 3,
+        "exact": 3,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 30079,
+      "answer": "Um ambiente virtual Python isola as dependências de cada projeto, permitindo que diferentes projetos usem versões diferentes das mesmas bibliotecas sem conflitos. Para criar, ativar e desativar um ambiente virtual, e congelar as dependências, use os comandos do módulo `venv` integrado ao Python 3.3 ou superior.\n\n## Criar um ambiente virtual\n\n- No Linux ou macOS, use `python3 -m venv .venv` se necessário\n- No Windows PowerShell, use `python -m venv C:\\caminho\\para\\novo\\ambiente\\virtual`\n- A pasta `.venv` é uma convenção útil: o ponto deixa o diretório oculto em sistemas Unix, e ferramentas como VS Code reconhecem esse nome\n\n## Ativar o ambiente virtual\n\n- **Linux/macOS (bash/zsh)**: `source .venv/bin/activate` — [o script de ativação prependerá o diretório do ambiente ao seu PATH](https://docs.python.org/pt-br/3/library/venv.html)\n- **Windows (Prompt de Comando)**: `.venv\\Scripts\\activate.bat`\n- **Windows (PowerShell)**: `.venv\\Scripts\\Activate.ps1` — se bloqueado, execute `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`\n- **Fish shell**: `source .venv/bin/activate.fish`\n\n## Desativar o ambiente virtual\n\n- Para sair do ambiente virtual e voltar ao Python do sistema, digite `deactivate` no seu shell. [O mecanismo exato é específico da plataforma](https://docs.python.org/pt-br/3/library/venv.html).\n\n## Congelar as dependências em requirements.txt\n\n- O arquivo gerado contém as versões exatas de todos os pacotes: `flask==3.1.0`, `requests==2.32.0`, etc.\n- Para recriar o ambiente em outra máquina com as mesmas dependências: `python -m pip install -r requirements.txt`\n- [Você pode usar arquivos de requisitos para congelar os requisitos de um ambiente](https://learn.microsoft.com/pt-br/visualstudio/python/managing-required-packages-with-requirements-txt?view=visualstudio).\n\n## Remover o ambiente virtual\n\n- Como o ambiente é apenas uma pasta, basta apagar: `rm -rf .venv` (Linux/macOS) ou `rmdir /s /q .venv` (Windows CMD). Adicione `.venv/` ao seu `.gitignore` — o `requirements.txt` sim deve ser commitado no Git para permitir que outros recriem o ambiente.\n\nSources:\n1. [A documentação oficial do Python recomenda esse comando para criar ambientes virtuais](https://docs.python.org/pt-br/3/library/venv.html)\n2. [O comando mais comum para especificar pacotes dependentes é `pip freeze > requirements.txt`](https://learn.microsoft.com/pt-br/visualstudio/python/managing-required-packages-with-requirements-txt?view=visualstudio)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          false,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "A resposta explica corretamente criação, ativação e desativação, mas não menciona pyvenv.cfg e omite o comando solicitado `python -m pip freeze > requirements.txt`."
+      }
+    },
+    {
+      "goal_id": "pt_br-04",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1006,
+      "total_tokens": 1006,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 7,
+        "exact": 6,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 26970,
+      "answer": "Em JavaScript, `var`, `let` e `const` diferem em escopo, hoisting e capacidade de reatribuição. O `var` possui escopo de função/global e é hoisted com inicialização undefined, permitindo reatribuição e redeclaração. O `let` e `const` possuem escopo de bloco, são hoisted sem inicialização (criando a Temporal Dead Zone), e não permitem redeclaração, mas `let` permite reatribuição enquanto `const` não.\n\n## Escopo\n\n- `var` tem escopo de função ou global, o que significa que as variáveis \"vazam\" de blocos como loops e condicionais ([var, let, and const in JavaScript](https://www.freecodecamp.org/news/differences-between-var-let-const-javascript/)).\n- `let` e `const` têm escopo de bloco, ficando confinados às chaves mais próximas, como em loops, funções ou blocos condicionais ([var, let, and const in JavaScript](https://www.freecodecamp.org/news/differences-between-var-let-const-javascript/)).\n\n## Hoisting\n\n- `var` é hoisted com um valor padrão de `undefined`, permitindo acesso antes da linha de declaração sem erros ([var, let, and const in JavaScript](https://www.freecodecamp.org/news/differences-between-var-let-const-javascript/)).\n- `let` e `const` são hoisted, mas permanecem não inicializados durante a Temporal Dead Zone (TDZ), resultando em `ReferenceError` ao tentar acessá-los antes da declaração ([JavaScript var let and const](https://www.w3schools.com/Js/js_varletconst.asp)).\n\n## Reatribuição e Redeclaração\n\n- `var` permite tanto reatribuição quanto redeclaração na mesma escopo, o que pode causar bugs ([Difference between var, let and const keywords in JavaScript](https://www.geeksforgeeks.org/javascript/difference-between-var-let-and-const-keywords-in-javascript/)).\n- `let` permite reatribuição mas não redeclaração; tentar redeclarar resulta em erro de sintaxe ([Difference between var, let and const keywords in JavaScript](https://www.geeksforgeeks.org/javascript/difference-between-var-let-and-const-keywords-in-javascript/)).\n- `const` não permite reatribuição nem redeclaração; a variável é imutável após inicialização, embora propriedades de objetos e arrays ainda possam ser modificadas ([JavaScript var let and const](https://www.w3schools.com/Js/js_varletconst.asp)).\n\nSources:\n1. [var, let, and const in JavaScript](https://www.freecodecamp.org/news/differences-between-var-let-const-javascript/)\n2. [JavaScript var let and const](https://www.w3schools.com/Js/js_varletconst.asp)\n3. [Difference between var, let and const keywords in JavaScript](https://www.geeksforgeeks.org/javascript/difference-between-var-let-and-const-keywords-in-javascript/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          true
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "A resposta explica corretamente escopo, hoisting, reatribuição e mutabilidade da vinculação, mas não afirma explicitamente que `const` deve ser inicializada no momento da declaração."
+      }
+    },
+    {
+      "goal_id": "pt_br-05",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1389,
+      "total_tokens": 1389,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 11,
+        "cited": 11,
+        "exact": 8,
+        "partial": 1,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 30981,
+      "answer": "Git rebase es un comando que reescribe el historial de commits moviendo o reaplicando una serie de confirmaciones sobre una nueva base, creando nuevos commits con nuevos hashes en lugar de simplemente fusionar ramas. El proceso general hace que parezca que tu rama siempre fue creada sobre la base más reciente, resultando en un historial lineal y limpio sin commits de merge innecesarios.\n\n## Cómo funciona git rebase\n\n- El rebase toma los commits de tu rama actual y los reaplica sobre la base especificada, creando nuevas confirmaciones en lugar de mover las originales ([Atlassian](https://www.atlassian.com/es/git/tutorials/rewriting-history/git-rebase)).\n- Existen dos modos principales: el rebase estándar (`git rebase <base>`), que aplica automáticamente todos los commits, y el rebase interactivo (`git rebase -i <base>`), que permite editar, reordenar, fusionar o eliminar commits uno a uno ([Mundobytes](https://mundobytes.com/como-utilizar-git-rebase/)).\n- Los comandos del rebase interactivo incluyen: pick (usar el commit), reword (editar mensaje), squash (fusionar con anterior), fixup (fusionar descartando mensaje), edit (pausar para modificar contenido) y drop (eliminar commit) ([Mundobytes](https://mundobytes.com/como-utilizar-git-rebase/)).\n\n## Cuándo NO usar git rebase\n\n- Nunca reescribas el historial de ramas públicas o compartidas donde otros desarrolladores basan su trabajo, ya que crea commits duplicados y divergencias complicadas ([Atlassian](https://www.atlassian.com/es/git/tutorials/rewriting-history/git-rebase)).\n- Evita rebase en commits que ya han sido compartidos remotamente con otros colaboradores, porque puede resultar en pérdida silenciosa de trabajo ajeno o duplicación de cambios ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n- Cuando hay conflictos frecuentes en ramas de larga duración, los conflictos en rebase pueden ser confusos y aparecer múltiples veces commit por commit, ya que \"ours\" y \"theirs\" están invertidos comparado con merge ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n\n## Peligros principales del rebase\n\n- Un `git push --force` sin cautela tras un rebase puede sobrescribir el trabajo de compañeros remotamente; usar `git push --force-with-lease --force-if-includes` es más seguro ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n- Los commits rebasados nunca fueron testeados contra su nueva base, lo que puede dejar cambios intermedios rotos; usar `git rebase --exec \"npm test\"` verifica cada commit ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n- El rebase interactivo puede eliminar commits silenciosamente si se borran líneas del archivo de instrucciones; activar `git config --global rebase.missingCommitsCheck error` obliga a usar un comando explícito `drop` ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n\n## Recuperación de errores\n\n- Si el rebase está en progreso, `git rebase --abort` restaura el estado anterior a iniciar la operación ([Mundobytes](https://mundobytes.com/como-utilizar-git-rebase/)).\n- Después de completar un rebase erróneo, `git reset --hard ORIG_HEAD` recupera la rama inmediatamente, o usa `git reflog show <rama>` días después para encontrar el commit anterior ([LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)).\n\nSources:\n1. [Atlassian](https://www.atlassian.com/es/git/tutorials/rewriting-history/git-rebase)\n2. [Mundobytes](https://mundobytes.com/como-utilizar-git-rebase/)\n3. [LithiumGit](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          false,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.4,
+        "rationale": "La respuesta explica correctamente que rebase reaplica commits creando otros nuevos y advierte no usarlo en historial compartido, aunque omite el ancestro común y los ejemplos específicos con experiment/master y --onto."
+      }
+    },
+    {
+      "goal_id": "pt_br-06",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 2219,
+      "total_tokens": 2219,
+      "cached_prompt_tokens": 0,
+      "citations": 4,
+      "evidence_urls": 5,
+      "verification": {
+        "bullets": 19,
+        "cited": 18,
+        "exact": 0,
+        "partial": 0,
+        "none": 18
+      },
+      "replay_misses": 0,
+      "wall_ms": 47330,
+      "answer": "Um desenvolvedor que trabalha com dados pessoais precisa considerar quatro pilares principais da LGPD: direitos dos titulares, responsabilidades do encarregado de dados, notificação de incidentes de segurança e regime de multas. A lei coloca a empresa sob obrigação de garantir proteção, transparência e capacidade de resposta.\n\n## Direitos do Titular (Artigo 18)\n\n- Confirmar a existência de tratamento e acessar todos os dados pessoais: \"[o titular] pode confirmar se a empresa trata seus dados e acessar esses dados\" ([Direitos dos titulares na LGPD](https://guardiasec.com.br/guia/direitos-dos-titulares-lgpd/))\n- Corrigir dados incompletos, inexatos ou desatualizados e exigir que correções sejam propagadas a todos os sistemas e operadores ([Lei 13.709/2018, Art. 18](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Solicitar anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em violação à lei ([Lei 13.709/2018, Art. 18](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Obter portabilidade dos dados a outro fornecedor em formato estruturado e utilizável ([Lei 13.709/2018, Art. 18](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Revogar consentimento a qualquer momento: \"O consentimento pode ser revogado a qualquer momento mediante manifesta expressão do titular, por procedimento gratuito e facilitado\" ([Lei 13.709/2018, Art. 8](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Solicitar revisão de decisões automatizadas que afetem interesses: \"[o titular] pode pedir que a empresa revise a decisão e explique os critérios usados\" ([Direitos dos titulares na LGPD](https://guardiasec.com.br/guia/direitos-dos-titulares-lgpd/))\n\n## Responsabilidades do Encarregado de Dados (Artigo 41)\n\n- Aceitar reclamações e comunicações dos titulares, prestar esclarecimentos e adotar providências ([Lei 13.709/2018, Art. 41](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Receber comunicações da ANPD (autoridade de proteção de dados) e tomar as medidas cabíveis ([Lei 13.709/2018, Art. 41](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Ter identidade e contato divulgados publicamente no site da empresa: \"A identidade e as informações de contato do encarregado deverão ser divulgadas publicamente, de forma clara e objetiva, preferencialmente no sítio eletrônico do controlador\" ([Lei 13.709/2018, Art. 41](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Orientar funcionários sobre práticas de proteção de dados e manter canal de atendimento monitorado: \"Publicar o contato implica manter o canal funcionando. Se um titular escreve para o e-mail do encarregado e não recebe resposta, a empresa falha numa obrigação visível\" ([Encarregado de dados (DPO) na LGPD](https://guardiasec.com.br/guia/encarregado-dpo-lgpd/))\n- Registrar cada atendimento a titulares com protocolo, data, identificação, tratativa e status para demonstrar conformidade ([Encarregado de dados (DPO) na LGPD](https://guardiasec.com.br/guia/encarregado-dpo-lgpd/))\n\n## Incidentes de Segurança (Artigo 48)\n\n- Comunicar à ANPD e aos titulares afetados em prazo razoável: \"Três dias úteis. É esse o prazo que a Resolução CD/ANPD nº 15/2024 dá ao controlador para comunicar à autoridade e aos titulares um incidente\" ([Comunicar incidente de segurança à ANPD](https://wikijuridica.com.br/lgpd/comunicar-incidente-anpd/))\n- A notificação deve mencionar natureza dos dados afetados, informações sobre titulares envolvidos, medidas de segurança utilizadas, riscos relacionados, motivos de demora se houver e medidas para reverter danos ([Lei 13.709/2018, Art. 48](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Adotar medidas técnicas que tornem dados ininteligíveis a terceiros não autorizados: \"No juízo de gravidade do incidente, será avaliada eventual comprovação de que foram adotadas medidas técnicas adequadas que tornem os dados pessoais afetados ininteligíveis\" ([Lei 13.709/2018, Art. 48](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n\n## Multas e Sanções (Artigo 52)\n\n- Multa simples de até 2% do faturamento limitada a R$ 50 milhões por infração: \"A multa simples pode chegar a 2% do faturamento da empresa, grupo ou conglomerado no Brasil no último exercício, excluídos os tributos, limitada a cinquenta milhões de reais por infração\" ([Sanções da LGPD](https://guardiasec.com.br/guia/sancoes-e-fiscalizacao-lgpd/))\n- Multa diária com mesmo teto total aplicável quando a violação persiste ([Lei 13.709/2018, Art. 52](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Advertência com prazo para correção, publicização da infração, bloqueio dos dados até regularização ou eliminação desses dados ([Lei 13.709/2018, Art. 52](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- Suspensão parcial ou total do funcionamento do banco de dados por até 6 meses, prorrogáveis, ou proibição de exercer atividades de tratamento ([Lei 13.709/2018, Art. 52](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm))\n- A dosimetria considera boa-fé, grau de cooperação, adoção de boas práticas e reincidência: \"A adoção de boas práticas só conta na dosimetria se a empresa conseguir demonstrá-la. Intenção não se comprova; evidência sim\" ([Sanções da LGPD](https://guardiasec.com.br/guia/sancoes-e-fiscalizacao-lgpd/))\n\nSources:\n1. [Direitos dos titulares na LGPD](https://guardiasec.com.br/guia/direitos-dos-titulares-lgpd/) (unsupported: the cited page does not contain the quoted text)\n2. [Lei 13.709/2018, Art. 18](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm) (unsupported: the cited page does not contain the quoted text)\n3. [Encarregado de dados (DPO) na LGPD](https://guardiasec.com.br/guia/encarregado-dpo-lgpd/) (unsupported: the cited page does not contain the quoted text)\n4. [Sanções da LGPD](https://guardiasec.com.br/guia/sancoes-e-fiscalizacao-lgpd/) (unsupported: the cited page does not contain the quoted text)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          true
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "A resposta cobre os direitos de confirmação, acesso, correção e portabilidade e informa corretamente a multa, mas não afirma explicitamente que o controlador deve nomear o encarregado nem limita a notificação de incidentes aos casos que possam causar risco ou dano relevante."
+      }
+    },
+    {
+      "goal_id": "pt_br-07",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1676,
+      "total_tokens": 1676,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 15,
+        "cited": 15,
+        "exact": 14,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 24551,
+      "answer": "Uma expressão de agendamento no crontab é composta por cinco campos separados por espaços, cada um representando uma unidade de tempo: minuto, hora, dia do mês, mês e dia da semana. Além dos campos numéricos, o crontab suporta atalhos como @reboot, @daily e outros para simplificar agendamentos comuns.\n\n## Os Cinco Campos\n\n- **Minuto (0-59)**: Define em qual minuto da hora a tarefa é executada. Valores como `*/15` significam a cada 15 minutos (0, 15, 30, 45) ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Hora (0-23)**: Usa formato de 24 horas onde 0 é meia-noite e 23 é 23h. Horário comercial é representado como `9-17` ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Dia do Mês (1-31)**: Especifica qual dia do mês executar. O cron lida graciosamente com meses que não possuem 31 dias — a tarefa não será executada se o dia não existir ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Mês (1-12)**: Os meses podem ser especificados numericamente (1 para janeiro até 12 para dezembro) ou com abreviações de três letras (JAN, FEV, MAR) ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Dia da Semana (0-7)**: Varia de 0 (domingo) a 6 (sábado), com 7 também válido como domingo. Padrões comuns incluem `1-5` para dias úteis (segunda a sexta-feira) ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n\n## Caracteres Especiais\n\n- **Asterisco (*)**: Significa \"todos os valores possíveis\" para aquele campo. Exemplo: `0 9 * * *` executa todo dia às 9h ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Vírgula (,)**: Separa múltiplos valores discretos. Exemplo: `0 9,12,15,18 * * *` executa às 9h, meio-dia, 15h e 18h ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Hífen (-)**: Define intervalos inclusivos. Exemplo: `0 9-17 * * *` executa a cada hora das 9h às 17h ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n- **Barra (/)**: Especifica incrementos. Exemplo: `*/15 * * * *` executa a cada 15 minutos (0, 15, 30, 45) ([Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html))\n\n## Atalhos Comuns\n\n- **@yearly** ou **@annually**: `0 0 1 1 *` — Uma vez por ano, 1º de janeiro à meia-noite ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n- **@monthly**: `0 0 1 * *` — 1º de cada mês à meia-noite ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n- **@weekly**: `0 0 * * 0` — Todo domingo à meia-noite ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n- **@daily** ou **@midnight**: `0 0 * * *` — Todos os dias à meia-noite ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n- **@hourly**: `0 * * * *` — No início de cada hora ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n- **@reboot**: Executa uma única vez no início do sistema. Disponível apenas em Vixie cron e cronie, não funciona em BSD cron ou implementações modernas em contêineres ([Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html))\n\nSources:\n1. [Expressões Cron Explicadas: Guia Completo de Sintaxe](https://run-dev.com/pt/blog/cron-expression-guide.html)\n2. [Cron Macros: @daily, @hourly, @reboot](https://crontabsheet.com/blog/cron-macros-list.html)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          false
+        ],
+        "nugget_recall": 0.8,
+        "rationale": "A resposta descreve corretamente os cinco campos, seus intervalos, o domingo como 0 ou 7, o asterisco e os intervalos inclusivos, além de @reboot e @daily, mas omite a regra de correspondência alternativa entre dia do mês e dia da semana."
+      }
+    },
+    {
+      "goal_id": "pt_br-08",
+      "category": "pt_br",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 5,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 987,
+      "total_tokens": 987,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 4,
+      "verification": {
+        "bullets": 6,
+        "cited": 5,
+        "exact": 4,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 35751,
+      "answer": "Pix é um sistema de pagamento instantâneo em tempo real criado e gerenciado pelo [Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix), oferecido gratuitamente a pessoas físicas e jurídicas, que funciona 24 horas ininterruptamente e foi lançado oficialmente em 16 de novembro de 2020.\n\n## O que é Pix\n\n- Pix é um modo de transferência monetária instantâneo e de pagamento eletrônico em real brasileiro, permitindo transferências entre contas em segundos e disponível para contas corrente, poupança ou pré-pagas ([Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix)).\n- O sistema foi estruturado a partir de 2016 por uma equipe técnica do Banco Central liderada pelo engenheiro Carlos Eduardo Brandt, com os requisitos fundamentais estabelecidos em dezembro de 2018 ([pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)).\n\n## Lançamento e Adoção\n\n- O sistema foi aberto a cadastramento de chaves e testes em 5 de outubro de 2020 e lançado oficialmente de forma integral em 16 de novembro de 2020 ([pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)).\n- Alcançou mais de 150 milhões de usuários e se tornou o maior método de pagamento do Brasil, processando 8,6 vezes mais volume de transações que cartões de crédito e débito combinados ([en.wikipedia.org/wiki/Pix_(payment_system)](https://en.wikipedia.org/wiki/Pix_(payment_system))).\n\n## Especificação da API Pix\n\n- A especificação da API Pix está disponível no repositório oficial do Banco Central em [github.com/bacen/pix-api](https://github.com/bacen/pix-api), onde as especificações funcionais são definidas em formato OpenAPI 3.0 ([github.com/bacen/pix-api](https://github.com/bacen/pix-api)).\n- A documentação interativa da API Pix pode ser visualizada em [bacen.github.io/pix-api](https://bacen.github.io/pix-api), sendo a release atual a versão 2.10.0 ([github.com/bacen/pix-api](https://github.com/bacen/pix-api)).\n\nSources:\n1. [Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix)\n2. [pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)\n3. [github.com/bacen/pix-api](https://github.com/bacen/pix-api)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "A resposta contradiz a data de lançamento inicial de 5 de outubro de 2020 ao apresentar 16 de novembro como lançamento oficial e não identifica especificamente o arquivo openapi.yaml."
+      }
+    },
+    {
+      "goal_id": "comparison-01",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 677,
+      "total_tokens": 677,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 6,
+        "cited": 6,
+        "exact": 6,
+        "partial": 0,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 23163,
+      "answer": "Tokio is actively maintained while async-std has been officially discontinued as of August 2025. Tokio is the industry standard with 33.4k GitHub stars and 58M downloads, backed by a thriving ecosystem and regular updates, whereas [async-std has been discontinued and its maintainers recommend migrating to smol instead](https://github.com/async-rs/async-std).\n\n## Maintenance Status\n\n- [Tokio maintains active development with regular releases, a rolling 6-month MSRV policy, and designated LTS versions until 2027](https://github.com/tokio-rs/tokio).\n- [Async-std was officially discontinued in August 2025 per RustSec advisory RUSTSEC-2025-0052, with maintainers recommending users consolidate around smol](https://github.com/async-rs/async-std).\n\n## Key Technical Differences\n\n- [Tokio features a multithreaded work-stealing scheduler for high-concurrency scenarios, while async-std focuses on simplicity with a single-threaded design](https://generalistprogrammer.com/comparisons/tokio-vs-async-std).\n- [Tokio provides more advanced features like cooperative task yielding and budget controls, and has a much larger ecosystem with crates like hyper, tonic, and tower built for it](https://generalistprogrammer.com/comparisons/tokio-vs-async-std).\n- [Async-std mirrors the standard library API more closely, providing simpler APIs and faster compile times with fewer dependencies, making it gentler for beginners](https://generalistprogrammer.com/comparisons/tokio-vs-async-std).\n\n## Production Use\n\n- [Tokio is battle-tested in production by major companies like Discord, AWS, and Cloudflare, with extensive documentation and diagnostic tooling support](https://generalistprogrammer.com/comparisons/tokio-vs-async-std).\n\nSources:\n1. [async-std has been discontinued and its maintainers recommend migrating to smol instead](https://github.com/async-rs/async-std)\n2. [Tokio maintains active development with regular releases, a rolling 6-month MSRV policy, and designated LTS versions until 2027](https://github.com/tokio-rs/tokio)\n3. [Tokio features a multithreaded work-stealing scheduler for high-concurrency scenarios, while async-std focuses on simplicity with a single-threaded design](https://generalistprogrammer.com/comparisons/tokio-vs-async-std)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          true,
+          false,
+          false
+        ],
+        "nugget_recall": 0.5,
+        "rationale": "The answer correctly identifies Tokio as maintained, async-std as discontinued with migration to smol recommended, and Tokio's work-stealing scheduler, while omitting the exact MSRV and smol compatibility details."
+      }
+    },
+    {
+      "goal_id": "comparison-02",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 910,
+      "total_tokens": 910,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 2,
+      "verification": {
+        "bullets": 9,
+        "cited": 9,
+        "exact": 7,
+        "partial": 2,
+        "none": 0
+      },
+      "replay_misses": 0,
+      "wall_ms": 24125,
+      "answer": "Use `Rc<T>` for single-threaded shared ownership of immutable data, and `Arc<T>` when you need thread-safe sharing across multiple threads; the key difference is that `Arc` uses atomic operations for reference counting while `Rc` does not.\n\n## When to use Rc\n\n- `Rc<T>` is appropriate for single-threaded programs where multiple parts of your code need to own the same immutable data, avoiding lifetime parameter complexity ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n- `Rc` eliminates the need for pervasive lifetime annotations that would otherwise propagate through every struct in your application ([Understanding Rc and Arc in Rust](https://rusteveryday.substack.com/p/understanding-rc-and-arc-in-rust)).\n- Common use cases include graph and tree structures where multiple nodes share ownership of a single node, and UI frameworks that share state between components ([Understanding Rc and Arc in Rust](https://rusteveryday.substack.com/p/understanding-rc-and-arc-in-rust)).\n\n## When to use Arc\n\n- `Arc<T>` is required when sharing data across thread boundaries, as `Rc` is not thread-safe and will not compile with threads ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n- `Arc` is `Send + Sync` if the inner type is, enabling safe data sharing in concurrent code ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n- For mutable shared state in concurrent contexts, combine `Arc` with a synchronization primitive: `Arc<Mutex<T>>` for exclusive access or `Arc<RwLock<T>>` for multiple readers ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n\n## Performance and implementation\n\n- The performance cost of `Arc` versus `Rc` comes solely from atomic operations on reference counts; they use identical memory layout otherwise ([Understanding Rc and Arc in Rust](https://rusteveryday.substack.com/p/understanding-rc-and-arc-in-rust)).\n- `Rc::clone()` performs a shallow clone that increments the reference count, not a deep copy of the inner data ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n\n## Handling memory cycles\n\n- Both `Rc` and `Arc` can create reference cycles that leak memory; use `Weak<T>` to break cycles, commonly in parent-child relationships where children hold `Weak` references to parents ([Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)).\n\nSources:\n1. [Rc & Arc - Rust SME Cookbook](https://rust.codeguides.io/smart-pointers/rc-and-arc/)\n2. [Understanding Rc and Arc in Rust](https://rusteveryday.substack.com/p/understanding-rc-and-arc-in-rust)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          false,
+          true,
+          true,
+          false,
+          true
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly recommends Rc for single-threaded sharing and Arc for cross-thread sharing, explains Arc's atomic overhead and conditional Send/Sync support, but does not expand Arc's name or explicitly state that Rc is both !Send and !Sync."
+      }
+    },
+    {
+      "goal_id": "comparison-03",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 807,
+      "total_tokens": 807,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 8,
+        "cited": 8,
+        "exact": 6,
+        "partial": 0,
+        "none": 2
+      },
+      "replay_misses": 0,
+      "wall_ms": 22695,
+      "answer": "PostgreSQL offers two JSON data types with different storage and performance characteristics: `json` stores data as plain text and preserves formatting, while `jsonb` stores data in a binary format for faster queries and supports indexing.\n\n## Storage and Preservation\n\n- `json` stores an exact copy of the input text, preserving whitespace, key order, and duplicate keys within objects. ([PostgreSQL Documentation](https://www.postgresql.org/docs/current/datatype-json.html))\n- `jsonb` parses input into a decomposed binary format at insert time, removing whitespace, sorting keys, and collapsing duplicate keys to their last value. ([PostgreSQL Documentation](https://www.postgresql.org/docs/current/datatype-json.html))\n\n## Performance and Querying\n\n- `jsonb` is significantly faster for queries because it skips reparsing, though insertions are slightly slower due to binary conversion overhead. ([Jam SQL](https://jamsql.com/blog/postgresql-json-jsonb-complete-guide/))\n- `json` requires re-parsing on each operation, making it slower for complex queries and searches. ([DbVisualizer](https://www.dbvis.com/thetable/json-vs-jsonb-in-postgresql-a-complete-comparison/))\n\n## Indexing and Advanced Features\n\n- `jsonb` supports GIN (Generalized Inverted Index) indexes for efficient searching across large numbers of documents, plus containment operators and existence tests. ([PostgreSQL Documentation](https://www.postgresql.org/docs/current/datatype-json.html))\n- `json` does not support indexing or containment operations. ([DbVisualizer](https://www.dbvis.com/thetable/json-vs-jsonb-in-postgresql-a-complete-comparison/))\n\n## When to Use Each\n\n- Use `jsonb` for nearly all production workloads: dynamic data, complex queries, configuration storage, and when you need indexed nested queries. ([Jam SQL](https://jamsql.com/blog/postgresql-json-jsonb-complete-guide/))\n- Use `json` only when you must preserve exact text formatting, perform many insertions without complex queries, or store logs in valid JSON format. ([DbVisualizer](https://www.dbvis.com/thetable/json-vs-jsonb-in-postgresql-a-complete-comparison/))\n\nSources:\n1. [PostgreSQL Documentation](https://www.postgresql.org/docs/current/datatype-json.html)\n2. [Jam SQL](https://jamsql.com/blog/postgresql-json-jsonb-complete-guide/)\n3. [DbVisualizer](https://www.dbvis.com/thetable/json-vs-jsonb-in-postgresql-a-complete-comparison/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 1.0,
+        "rationale": "The answer accurately covers exact-text versus binary storage, reparsing and performance, jsonb indexing, formatting and key-order preservation, duplicate-key handling, and the recommendation to prefer jsonb except for specialized preservation needs."
+      }
+    },
+    {
+      "goal_id": "comparison-04",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 885,
+      "total_tokens": 885,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 7,
+        "cited": 7,
+        "exact": 0,
+        "partial": 0,
+        "none": 7
+      },
+      "replay_misses": 0,
+      "wall_ms": 23726,
+      "answer": "HTTP/3 replaces HTTP/2's TCP transport with QUIC over UDP, eliminating head-of-line blocking and reducing connection setup time, while HTTP/3's header compression algorithm QPACK handles out-of-order stream delivery that HTTP/2's HPACK cannot.\n\n## Transport layer differences\n\n- HTTP/2 uses TCP with a three-way handshake that introduces latency; [HTTP/3 uses QUIC over UDP and combines the cryptographic and transport handshakes](https://www.logicmonitor.com/deep-dive/http3-vs-http2/introduction), enabling [0-RTT resumption for repeat connections](https://www.logicmonitor.com/deep-dive/http3-vs-http2/introduction).\n- HTTP/2's TCP causes head-of-line blocking where a lost packet in one stream blocks all subsequent packets; [HTTP/3 with QUIC treats each stream independently so packet loss affects only that stream](https://www.geeksforgeeks.org/computer-networks/what-is-http-3-how-it-is-different-from-http-2/).\n- [QUIC includes Forward Error Correction mechanisms that allow receivers to reconstruct missing packets without retransmission](https://www.logicmonitor.com/deep-dive/http3-vs-http2/introduction).\n- [HTTP/3 supports connection migration using connection IDs instead of IP addresses, allowing uninterrupted service when devices switch networks](https://www.logicmonitor.com/deep-dive/http3-vs-http2/introduction).\n\n## Header compression: HPACK vs QPACK\n\n- [HTTP/2 uses HPACK which maintains synchronized dynamic tables between encoder and decoder, relying on TCP's guaranteed in-order delivery](https://www.dev-toolbox.tech/tools/http-protocol-comparison/examples/hpack-vs-qpack).\n- [QPACK, used by HTTP/3, solves the problem of out-of-order stream delivery with dedicated encoder and decoder streams and a known received count mechanism](https://www.dev-toolbox.tech/tools/http-protocol-comparison/examples/hpack-vs-qpack).\n- [HPACK and QPACK achieve similar compression ratios of 85–95% reduction in header size, with QPACK's overhead from separate streams minimal despite its added complexity](https://www.dev-toolbox.tech/tools/http-protocol-comparison/examples/hpack-vs-qpack).\n\nSources:\n1. [HTTP/3 uses QUIC over UDP and combines the cryptographic and transport handshakes](https://www.logicmonitor.com/deep-dive/http3-vs-http2/introduction) (unsupported: the cited page does not contain the quoted text)\n2. [HTTP/3 with QUIC treats each stream independently so packet loss affects only that stream](https://www.geeksforgeeks.org/computer-networks/what-is-http-3-how-it-is-different-from-http-2/) (unsupported: the cited page does not contain the quoted text)\n3. [HTTP/2 uses HPACK which maintains synchronized dynamic tables between encoder and decoder, relying on TCP's guaranteed in-order delivery](https://www.dev-toolbox.tech/tools/http-protocol-comparison/examples/hpack-vs-qpack) (unsupported: the cited page does not contain the quoted text)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains the core transport change from TCP to QUIC and the replacement of HPACK by QPACK with dedicated encoder/decoder streams, while omitting TLS specificity, protocol selection/fallback, and HTTP/2 binary multiplexing details without contradicting the reference facts."
+      }
+    },
+    {
+      "goal_id": "comparison-05",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 1087,
+      "total_tokens": 1087,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 8,
+        "cited": 8,
+        "exact": 5,
+        "partial": 0,
+        "none": 3
+      },
+      "replay_misses": 0,
+      "wall_ms": 24920,
+      "answer": "Git merge and rebase both integrate changes from one branch into another, but they do so in fundamentally different ways: merge preserves the complete history by creating a new commit with two parents, while rebase rewrites history by replaying your commits as new copies on top of the target branch. You should avoid rebase on shared or public branches because it creates new commit hashes, which causes duplicate commits and diverged history when teammates pull or push.\n\n## How they integrate branches\n\n- **Merge** creates a new \"merge commit\" with two parents—one pointing to each branch tip—that permanently records when the branches joined. [The existing branches are not changed in any way](https://www.atlassian.com/git/tutorials/merging-vs-rebasing).\n- **Rebase** replays your branch's commits one at a time as brand-new commits on top of the target, creating a linear history with no merge commit. [Git creates F1′ and F2′ as new commits with new hashes; the original F1 and F2 still exist locally but no branch points at them anymore](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git).\n\n## When to avoid rebase: the golden rule\n\n- **Never rebase shared or pushed commits.** [Once you have pushed a branch and a teammate has pulled it, those commits are public. Rebasing them mints new commits with new hashes, so your local history and their local history disagree about what the commits even are](https://generalistprogrammer.com/tutorials/git-rebase-vs-merge).\n- **Rebasing a shared branch creates duplicates.** If a teammate still has the original commits and pulls your rebased branch, Git treats the originals and copies as two separate commits and merges them both in, duplicating every change in the history [with no way to tell them apart](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git).\n- **Force pushing a rebased branch can erase teammates' work.** After rebase, a normal push is rejected, so developers use `git push --force` to overwrite the remote. [If a teammate pushed commits while you were rebasing, force push throws them away without warning](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git).\n\n## Safe uses of rebase\n\n- **Interactive rebase on unpushed commits** to clean up your history before anyone sees it: squash throwaway \"wip\" commits, reorder them, or drop debug code. [This is rebase at its best because every example is still local and unpushed, breaking no rules](https://generalistprogrammer.com/tutorials/git-rebase-vs-merge).\n- **Use the recommended workflow:** rebase your private feature branch to keep it clean while you work, then merge it into main through a pull request. [This combines the readable feature history from rebase with an honest record of when it merged](https://generalistprogrammer.com/tutorials/git-rebase-vs-merge).\n- **If you must push a rebased branch, use `--force-with-lease`** instead of `--force`. [It refuses to overwrite the remote branch if it moved since your last fetch, giving you a chance to check what happened](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git).\n\nSources:\n1. [The existing branches are not changed in any way](https://www.atlassian.com/git/tutorials/merging-vs-rebasing)\n2. [Git creates F1′ and F2′ as new commits with new hashes; the original F1 and F2 still exist locally but no branch points at them anymore](https://lithiumgit.com/blogs/the-danger-of-rebase-in-git)\n3. [Once you have pushed a branch and a teammate has pulled it, those commits are public. Rebasing them mints new commits with new hashes, so your local history and their local history disagree about what the commits even are](https://generalistprogrammer.com/tutorials/git-rebase-vs-merge)\n",
+      "error": null,
+      "judge": {
+        "grade": "INCORRECT",
+        "nuggets": [
+          false,
+          true,
+          false,
+          true,
+          true,
+          true
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly describes merge commits, rebasing, linear history, and avoiding rebase on shared commits, but its blanket claim that merge creates a merge commit contradicts the fast-forward case and it omits the three-way merge mechanism."
+      }
+    },
+    {
+      "goal_id": "comparison-06",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 908,
+      "total_tokens": 908,
+      "cached_prompt_tokens": 0,
+      "citations": 2,
+      "evidence_urls": 5,
+      "verification": {
+        "bullets": 8,
+        "cited": 8,
+        "exact": 4,
+        "partial": 0,
+        "none": 4
+      },
+      "replay_misses": 0,
+      "wall_ms": 38771,
+      "answer": "Python lists and tuples are both ordered collections, but lists are mutable (modifiable after creation) while tuples are immutable (fixed after creation). This fundamental difference determines their appropriate use cases and performance characteristics.\n\n## Mutability Differences\n\n- Lists support modification through methods like `append()`, `extend()`, `remove()`, and item assignment, allowing elements to be added, removed, or changed after creation ([Difference Between List and Tuple in Python](https://www.geeksforgeeks.org/python/python-difference-between-list-and-tuple/)).\n- Tuples cannot be modified after creation; attempting to change an element raises a `TypeError` ([Difference Between List and Tuple in Python](https://www.geeksforgeeks.org/python/python-difference-between-list-and-tuple/)).\n- Tuple immutability is shallow—while the tuple itself cannot change, mutable objects stored inside it (like lists) can still be modified ([Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)).\n\n## Performance and Memory\n\n- Tuples consume less memory and iterate slightly faster than lists because they are immutable and stored in a contiguous memory block ([Difference Between List and Tuple in Python](https://www.geeksforgeeks.org/python/python-difference-between-list-and-tuple/)).\n- Lists require extra space for dynamic resizing to accommodate future modifications, making them less efficient for static data ([Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)).\n\n## Typical Use Cases\n\n- Use tuples for fixed data that should not change: geographic coordinates, RGB color values, dates, configuration settings, and function return values ([Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)).\n- Use lists when data needs to grow, shrink, or be updated frequently, such as maintaining a dynamic collection of items ([Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)).\n- Tuples can be used as dictionary keys and set elements because they are hashable (when all elements are hashable), whereas lists cannot ([Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)).\n\nSources:\n1. [Difference Between List and Tuple in Python](https://www.geeksforgeeks.org/python/python-difference-between-list-and-tuple/)\n2. [Python Tuples vs Lists: Differences, Immutability & When to Use Each](https://pythonguruji.com/blog/python-tuples-vs-lists-differences-immutability)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          false,
+          true,
+          false,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains that lists are mutable and tuples are immutable, including that tuples may contain mutable objects, and it contradicts none of the reference facts."
+      }
+    },
+    {
+      "goal_id": "comparison-07",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 3,
+      "turn_budget": 10,
+      "prompt_tokens": 0,
+      "completion_tokens": 912,
+      "total_tokens": 912,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 9,
+        "cited": 9,
+        "exact": 8,
+        "partial": 0,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 21436,
+      "answer": "HashMap and BTreeMap are both ordered/unordered map collections in Rust with different trade-offs: HashMap uses hashing for O(1) average lookups but offers no ordering guarantees, while BTreeMap maintains keys in sorted order with O(log n) lookups but provides deterministic iteration and range queries.\n\n## Ordering behavior\n\n- [HashMap is unordered](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"Iterating over a HashMap gives you keys in a random sequence that can change between runs.\"\n- [BTreeMap maintains sorted key order](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html): \"An ordered map based on a B-Tree\" with \"keys must be of a type that implements the Ord trait, such that two keys can always be compared to determine their Ordering.\"\n- [BTreeMap iteration is deterministic](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"Iterating gives you keys from smallest to largest. You get deterministic output and range queries for free.\"\n\n## Key requirements\n\n- [HashMap requires Hash and Eq](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"HashMap requires Hash and Eq. If you have Eq but no Hash, you get a similar bound error.\"\n- [BTreeMap requires Ord](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html): Keys must implement the Ord trait for total ordering comparison.\n- [BTreeMap works for types without Hash](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"Use BTreeMap when your keys don't implement Hash but do implement Ord.\"\n\n## When to choose each\n\n- [Use HashMap for performance-critical lookups](https://www.slingacademy.com/article/choosing-hashmap-vs-btreemap-trade-offs-in-performance-and-ordering/): \"Use HashMap when you need the fastest average-case lookups and insertions\" and \"when the ordering of elements does not matter.\"\n- [Use BTreeMap for ordered access and range queries](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"Use BTreeMap when you need keys sorted or deterministic iteration order\" and \"when you need range queries, like finding all keys between A and Z.\"\n- [BTreeMap enables efficient range operations](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/): \"Range queries are O(log n + k). You pay the log n cost to find the start, then linear cost for the results. HashMap would be O(n) for the same operation.\"\n\nSources:\n1. [HashMap is unordered](https://www.rustfaq.org/en/how-to-use-btreemap-vs-hashmap/)\n2. [BTreeMap maintains sorted key order](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html)\n3. [Use HashMap for performance-critical lookups](https://www.slingacademy.com/article/choosing-hashmap-vs-btreemap-trade-offs-in-performance-and-ordering/)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          false,
+          true,
+          true
+        ],
+        "nugget_recall": 0.6666666666666666,
+        "rationale": "The answer correctly explains ordering, key trait requirements, and selection criteria without contradicting any reference fact, though it omits SwissTable and SipHash 1-3 implementation details."
+      }
+    },
+    {
+      "goal_id": "comparison-08",
+      "category": "comparison",
+      "repeat": 1,
+      "exit_code": 0,
+      "turns_used": 4,
+      "turn_budget": 15,
+      "prompt_tokens": 0,
+      "completion_tokens": 815,
+      "total_tokens": 815,
+      "cached_prompt_tokens": 0,
+      "citations": 3,
+      "evidence_urls": 3,
+      "verification": {
+        "bullets": 5,
+        "cited": 5,
+        "exact": 2,
+        "partial": 2,
+        "none": 1
+      },
+      "replay_misses": 0,
+      "wall_ms": 27356,
+      "answer": "Rust's `Mutex` and `RwLock` are synchronization primitives that differ in their locking model and when poisoning occurs. `Mutex` provides exclusive access to one thread at a time, while `RwLock` allows multiple concurrent readers or a single exclusive writer ([Mutex in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.Mutex.html), [RwLock in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.RwLock.html)).\n\n## Locking differences\n\n- `Mutex` blocks all threads waiting for the lock without distinguishing reader or writer roles; it returns `Result` on lock acquisition. `RwLock` differentiates between read and write locks: `read()` allows concurrent readers as long as no writer holds the lock, while `write()` provides exclusive access and blocks all other readers and writers ([RwLock in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.RwLock.html)).\n- The `read()` and `try_read()` methods on `RwLock` enable parallel access for read-only operations, improving performance in read-heavy workloads compared to `Mutex` which serializes all access ([std::sync - Rust](https://doc.rust-lang.org/std/sync/index.html)).\n\n## Poisoning behavior\n\n- Both `Mutex` and `RwLock` implement poisoning: the lock becomes poisoned if a thread holding it panics. Poisoned locks cause `lock()` and `try_lock()` calls to return a `PoisonError` ([Mutex in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.Mutex.html)).\n- `RwLock` poisons only on exclusive write access panics; a panic in a reader does not poison the lock ([RwLock in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.RwLock.html)).\n- `PoisonError` provides an `into_inner()` method to access the guard even after poisoning, allowing recovery. Both locks also provide `clear_poison()` to reset poisoning status after handling ([Mutex in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.Mutex.html)).\n\nSources:\n1. [Mutex in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.Mutex.html)\n2. [RwLock in std::sync - Rust](https://doc.rust-lang.org/std/sync/struct.RwLock.html)\n3. [std::sync - Rust](https://doc.rust-lang.org/std/sync/index.html) (partial: a number or identifier in the claim is not on the cited page)\n",
+      "error": null,
+      "judge": {
+        "grade": "CORRECT",
+        "nuggets": [
+          true,
+          true,
+          false,
+          true,
+          false
+        ],
+        "nugget_recall": 0.6,
+        "rationale": "The answer correctly explains the core locking and poisoning differences without contradicting the reference facts, but omits RwLock priority policy and the differing Sync trait bounds."
+      }
+    }
+  ]
+}

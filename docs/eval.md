@@ -11,6 +11,11 @@ Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts
 - Driver: `cargo run --example eval -- <run|judge|summary|compare|pack>`, code in `tests/eval/`.
 - Offline gate: `tests/eval_offline.rs`, part of `cargo test`, no network.
 
+## Models
+
+- Agent: every eval run uses `claude-haiku-4.5` (`GATEWAY_MODEL`), the model the agent runs in production. `claude-haiku-5.5` replaces it as the main model once the gateway offers it; until then, results from any other agent model are not comparable to the baseline.
+- Judge: a larger model than the agent, never the agent's own model: `gpt-5.6-sol` by default (`--model` takes another larger model). The judge grades; it is not the system under test.
+
 ## Tool tape
 
 | Env var | Effect |
@@ -95,4 +100,5 @@ A change to the agent loop, prompts or tool rendering can make a committed trans
 
 ## Baseline
 
-`docs/eval/baseline-2026-10-05.json`: the whole golden set, K=1, `record` mode, `claude-haiku-4.5`, judged by `gpt-5.6-sol`.
+- `docs/eval/baseline-2026-10-05.json`: the whole golden set, K=1, `record` mode at `80b1040`, `claude-haiku-4.5`, judged by `gpt-5.6-sol`.
+- `docs/eval/baseline-2026-10-07.json`: the same at `46956ca` (after #116-#120): 79% correct, nugget recall 0.55. Against 2026-10-05, every paired 95% CI on correct and recall contains 0. Compare new changes against this file.
