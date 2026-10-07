@@ -434,9 +434,16 @@ pub(crate) fn header_names(lines: &[String]) -> Vec<String> {
 
 pub(crate) fn path_key(path: &str) -> String {
     // Count by route prefix so query strings do not split counters.
-    // `/search` covers Brave/Yahoo/Bing's single-GET shape (#66); the
-    // other three predate it.
-    for known in ["/html/", "/sp/search", "/sp/", "/search", "/"] {
+    // `/search` covers Brave/Yahoo/Bing's single-GET shape (#66);
+    // `/api/v1/crates` the crates.io API (#109); the others predate them.
+    for known in [
+        "/html/",
+        "/sp/search",
+        "/sp/",
+        "/search",
+        "/api/v1/crates",
+        "/",
+    ] {
         if path == known || path.starts_with(known) {
             return known.to_string();
         }

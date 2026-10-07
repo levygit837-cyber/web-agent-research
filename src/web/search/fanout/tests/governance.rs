@@ -35,6 +35,7 @@ async fn default_config_sends_zero_requests_to_startpage() {
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
+        &format!("{base}/search"),
         &governor,
         None,
     )
@@ -114,6 +115,7 @@ async fn all_suspended_fanout_yields_all_failed_with_zero_requests() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
@@ -198,6 +200,7 @@ async fn per_call_query_cap_limits_requests_to_one_engine() {
         &format!("{base}/html/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",
         "http://127.0.0.1:9/",

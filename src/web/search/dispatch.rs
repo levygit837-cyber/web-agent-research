@@ -3,6 +3,7 @@
 
 use crate::web::search::bing::bing_search;
 use crate::web::search::brave::brave_search;
+use crate::web::search::cratesio::cratesio_search;
 use crate::web::search::ddg::ddg_search;
 use crate::web::search::governor::EnginePermit;
 use crate::web::search::startpage::startpage_search;
@@ -18,6 +19,7 @@ pub(super) struct EngineBases {
     pub(super) brave: String,
     pub(super) yahoo: String,
     pub(super) bing: String,
+    pub(super) cratesio: String,
 }
 
 /// Run one `query` against `provider`'s own search function. `permit` is
@@ -42,5 +44,6 @@ pub(super) async fn search_engine(
         SearchProvider::Brave => brave_search(client, query, &bases.brave).await,
         SearchProvider::Yahoo => yahoo_search(query, recency, &bases.yahoo).await,
         SearchProvider::Bing => bing_search(client, query, &bases.bing).await,
+        SearchProvider::CratesIo => cratesio_search(client, query, &bases.cratesio).await,
     }
 }

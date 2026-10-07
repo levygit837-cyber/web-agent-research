@@ -26,12 +26,17 @@
 //!
 //! HTML bodies keep only their main-content subtree when
 //! [`super::extract::keep_extracted`] says nothing is lost (#108).
+//!
+//! A crates.io crate page (`crates.io/crates/<name>`) never takes the
+//! static path: it is client-rendered, so [`super::cratesio`] serves it
+//! from the sparse index and the API instead (#109, [`FetchPath::Api`]).
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::cratesio::{crate_page, CratesIoBases};
 use super::egress::{denied_in_chain, redirect_policy, EgressPolicy, EgressResolver};
 use super::error::{normalize_url, FetchError};
 use super::extract::{extract, keep_extracted};
@@ -47,6 +52,9 @@ use crate::web::search::{apply_navigation_headers, ChainPosition};
 pub enum FetchPath {
     Static,
     Browser,
+    /// A documented JSON/index API stood in for a client-rendered page
+    /// (crates.io crate pages, #109).
+    Api,
 }
 
 /// Static HTTP request timeout, and the value `FetchError::Timeout` reports
@@ -73,7 +81,7 @@ const CHALLENGE_MARKERS: &[&str] = &[
 /// Static HTTP fetch with Obscura fallback. Cheap to clone; share one per run.
 #[derive(Debug, Clone)]
 pub struct Fetcher {
-    client: reqwest::Client,
+    pub(super) client: reqwest::Client,
     obscura: Obscura,
     /// Response bodies above this are rejected before conversion.
     max_body_bytes: usize,
@@ -81,6 +89,8 @@ pub struct Fetcher {
     min_markdown_chars: usize,
     /// Which addresses the static client and the Obscura check may reach.
     egress: EgressPolicy,
+    /// crates.io API and sparse-index roots for the crate-page rewrite.
+    pub(super) crates_io: CratesIoBases,
 }
 
 /// Why the static path handed over to Obscura; kept for the error message.
@@ -161,13 +171,30 @@ impl Fetcher {
             max_body_bytes: super::MAX_BODY_BYTES,
             min_markdown_chars: 200,
             egress,
+            crates_io: CratesIoBases::default(),
         }
     }
 
-    /// Fetch `raw_url` as markdown. Tries the static path; falls back to
+    /// The same fetcher with the crate-page rewrite reading the crates.io
+    /// API (`/api/v1` root) and sparse index from `api`/`index` (a local
+    /// stub in tests).
+    #[cfg(test)]
+    pub(crate) fn with_crates_io_bases(self, api: String, index: String) -> Self {
+        Self {
+            crates_io: CratesIoBases { api, index },
+            ..self
+        }
+    }
+
+    /// Fetch `raw_url` as markdown. A crates.io crate page is served by
+    /// the rewrite; anything else tries the static path and falls back to
     /// Obscura on the triggers listed in the module docs.
     pub async fn fetch(&self, raw_url: &str) -> Result<(FetchedMarkdown, FetchPath), FetchError> {
         let url = normalize_url(raw_url, self.egress)?;
+        if let Some(page) = crate_page(&url) {
+            let page = self.fetch_crate_page(&url, &page).await?;
+            return Ok((page, FetchPath::Api));
+        }
         let handover = match self.fetch_static(&url).await? {
             StaticOutcome::Done(page) => return Ok((page, FetchPath::Static)),
             StaticOutcome::Fallback(handover) => handover,
@@ -187,29 +214,7 @@ impl Fetcher {
         let profile = pick_profile();
         let builder =
             apply_navigation_headers(self.client.get(url), &profile, ChainPosition::First, None);
-        let mut response = builder.send().await.map_err(|err| {
-            if let Some(denied) = denied_in_chain(&err) {
-                // The redirect policy records the refused hop; a resolver
-                // refusal reports the URL `reqwest` was connecting to.
-                FetchError::Egress {
-                    url: denied.hop.clone().unwrap_or_else(|| {
-                        err.url()
-                            .map_or_else(|| url.to_owned(), |target| target.to_string())
-                    }),
-                    reason: denied.reason.clone(),
-                }
-            } else if err.is_timeout() {
-                FetchError::Timeout {
-                    url: url.to_owned(),
-                    after: STATIC_TIMEOUT,
-                }
-            } else {
-                FetchError::Http {
-                    url: url.to_owned(),
-                    detail: err.to_string(),
-                }
-            }
-        })?;
+        let mut response = builder.send().await.map_err(|err| send_error(url, &err))?;
 
         let status = response.status().as_u16();
         if matches!(status, 403 | 429 | 503) {
@@ -277,7 +282,7 @@ impl Fetcher {
     /// the running total crosses `max_body_bytes`. Unlike `.bytes()`, this
     /// never fully buffers a chunked response (no `Content-Length`) before
     /// the cap applies.
-    async fn read_capped_body(
+    pub(super) async fn read_capped_body(
         &self,
         url: &str,
         response: &mut reqwest::Response,
@@ -319,6 +324,32 @@ fn is_challenge(html: &str) -> bool {
     // Interstitials are small; only scan the head of large pages.
     let head: String = html.chars().take(20_000).collect::<String>().to_lowercase();
     CHALLENGE_MARKERS.iter().any(|marker| head.contains(marker))
+}
+
+/// Typed error for a request that got no response: an egress refusal
+/// (the redirect policy records the refused hop; a resolver refusal reports
+/// the URL `reqwest` was connecting to), a timeout, or any other transport
+/// failure.
+pub(super) fn send_error(url: &str, err: &reqwest::Error) -> FetchError {
+    if let Some(denied) = denied_in_chain(err) {
+        FetchError::Egress {
+            url: denied.hop.clone().unwrap_or_else(|| {
+                err.url()
+                    .map_or_else(|| url.to_owned(), |target| target.to_string())
+            }),
+            reason: denied.reason.clone(),
+        }
+    } else if err.is_timeout() {
+        FetchError::Timeout {
+            url: url.to_owned(),
+            after: STATIC_TIMEOUT,
+        }
+    } else {
+        FetchError::Http {
+            url: url.to_owned(),
+            detail: err.to_string(),
+        }
+    }
 }
 
 /// HTML → trimmed markdown. Conversion errors (malformed input the parser

@@ -17,6 +17,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::web::search::cratesio;
 use crate::web::search::dedup::merge_sources_in_order;
 use crate::web::search::dispatch::EngineBases;
 use crate::web::search::governor::Governor;
@@ -27,6 +28,17 @@ use crate::web::search::types::{
 use leg::{LegEnv, LegOutcome};
 pub use report::all_failed_message;
 use report::{engine_status, error_detail};
+
+/// One scheduled leg: which Query, which engine, and how many earlier
+/// Queries this call already sent to that engine (`ordinal`, what the
+/// per-call query cap counts; #109: the vertical skips Queries, so it is
+/// not the Query index).
+#[derive(Clone, Copy)]
+struct Slot {
+    query_index: usize,
+    ordinal: usize,
+    provider: SearchProvider,
+}
 
 /// Build the typed leg-timeout error. Timeout beats Challenge: callers map
 /// transport timeouts (or fan-out deadline cuts) here before inspecting any
@@ -82,7 +94,9 @@ pub(crate) fn parse_retry_after(response: &reqwest::Response) -> Option<u64> {
 /// seam, not the function's purpose), creates nothing. Leg order is
 /// deterministic: per Query in input order, over
 /// `governor.enabled_providers()` in priority order (#66: Startpage,
-/// Brave, Yahoo, DuckDuckGo, Bing -- Startpage opt-in only). Never fails a
+/// Brave, Yahoo, DuckDuckGo, Bing, then the crates.io vertical --
+/// Startpage opt-in only). The vertical gets a leg only for a Query
+/// `cratesio::route` accepts (#109). Never fails a
 /// whole batch on one leg: leg errors collect into `output.errors`; only
 /// total-leg failure (`AllFailed`: merged empty AND every leg failed)
 /// returns `Err`. Otherwise `Ok` -- including partial success and empty
@@ -108,18 +122,16 @@ pub async fn search_multi_with_bases(
     brave_base: &str,
     yahoo_base: &str,
     bing_base: &str,
+    cratesio_base: &str,
     governor: &Governor,
     cache_root: Option<&Path>,
 ) -> Result<SearchOutput, SearchProviderError> {
     let queries = input.queries.clone();
     let recency = input.recency;
     let top_k = input.top_k;
-    // #64/#66: which engines run this call, in priority order (Startpage
-    // first when enabled, then Brave, Yahoo, DuckDuckGo, Bing); the
-    // hermetic `Governor` always enables all five, so every pre-existing
-    // fan-out test that predates #66 keeps its original two-leg shape by
-    // constructing `SEARCH_ENGINES`-filtered expectations explicitly where
-    // it cares, and new tests cover the full five-leg shape directly.
+    // #64/#66/#109: which engines run this call, in priority order
+    // (Startpage first when enabled, then Brave, Yahoo, DuckDuckGo, Bing,
+    // crates.io); the hermetic `Governor` always enables all six.
     let mut enabled = governor.enabled_providers();
     let enabled_before_recency = enabled.len();
     // #81: with a `recency` window, a leg runs only if its engine applies
@@ -149,10 +161,49 @@ pub async fn search_multi_with_bases(
     // remaining ones does not mean "every enabled engine is walled": the
     // same search without `recency` could still succeed.
     let narrowed_by_recency = enabled.len() < enabled_before_recency;
+    // #109: one leg per (Query, engine), except that the crates.io
+    // vertical joins only the Queries its router accepts.
+    let mut slots: Vec<Slot> = Vec::new();
+    let mut dispatched: Vec<usize> = vec![0; enabled.len()];
+    for (query_index, query) in queries.iter().enumerate() {
+        for (provider_index, provider) in enabled.iter().copied().enumerate() {
+            if provider == SearchProvider::CratesIo && cratesio::route(query).is_none() {
+                continue;
+            }
+            slots.push(Slot {
+                query_index,
+                ordinal: dispatched[provider_index],
+                provider,
+            });
+            dispatched[provider_index] += 1;
+        }
+    }
+    // An engine with no leg this call (the vertical, when no Query is
+    // crate-shaped) was never asked: it gets no status line.
+    let mut dispatched = dispatched.into_iter();
+    enabled.retain(|_| dispatched.next().is_some_and(|count| count > 0));
+    if slots.is_empty() {
+        // Only the vertical is enabled and no Query is crate-shaped.
+        return Ok(SearchOutput {
+            results: Vec::new(),
+            errors: Vec::new(),
+            stats: SearchStats {
+                queries: queries.len(),
+                legs: 0,
+                raw_hits: 0,
+                merged: 0,
+            },
+            note: Some(
+                "the enabled search engines answer only Rust crate queries (name the crate, e.g. `serde_json` or \"the bytes crate\"); none of these queries is one."
+                    .to_string(),
+            ),
+            engine_status: Vec::new(),
+        });
+    }
     let started_at = tokio::time::Instant::now();
     let soft_at = started_at + Duration::from_secs(SOFT_DEADLINE_SECS);
     let deadline = started_at + Duration::from_secs(HARD_DEADLINE_SECS);
-    let leg_count = queries.len() * enabled.len();
+    let leg_count = slots.len();
     let env = Arc::new(LegEnv {
         client: client.clone(),
         bases: EngineBases {
@@ -162,6 +213,7 @@ pub async fn search_multi_with_bases(
             brave: brave_base.to_string(),
             yahoo: yahoo_base.to_string(),
             bing: bing_base.to_string(),
+            cratesio: cratesio_base.to_string(),
         },
         governor: governor.clone(),
         cache_root: cache_root.map(Path::to_path_buf),
@@ -170,24 +222,21 @@ pub async fn search_multi_with_bases(
         states: leg::queued_states(leg_count),
     });
     // Legs in deterministic order: per Query in input order, over `enabled`
-    // in priority order. A leg's spawn index is its dense slot
-    // (`query_index * enabled.len() + provider_index`): JoinSet returns
-    // legs in completion order, so results reconstruct by index, never by
-    // (query, provider) -- duplicate query strings keep separate slots, and
-    // a panicked leg maps back to its slot via its task id.
+    // in priority order. A leg's spawn index is its position in `slots`:
+    // JoinSet returns legs in completion order, so results reconstruct by
+    // index, never by (query, provider) -- duplicate query strings keep
+    // separate slots, and a panicked leg maps back to its slot via its
+    // task id.
     let mut set = tokio::task::JoinSet::new();
     let mut handles: Vec<tokio::task::AbortHandle> = Vec::with_capacity(leg_count);
-    for (query_index, query) in queries.iter().enumerate() {
-        for provider in enabled.iter().copied() {
-            let index = handles.len();
-            handles.push(set.spawn(leg::run(
-                env.clone(),
-                index,
-                query_index,
-                provider,
-                query.clone(),
-            )));
-        }
+    for (index, slot) in slots.iter().enumerate() {
+        handles.push(set.spawn(leg::run(
+            env.clone(),
+            index,
+            slot.ordinal,
+            slot.provider,
+            queries[slot.query_index].clone(),
+        )));
     }
     // Cancel every leg still queued (not yet past `pace()`): it has sent
     // nothing, so aborting it costs no request.
@@ -236,7 +285,7 @@ pub async fn search_multi_with_bases(
                 // propagates.
                 if let Some(index) = handles.iter().position(|h| h.id() == join.id()) {
                     by_leg[index] = Some(Err(SearchProviderError::Upstream {
-                        provider: enabled[index % enabled.len()],
+                        provider: slots[index].provider,
                         detail: "leg panicked".to_string(),
                         status: None,
                         retry_after_secs: None,
@@ -252,9 +301,13 @@ pub async fn search_multi_with_bases(
         .into_iter()
         .enumerate()
         .map(|(index, outcome)| {
-            let provider = enabled[index % enabled.len()];
-            let outcome = outcome
-                .unwrap_or_else(|| Err(map_timeout(provider, &queries[index / enabled.len()])));
+            let Slot {
+                query_index,
+                provider,
+                ..
+            } = slots[index];
+            let outcome =
+                outcome.unwrap_or_else(|| Err(map_timeout(provider, &queries[query_index])));
             (provider, outcome)
         })
         .collect();
@@ -322,4 +375,5 @@ mod tests {
     mod governance;
     mod merge;
     mod recency;
+    mod vertical;
 }

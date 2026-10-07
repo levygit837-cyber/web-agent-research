@@ -136,6 +136,7 @@ async fn fanout_merges_across_queries_and_providers() {
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
+        &format!("{base}/search"),
         &Governor::hermetic(),
         None,
     )
@@ -183,6 +184,7 @@ async fn fanout_all_fail_returns_all_failed_503() {
         &format!("{base}/missing/"),
         &format!("{base}/"),
         &format!("{base}/sp/search"),
+        &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),
         &format!("{base}/search"),

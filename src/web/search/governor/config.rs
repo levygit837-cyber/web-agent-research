@@ -29,14 +29,16 @@ fn env_u64(key: &str, default: u64) -> u64 {
 }
 
 /// `SEARCH_ENGINES` (comma list, case-insensitive; `duckduckgo`/`ddg`,
-/// `startpage`/`sp`, `brave`, `yahoo`, `bing` tokens; unknown tokens
-/// ignored; duplicates collapsed; unset or resolving empty defaults to
-/// `duckduckgo,brave,yahoo,bing` -- #64/#66: Startpage stays opt-in only
-/// (it serves an Anubis proof-of-work challenge to bot-detected clients).
+/// `startpage`/`sp`, `brave`, `yahoo`, `bing`, `cratesio`/`crates.io`
+/// tokens; unknown tokens ignored; duplicates collapsed; unset or
+/// resolving empty defaults to `duckduckgo,brave,yahoo,bing,cratesio` --
+/// #64/#66: Startpage stays opt-in only (it serves an Anubis proof-of-work
+/// challenge to bot-detected clients); #109: the crates.io vertical is on
+/// by default and still only joins crate-shaped Queries.
 /// Pure and env-only, so it is unit-tested directly without any HTTP.
 pub(super) fn enabled_providers() -> Vec<SearchProvider> {
     let raw = std::env::var("SEARCH_ENGINES")
-        .unwrap_or_else(|_| "duckduckgo,brave,yahoo,bing".to_string());
+        .unwrap_or_else(|_| "duckduckgo,brave,yahoo,bing,cratesio".to_string());
     let mut providers: Vec<SearchProvider> = raw
         .split(',')
         .map(|tok| tok.trim().to_lowercase())
@@ -47,6 +49,7 @@ pub(super) fn enabled_providers() -> Vec<SearchProvider> {
             "brave" => Some(SearchProvider::Brave),
             "yahoo" => Some(SearchProvider::Yahoo),
             "bing" => Some(SearchProvider::Bing),
+            "cratesio" | "crates.io" => Some(SearchProvider::CratesIo),
             _ => None,
         })
         .collect();
@@ -67,6 +70,7 @@ fn default_providers() -> Vec<SearchProvider> {
         SearchProvider::Brave,
         SearchProvider::Yahoo,
         SearchProvider::Bing,
+        SearchProvider::CratesIo,
     ];
     providers.sort_by_key(|p| p.priority());
     providers
@@ -210,9 +214,14 @@ pub(super) fn max_suspension() -> Duration {
 /// instruction, never stepped down) -- their default stays the original
 /// pre-#73 1500..4000 ms rather than inventing a number from no evidence.
 /// Startpage is untouched (out of #73's scope; unmeasured this round).
+/// crates.io (#109) is a documented policy, not a measurement: at most 1
+/// API request per second, so its gap never goes below 1000 ms (the
+/// process-wide `web::crates_io::API_GATE` enforces the same floor for
+/// the API calls the crate-page fetch makes).
 fn engine_gap_default_ms(provider: SearchProvider) -> (u64, u64) {
     match provider {
         SearchProvider::Bing | SearchProvider::Yahoo => (1000, 2000),
+        SearchProvider::CratesIo => (1000, 1500),
         SearchProvider::Brave | SearchProvider::DuckDuckGo | SearchProvider::Startpage => {
             (1500, 4000)
         }
@@ -261,12 +270,15 @@ pub(super) fn pick_gap(min: Duration, max: Duration) -> Duration {
 /// unmeasured (blocked on the concurrency probe before reaching it) --
 /// neither ships pagination code, so this default has no effect for
 /// them. Startpage is untouched (out of #73's scope; unmeasured this
-/// round).
+/// round). crates.io asks page 1 only (#109).
 fn engine_max_pages_default(provider: SearchProvider) -> u64 {
     match provider {
         SearchProvider::Yahoo => 3,
         SearchProvider::DuckDuckGo => 5,
-        SearchProvider::Bing | SearchProvider::Brave | SearchProvider::Startpage => 1,
+        SearchProvider::Bing
+        | SearchProvider::Brave
+        | SearchProvider::Startpage
+        | SearchProvider::CratesIo => 1,
     }
 }
 
@@ -290,11 +302,15 @@ pub(crate) fn resolve_max_pages(provider: SearchProvider) -> usize {
 /// that very probe) and DuckDuckGo's known suspension history on this IP
 /// argues for the same conservative posture even though its single pass
 /// never tested concurrency directly. Startpage is untouched (out of
-/// #73's scope; unmeasured this round).
+/// #73's scope; unmeasured this round). crates.io is 1: its policy is one
+/// request at a time, 1 s apart (#109).
 fn engine_concurrency_default(provider: SearchProvider) -> u64 {
     match provider {
         SearchProvider::Bing | SearchProvider::Yahoo => 2,
-        SearchProvider::Brave | SearchProvider::DuckDuckGo | SearchProvider::Startpage => 1,
+        SearchProvider::Brave
+        | SearchProvider::DuckDuckGo
+        | SearchProvider::Startpage
+        | SearchProvider::CratesIo => 1,
     }
 }
 
@@ -324,10 +340,14 @@ pub(super) fn resolve_concurrency(provider: SearchProvider) -> usize {
 /// queueing legs for an already-flaky engine stops well short of
 /// hammering it, on top of (not instead of) the existing suspension that
 /// already skips a Challenged engine outright. Startpage is untouched
-/// (out of #73's scope; unmeasured this round).
+/// (out of #73's scope; unmeasured this round). crates.io (#109) gets 30:
+/// one request per crate-shaped Query, enough for a full run (the agent
+/// loop's turn budget times a few crate Queries per call) while keeping
+/// one run from turning into a crawl of a volunteer-run registry.
 fn engine_cap_default(provider: SearchProvider) -> u32 {
     match provider {
         SearchProvider::Bing | SearchProvider::Yahoo | SearchProvider::Startpage => 200,
+        SearchProvider::CratesIo => 30,
         SearchProvider::Brave | SearchProvider::DuckDuckGo => 10,
     }
 }
@@ -381,23 +401,11 @@ mod tests {
     use crate::web::search::governor::test_support::EnvGuard;
 
     #[test]
-    fn enabled_providers_defaults_to_ddg_brave_yahoo_bing() {
+    fn enabled_providers_defaults_to_ddg_brave_yahoo_bing_cratesio() {
         let _guard = EnvGuard::set(&[]);
         std::env::remove_var("SEARCH_ENGINES");
         let providers = enabled_providers();
-        assert_eq!(providers.len(), 4, "startpage stays opt-in: {providers:?}");
         assert!(!providers.contains(&SearchProvider::Startpage));
-        for expected in [
-            SearchProvider::DuckDuckGo,
-            SearchProvider::Brave,
-            SearchProvider::Yahoo,
-            SearchProvider::Bing,
-        ] {
-            assert!(
-                providers.contains(&expected),
-                "missing {expected:?}: {providers:?}"
-            );
-        }
         // Priority order, not input/declaration order.
         assert_eq!(
             providers,
@@ -406,8 +414,30 @@ mod tests {
                 SearchProvider::Yahoo,
                 SearchProvider::DuckDuckGo,
                 SearchProvider::Bing,
+                SearchProvider::CratesIo,
             ]
         );
+    }
+
+    #[test]
+    fn enabled_providers_accepts_both_cratesio_tokens() {
+        for token in ["cratesio", "Crates.IO"] {
+            let _guard = EnvGuard::set(&[("SEARCH_ENGINES", token)]);
+            assert_eq!(enabled_providers(), vec![SearchProvider::CratesIo]);
+        }
+        let _guard = EnvGuard::set(&[("SEARCH_ENGINES", "bing")]);
+        assert_eq!(enabled_providers(), vec![SearchProvider::Bing]);
+    }
+
+    #[test]
+    fn cratesio_defaults_honor_the_one_request_per_second_policy() {
+        let _guard = EnvGuard::set(&[]);
+        let (min, max) = resolve_gap(SearchProvider::CratesIo);
+        assert!(min >= Duration::from_millis(1000), "{min:?}");
+        assert!(max >= min);
+        assert_eq!(resolve_concurrency(SearchProvider::CratesIo), 1);
+        assert_eq!(resolve_max_pages(SearchProvider::CratesIo), 1);
+        assert_eq!(resolve_caps_per_engine()[&SearchProvider::CratesIo], 30);
     }
 
     #[test]

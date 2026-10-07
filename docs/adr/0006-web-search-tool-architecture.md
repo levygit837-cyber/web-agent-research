@@ -14,7 +14,7 @@ The repo drifted into two products: raw web tools (`shared/tools/`, `shared/web_
                      └──► llm
    ```
 
-   - `web/`: search (fan-out over DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage since #64; originally DDG + Startpage) and fetch (URL → Evidence). No LLM, no Session. Stable on its own.
+   - `web/`: search (fan-out over DuckDuckGo, Brave, Yahoo, Bing, and opt-in Startpage since #64; originally DDG + Startpage; plus the crates.io vertical for crate-shaped Queries since #109) and fetch (URL → Evidence). No LLM, no Session. Stable on its own.
    - `llm/`: LLM gateway, OpenAI-compatible (ADR-0003) or native Anthropic Messages (ADR-0007). Knows nothing about tools or web.
    - `research/`: the agent. Loop, context, prompts, synthesis, Session JSONL, tool dispatch into `web/`. Only module that knows Research/Turn.
    - `web/` and `llm/` never import `research/` or each other.

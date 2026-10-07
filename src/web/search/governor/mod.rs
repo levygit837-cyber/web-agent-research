@@ -85,12 +85,13 @@ use persist::{
 
 /// Every ported provider, in a fixed order used to pre-populate per-engine
 /// maps regardless of which are enabled.
-const ALL_PROVIDERS: [SearchProvider; 5] = [
+const ALL_PROVIDERS: [SearchProvider; 6] = [
     SearchProvider::Startpage,
     SearchProvider::Brave,
     SearchProvider::Yahoo,
     SearchProvider::DuckDuckGo,
     SearchProvider::Bing,
+    SearchProvider::CratesIo,
 ];
 
 /// In-memory, monotonic-clock view of one engine's governed state.
@@ -647,6 +648,7 @@ mod tests {
                 SearchProvider::Yahoo,
                 SearchProvider::DuckDuckGo,
                 SearchProvider::Bing,
+                SearchProvider::CratesIo,
             ]
         );
     }

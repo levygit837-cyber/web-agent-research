@@ -1,11 +1,12 @@
 //! Fetch-only web search engine: DuckDuckGo, Startpage, Brave, Yahoo, Bing
-//! over plain HTTP (#66).
+//! over plain HTTP (#66), plus the crates.io vertical over its keyless
+//! JSON API (#109).
 //!
 //! Small Interface (`search_multi_with_bases`, pure helpers, per-engine
 //! `#[doc(hidden)]` base-URL overrides) over provider legs (`ddg`,
-//! `startpage`, `brave`, `yahoo`, `bing`), merge (`dedup`), fan-out
-//! (`fanout`) and codecs (`decode`). Callers cross only this root; provider
-//! forms and deadlines stay inside.
+//! `startpage`, `brave`, `yahoo`, `bing`, `cratesio`), merge (`dedup`),
+//! fan-out (`fanout`) and codecs (`decode`). Callers cross only this root;
+//! provider forms and deadlines stay inside.
 //!
 //! `ChainPosition`'s `sec-fetch-site` derivation ports Obscura's
 //! `request_fetch_site` (Apache-2.0, h4ckf0r0day/obscura@542df14); see
@@ -15,6 +16,7 @@
 pub mod bing;
 pub mod brave;
 pub(crate) mod cache;
+pub mod cratesio;
 pub mod ddg;
 pub mod decode;
 pub mod dedup;
@@ -34,6 +36,9 @@ pub use bing::{is_bing_challenge, parse_bing_html, unwrap_bing_url, BING_SEARCH_
 #[doc(hidden)]
 pub use brave::brave_search_with_base;
 pub use brave::{parse_brave_html, BRAVE_SEARCH_URL};
+#[doc(hidden)]
+pub use cratesio::cratesio_search_with_base;
+pub use cratesio::CRATESIO_SEARCH_URL;
 #[doc(hidden)]
 pub use ddg::ddg_search_with_base;
 pub use ddg::{
@@ -123,6 +128,21 @@ pub(crate) fn apply_navigation_headers(
         Some(referer) => builder.header("Referer", referer),
         None => builder,
     }
+}
+
+/// Headers for a documented keyless API request (#109: crates.io search
+/// and the crate-page fetch rewrite): the honest
+/// [`crate::web::api_user_agent`] naming the application and a contact,
+/// and `accept`. The plain counterpart of [`apply_navigation_headers`]:
+/// no browser profile, no client hints, no `sec-fetch-*`; `reqwest` adds
+/// `Accept-Encoding` for its enabled codecs.
+pub(crate) fn apply_api_headers(
+    builder: reqwest::RequestBuilder,
+    accept: &str,
+) -> reqwest::RequestBuilder {
+    builder
+        .header(reqwest::header::USER_AGENT, crate::web::api_user_agent())
+        .header(reqwest::header::ACCEPT, accept)
 }
 
 /// `scheme://host[:port]` of `url`, for the `Origin` header on same-origin

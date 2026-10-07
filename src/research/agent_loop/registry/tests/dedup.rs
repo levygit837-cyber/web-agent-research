@@ -193,6 +193,7 @@ async fn already_fetched_hit_gets_marker_others_dont() {
             &format!("{search_base}/search"),
             &format!("{search_base}/search"),
             &format!("{search_base}/search"),
+            &format!("{search_base}/search"),
         ),
         Fetcher::with_policy(
             crate::web::fetch::Obscura::new(
@@ -246,6 +247,7 @@ async fn full_run_dedups_repeat_fetch_into_one_evidence_url() {
 
     let registry = ToolRegistry::new(
         Searcher::with_bases(
+            "http://127.0.0.1:9/",
             "http://127.0.0.1:9/",
             "http://127.0.0.1:9/",
             "http://127.0.0.1:9/",

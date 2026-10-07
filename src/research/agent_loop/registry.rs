@@ -43,7 +43,7 @@ use crate::web::search::types::{MergedResult, SearchInput};
 
 enum Backend {
     Live {
-        searcher: Searcher,
+        searcher: Box<Searcher>,
         fetcher: Fetcher,
     },
     #[cfg(test)]
@@ -66,7 +66,10 @@ impl ToolRegistry {
     /// Live dispatch over the real web tools.
     pub fn new(searcher: Searcher, fetcher: Fetcher) -> Self {
         Self {
-            backend: Backend::Live { searcher, fetcher },
+            backend: Backend::Live {
+                searcher: Box::new(searcher),
+                fetcher,
+            },
             fetched: Mutex::new(HashMap::new()),
             tape: None,
         }
@@ -95,7 +98,7 @@ impl ToolRegistry {
     pub(crate) fn offline() -> Self {
         let dead = "http://127.0.0.1:9/";
         Self::new(
-            Searcher::with_bases(dead, dead, dead, dead, dead, dead),
+            Searcher::with_bases(dead, dead, dead, dead, dead, dead, dead),
             Fetcher::with_policy(
                 crate::web::fetch::Obscura::new(
                     "/nonexistent/obscura".into(),
@@ -145,7 +148,7 @@ impl ToolRegistry {
     /// one `fetch` part (`LoopBudget::max_part_chars`).
     pub async fn execute(&self, call: &RequestedToolCall, part_chars: usize) -> ToolResult {
         let (searcher, fetcher) = match &self.backend {
-            Backend::Live { searcher, fetcher } => (searcher, fetcher),
+            Backend::Live { searcher, fetcher } => (&**searcher, fetcher),
             #[cfg(test)]
             Backend::Queue(queue) => {
                 let next = queue.lock().await.pop_front().unwrap_or_else(|| {

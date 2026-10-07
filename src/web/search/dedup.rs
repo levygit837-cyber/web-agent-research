@@ -9,7 +9,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use crate::web::search::types::{MergedResult, SearchResult};
+use crate::web::search::types::{MergedResult, SearchProvider, SearchResult};
 
 /// Normalised identity of a result URL used for dedup: lowercase host minus
 /// one leading `www.` + path minus one trailing `/` (only when len > 1) +
@@ -42,11 +42,34 @@ pub fn dedup_key(raw: &str) -> String {
     key
 }
 
-/// Reciprocal Rank Fusion constant `k` in `score = Σ 1 / (k + rank)`. 60 is
+/// Reciprocal Rank Fusion constant `k` in `score = Σ w / (k + rank)`. 60 is
 /// the value from the original RRF paper (Cormack, Clarke, Buettcher, SIGIR
 /// 2009); it flattens the gap between neighbouring ranks so agreement across
 /// legs outweighs a single leg's top position.
 const RRF_K: f64 = 60.0;
+
+/// RRF weight `w` of a vertical leg (#109): an authoritative registry
+/// answering for its own domain counts as two general engines agreeing at
+/// the same rank. Plain RRF buries a one-leg rank-1 Hit (1/61 = 0.0164)
+/// behind any URL two engines return at rank 5 (2/65 = 0.0308); the
+/// smallest `w` that lifts it is `w > 61 * 2/65 = 1.877`. At `w = 2` the
+/// vertical rank 1 scores 2/61 = 0.0328: above the two-engine rank 5, tied
+/// with a two-engine rank 1 (then the coverage/rank/URL tie-breaks
+/// decide), below three engines at rank 1 (3/61).
+const VERTICAL_LEG_WEIGHT: f64 = 2.0;
+
+/// RRF weight of one leg of `provider`: [`VERTICAL_LEG_WEIGHT`] for a
+/// vertical, `1.0` for a general web engine.
+fn leg_weight(provider: SearchProvider) -> f64 {
+    match provider {
+        SearchProvider::CratesIo => VERTICAL_LEG_WEIGHT,
+        SearchProvider::DuckDuckGo
+        | SearchProvider::Startpage
+        | SearchProvider::Brave
+        | SearchProvider::Yahoo
+        | SearchProvider::Bing => 1.0,
+    }
+}
 
 /// Fold raw hits into deduped groups ranked by Reciprocal Rank Fusion (#110).
 /// Port of Omp `mergeSources` with the Query dimension added for multi-query
@@ -56,9 +79,10 @@ const RRF_K: f64 = 60.0;
 /// group the best rank adopts title + display URL, longest snippet wins,
 /// published date is first-win.
 ///
-/// Sort: RRF score desc (one `1 / (60 + rank)` term per distinct
+/// Sort: weighted RRF score desc (one `w / (60 + rank)` term per distinct
 /// (provider, query) leg that returned the URL, using that leg's best
-/// 1-based rank), then `queries.len()` desc, best rank asc, display URL asc.
+/// 1-based rank and its [`leg_weight`]), then `queries.len()` desc, best
+/// rank asc, display URL asc.
 /// `queries` is the validated fan-out input order: legs key by
 /// `(priority, query_index)`.
 pub fn merge_sources(results: Vec<SearchResult>) -> Vec<MergedResult> {
@@ -89,23 +113,25 @@ pub(crate) fn merge_sources_in_order(
         .collect()
 }
 
-/// One dedup group while folding: the result, the best 0-based rank of each
-/// (provider, query) leg that returned it, and the leg last folded in (legs
-/// are processed one at a time, so a repeat of `last_leg` is the same leg).
+/// One dedup group while folding: the result, the best 0-based rank and the
+/// weight of each (provider, query) leg that returned it, and the leg last
+/// folded in (legs are processed one at a time, so a repeat of `last_leg`
+/// is the same leg).
 struct Group {
     merged: MergedResult,
-    leg_ranks: Vec<usize>,
+    leg_ranks: Vec<(usize, f64)>,
     last_leg: (usize, usize),
 }
 
-/// `Σ 1 / (k + rank)` over 0-based `leg_ranks`, converted to the 1-based
-/// ranks RRF is defined on. Sorts `leg_ranks` ascending first so the float
-/// sum has one canonical order: permuting the input cannot change the bits.
-fn rrf_score(leg_ranks: &mut [usize]) -> f64 {
-    leg_ranks.sort_unstable();
+/// `Σ w / (k + rank)` over 0-based `(rank, weight)` legs, converted to the
+/// 1-based ranks RRF is defined on. Sorts the legs (rank, then weight)
+/// first so the float sum has one canonical order: permuting the input
+/// cannot change the bits.
+fn rrf_score(leg_ranks: &mut [(usize, f64)]) -> f64 {
+    leg_ranks.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
     leg_ranks
         .iter()
-        .map(|&rank| 1.0 / (RRF_K + rank as f64 + 1.0))
+        .map(|&(rank, weight)| weight / (RRF_K + rank as f64 + 1.0))
         .sum()
 }
 
@@ -164,7 +190,7 @@ fn merge_scored(results: Vec<SearchResult>, queries: &[String]) -> Vec<(MergedRe
                                 hit_count: 1,
                                 published_date: row.published_date.clone(),
                             },
-                            leg_ranks: vec![row.rank],
+                            leg_ranks: vec![(row.rank, leg_weight(row.provider))],
                             last_leg: leg,
                         },
                     );
@@ -172,10 +198,10 @@ fn merge_scored(results: Vec<SearchResult>, queries: &[String]) -> Vec<(MergedRe
                 Some(group) => {
                     if group.last_leg == leg {
                         if let Some(best) = group.leg_ranks.last_mut() {
-                            *best = (*best).min(row.rank);
+                            best.0 = best.0.min(row.rank);
                         }
                     } else {
-                        group.leg_ranks.push(row.rank);
+                        group.leg_ranks.push((row.rank, leg_weight(row.provider)));
                         group.last_leg = leg;
                     }
                     let merged = &mut group.merged;
@@ -546,15 +572,46 @@ mod tests {
     #[test]
     fn rrf_score_is_one_based_and_sum_order_independent() {
         assert_eq!(
-            rrf_score(&mut [0]),
+            rrf_score(&mut [(0, 1.0)]),
             1.0 / 61.0,
             "0-based rank 0 is RRF rank 1"
         );
-        assert_eq!(rrf_score(&mut [4, 4]), 1.0 / 65.0 + 1.0 / 65.0);
-        let baseline = rrf_score(&mut [0, 3, 6, 11, 29]).to_bits();
-        for mut ranks in permutations(&[0usize, 3, 6, 11, 29]) {
+        assert_eq!(
+            rrf_score(&mut [(4, 1.0), (4, 1.0)]),
+            1.0 / 65.0 + 1.0 / 65.0
+        );
+        let legs = [(0usize, 1.0), (3, 2.0), (6, 1.0), (11, 1.0), (29, 2.0)];
+        let baseline = rrf_score(&mut legs.clone()).to_bits();
+        for mut ranks in permutations(&legs) {
             assert_eq!(rrf_score(&mut ranks).to_bits(), baseline, "{ranks:?}");
         }
+    }
+
+    #[test]
+    fn vertical_weight_lifts_a_one_leg_rank_1_over_a_two_engine_rank_5() {
+        let vertical_top = rrf_score(&mut [(0, VERTICAL_LEG_WEIGHT)]);
+        let two_engines_rank_5 = rrf_score(&mut [(4, 1.0), (4, 1.0)]);
+        let two_engines_rank_1 = rrf_score(&mut [(0, 1.0), (0, 1.0)]);
+        let three_engines_rank_1 = rrf_score(&mut [(0, 1.0), (0, 1.0), (0, 1.0)]);
+        assert!(vertical_top > two_engines_rank_5, "2/61 > 2/65");
+        assert_eq!(vertical_top, two_engines_rank_1, "2/61 == 2/61");
+        assert!(vertical_top < three_engines_rank_1, "2/61 < 3/61");
+        // Unweighted, the same one-leg rank 1 is buried (1/61 < 2/65).
+        assert!(rrf_score(&mut [(0, 1.0)]) < two_engines_rank_5);
+    }
+
+    #[test]
+    fn cratesio_rank_1_is_not_buried_behind_a_two_engine_rank_5() {
+        use SearchProvider::{Brave, CratesIo, Yahoo};
+        // 1-based ranks (`leg_row`): two engines at rank 5, the vertical at 1.
+        let specs: Vec<LegSpec> = vec![
+            (Brave, "q", 5, "https://blog.example/bytes"),
+            (Yahoo, "q", 5, "https://blog.example/bytes"),
+            (CratesIo, "q", 1, "https://docs.rs/bytes"),
+        ];
+        let merged = merge_scored(rows_from(&specs), &["q".to_string()]);
+        assert_eq!(merged[0].0.display_url, "https://docs.rs/bytes");
+        assert_eq!(merged[0].0.providers, vec![CratesIo]);
     }
 
     #[test]

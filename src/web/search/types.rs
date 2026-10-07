@@ -40,6 +40,8 @@ pub const BING_MARKET_DEFAULT: &str = "en-US";
 
 /// One search engine the fan-out can query. The set is a closed enum, not a
 /// seam (ADR-0006: concrete by default, `trait` only on real variation).
+/// `CratesIo` is a vertical (#109): the crates.io search API, asked only
+/// for crate-shaped Queries (`cratesio::route`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SearchProvider {
     DuckDuckGo,
@@ -47,6 +49,7 @@ pub enum SearchProvider {
     Brave,
     Yahoo,
     Bing,
+    CratesIo,
 }
 
 impl SearchProvider {
@@ -64,9 +67,12 @@ impl SearchProvider {
     /// DDG: 14 unique URLs, Jaccard 0.167); then Yahoo (P@5 0.76, but the
     /// highest DDG overlap of any kept engine, Jaccard 0.70 -- reliable,
     /// low incremental breadth); then DuckDuckGo (P@5 0.76 baseline, the
-    /// long-standing default); Bing last (P@5 1.00 with `mkt` but only a
-    /// single live sample this session, fastest transport but the
-    /// heaviest wrapper to unwrap). Lower value iterates first.
+    /// long-standing default); Bing last among the web engines (P@5 1.00
+    /// with `mkt` but only a single live sample this session, fastest
+    /// transport but the heaviest wrapper to unwrap). The crates.io
+    /// vertical (#109) iterates after them: its weight in the fusion
+    /// (`dedup::leg_weight`), not its iteration order, decides its rank.
+    /// Lower value iterates first.
     pub fn priority(self) -> usize {
         match self {
             SearchProvider::Startpage => 0,
@@ -74,6 +80,7 @@ impl SearchProvider {
             SearchProvider::Yahoo => 2,
             SearchProvider::DuckDuckGo => 3,
             SearchProvider::Bing => 4,
+            SearchProvider::CratesIo => 5,
         }
     }
 
@@ -89,11 +96,12 @@ impl SearchProvider {
     ///   answered the one verification request with HTTP 429 (walled from
     ///   this IP), so it stays unverified rather than guessed.
     /// - Bing: none (no recency filter reachable without JS).
+    /// - crates.io: none (the search API has no date filter).
     pub fn applies_recency(self, recency: Recency) -> bool {
         match self {
             SearchProvider::DuckDuckGo | SearchProvider::Startpage => true,
             SearchProvider::Yahoo => recency != Recency::Year,
-            SearchProvider::Brave | SearchProvider::Bing => false,
+            SearchProvider::Brave | SearchProvider::Bing | SearchProvider::CratesIo => false,
         }
     }
 
@@ -106,6 +114,7 @@ impl SearchProvider {
             SearchProvider::Brave => "brave",
             SearchProvider::Yahoo => "yahoo",
             SearchProvider::Bing => "bing",
+            SearchProvider::CratesIo => "cratesio",
         }
     }
 }
