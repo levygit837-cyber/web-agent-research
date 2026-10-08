@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use super::claims;
 use super::golden::CATEGORIES;
 use super::judge::Grade;
 use super::metrics::RunRow;
@@ -127,7 +128,8 @@ fn share(part: usize, whole: usize) -> String {
 }
 
 /// Markdown table: one row per category in [`CATEGORIES`] order, then
-/// `all`.
+/// `all`; followed by the claim-precision table (#123) when any run was
+/// claim-judged.
 pub fn summary_table(rows: &[RunRow]) -> String {
     let mut out = String::from(
         "| category | runs | exit 0 | correct | incorrect | not attempted | nugget recall | exact quotes | citations | turns | tokens | wall s |\n\
@@ -159,6 +161,11 @@ pub fn summary_table(rows: &[RunRow]) -> String {
             cell(s.total_tokens, 0),
             cell(s.wall_secs, 0),
         ));
+    }
+    let claims = claims::table(rows);
+    if !claims.is_empty() {
+        out.push('\n');
+        out.push_str(&claims);
     }
     out
 }
@@ -204,6 +211,7 @@ mod tests {
                 nugget_recall: 0.5,
                 rationale: String::new(),
             }),
+            claims: None,
         }
     }
 

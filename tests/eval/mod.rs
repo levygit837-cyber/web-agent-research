@@ -7,10 +7,12 @@
 //! - [`transcript`]: the recording gateway proxy and the replaying stub.
 //! - [`runner`]: run the CLI once per goal and repeat, in a tape mode.
 //! - [`judge`]: SimpleQA grade plus per-nugget support, via the gateway.
+//! - [`claims`]: claim precision of the answer's bullets against the cited pages.
 //! - [`results`]: the results file and its per-category summary.
 //! - [`compare`]: paired comparison of two results files.
 //! - [`pack`]: gzip fixture dirs for the repo and unpack them for tests.
 
+pub mod claims;
 pub mod compare;
 pub mod golden;
 pub mod judge;

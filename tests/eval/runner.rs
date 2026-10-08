@@ -129,6 +129,7 @@ pub fn row(goal: &GoldenGoal, repeat: u32, output: &Output) -> Result<RunRow, St
             .then(|| last_error_line(&output.stderr))
             .flatten(),
         judge: None,
+        claims: None,
     })
 }
 

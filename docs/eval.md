@@ -68,12 +68,12 @@ Flags: `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--paus
 
 ## Metrics
 
-One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses` (replay misses, or live fetches in `replay-through`), `wall_ms`, and the rendered answer.
+One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses` (replay misses, or live fetches in `replay-through`), `wall_ms`, and the rendered answer. `eval judge` adds `judge` (nuggets, SimpleQA class) and `claims` (one verdict per bullet).
 
 ## Judge
 
 ```sh
-cargo run --example eval -- judge base.json [--model gpt-5.6-sol]
+cargo run --example eval -- judge base.json [--model gpt-5.6-sol] [--fixtures target/eval/fixtures]
 ```
 
 One gateway call per answered run, with the same gateway env and a pinned model (default `gpt-5.6-sol`, a different family from the agent's `claude-*`), recorded as `judge_model` in the results file. It returns:
@@ -83,6 +83,35 @@ One gateway call per answered run, with the same gateway env and a pinned model 
 
 Runs that exited non-zero are `NOT_ATTEMPTED` without a call. Judging is resumable and refuses a file already judged by another model.
 
+### Claim pass
+
+Recall asks whether the answer states the golden facts. The claim pass asks the converse: is every bullet true to the pages it cites? The Harness trusts each cited bullet, and the grounding check (`verification`) compares quotes and tokens, not claims, so it cannot stand in for this.
+
+After the nugget grade, each answered run gets one more call to the same pinned judge model (a second only when the reply does not parse):
+
+1. The rendered answer is split into bullets: the `-` lines under the `##` themes, before `Sources:`. The summary paragraph is not a bullet. The `(quote: "…")` suffix is cut off the bullet text, and the links in the bullet are its citations.
+2. Each link is matched, by normalized URL (`dedup_key`, on the requested or the final URL), to a page the run fetched, read from `<fixtures>/<goal id>/pages.jsonl` (`--fixtures`, the dir the run was recorded into or replayed from; `replay-through` appends its live fetches to that same file). The pages are sent whole; a page over 150k characters, or a call over 500k, is cut and marked.
+3. A bullet with no link, or only links to pages the run never fetched, is `uncited` with no judgement.
+4. The judge sees the question, the cited pages and the remaining bullets, and judges only from the page text, with one verdict per bullet:
+   - `supported`: the cited pages state the main point and every specific detail (names, numbers, versions, flags, signatures, code);
+   - `partly`: the main point is on the pages, a specific detail is not;
+   - `unsupported`: the main point is not on the cited pages;
+   - `contradicted`: a cited page says the opposite.
+
+Runs that exited non-zero have no answer and no claims. A `live` results file has no recorded pages, so `eval judge` skips the claim pass there and its claim metrics stay missing. A run already judged before the claim pass existed gets only the claim pass when judged again.
+
+Metrics, per run, as shares of all the run's bullets (so `uncited` counts against precision):
+
+| metric | meaning |
+|---|---|
+| `claim_precision` | `supported` / bullets |
+| `claim_partly` | `partly` / bullets |
+| `claim_unsupported` | `unsupported` / bullets |
+| `claim_contradicted` | `contradicted` / bullets |
+| `uncited_share` | `uncited` / bullets |
+
+The five shares add up to 1. `claim_precision` over checked bullets only is `supported / (1 - uncited_share)`.
+
 ## Summary and compare
 
 ```sh
@@ -90,7 +119,7 @@ cargo run --example eval -- summary base.json
 cargo run --example eval -- compare a.json b.json
 ```
 
-`summary` prints one Markdown row per category: exit-0 share, SimpleQA shares, mean nugget recall, pooled exact-quote share, and means of citations, turns, tokens and wall time.
+`summary` prints one Markdown row per category: exit-0 share, SimpleQA shares, mean nugget recall, pooled exact-quote share, and means of citations, turns, tokens and wall time. When any run has claims, a second table follows with the claim shares per category, pooled over bullets.
 
 `compare` pairs by goal: per metric, each goal in both files gives `d = mean(B over repeats) - mean(A over repeats)`, and the report is the mean of `d` with a two-sided 95% Student-t interval. A difference whose interval contains 0 is noise at this sample size.
 

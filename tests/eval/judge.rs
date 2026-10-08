@@ -117,6 +117,17 @@ impl Judge {
         })
     }
 
+    /// One free-form call with the pinned model: the raw reply text. The
+    /// claim pass (`claims`) parses its own reply shape.
+    pub async fn ask(&self, system: &str, user: &str) -> Result<String, String> {
+        let messages = [ChatMessage::system(system), ChatMessage::user(user)];
+        self.gateway
+            .chat(&messages)
+            .await
+            .map(|reply| reply.output)
+            .map_err(|err| format!("judge gateway: {err}"))
+    }
+
     /// Grade one answer; one retry when the reply does not parse.
     pub async fn grade(&self, goal: &Goal, answer: &str) -> Result<Judgement, String> {
         let messages = [
