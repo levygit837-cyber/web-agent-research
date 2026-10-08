@@ -7,39 +7,45 @@
       "nuggets": [
         {
           "text": "The async-std README states that async-std has been discontinued.",
+          "scope": "core",
           "url": "https://raw.githubusercontent.com/async-rs/async-std/main/README.md",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "The async-std README recommends that users switch to smol instead.",
+          "scope": "supporting",
           "url": "https://raw.githubusercontent.com/async-rs/async-std/main/README.md",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "async-std is described as providing an async version of the Rust standard library (std) with the same interfaces.",
+          "text": "async-std was created to demonstrate an async library that stays as close to `std` as possible.",
+          "scope": "supporting",
           "url": "https://raw.githubusercontent.com/async-rs/async-std/main/README.md",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Tokio provides a multithreaded, work-stealing based task scheduler.",
+          "scope": "core",
           "url": "https://raw.githubusercontent.com/tokio-rs/tokio/master/README.md",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Tokio's current MSRV (minimum supported Rust version) is 1.85, under a rolling policy of at least 6 months.",
-          "url": "https://raw.githubusercontent.com/tokio-rs/tokio/master/README.md",
-          "volatility": "fast",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "smol is described as a small and fast async runtime, and tokio-based libraries can be used with it via the async-compat adapter.",
+          "text": "smol is described as a small and fast async runtime.",
+          "scope": "supporting",
           "url": "https://raw.githubusercontent.com/smol-rs/smol/master/README.md",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Tokio-based libraries can be used with smol by applying the `async-compat` adapter.",
+          "scope": "supporting",
+          "url": "https://raw.githubusercontent.com/smol-rs/smol/master/README.md",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -48,40 +54,53 @@
       "goal": "Rust Rc vs Arc: when should I use each?",
       "nuggets": [
         {
-          "text": "Rc is a single-threaded reference-counting pointer.",
+          "text": "`Rc` is a single-threaded reference-counting pointer.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/rc/struct.Rc.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Arc is a thread-safe reference-counting pointer; its name stands for Atomically Reference Counted.",
+          "text": "`Arc` is a thread-safe reference-counting pointer.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Arc uses atomic operations for its reference counting, which are more expensive than ordinary memory accesses.",
+          "text": "`Arc` uses atomic operations for its reference counting, which are more expensive than ordinary memory accesses.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The docs recommend Rc<T> for lower overhead when reference-counted allocations are not shared between threads.",
+          "text": "The docs recommend `Rc<T>` for lower overhead when reference-counted allocations are not shared between threads.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Rc is !Send and !Sync, so the compiler rejects attempts to send an Rc between threads.",
-          "url": "https://doc.rust-lang.org/std/rc/struct.Rc.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "Arc<T> implements Send and Sync only if T implements Send and Sync.",
+          "text": "The compiler rejects attempts to send an `Rc<T>` between threads.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`Arc<T>` implements `Send` and `Sync` only if `T` implements `Send` and `Sync`.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`Arc` stands for Atomically Reference Counted.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/sync/struct.Arc.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -90,40 +109,67 @@
       "goal": "PostgreSQL json vs jsonb: what are the differences?",
       "nuggets": [
         {
-          "text": "The json type stores an exact copy of the input text, which processing functions must reparse on each execution.",
+          "text": "The `json` type stores an exact copy of the input text.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "jsonb is stored in a decomposed binary format, making it slightly slower to input but significantly faster to process.",
+          "text": "Processing functions must reparse `json` data on each execution.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "jsonb supports indexing, which the docs call a significant advantage.",
+          "text": "`jsonb` data is stored in a decomposed binary format.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "json preserves semantically-insignificant white space and the order of object keys; jsonb does not preserve white space or key order.",
+          "text": "`jsonb` is slightly slower to input than `json` due to conversion overhead.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "jsonb does not keep duplicate object keys; if duplicates are given in the input, only the last value is kept.",
+          "text": "`jsonb` is significantly faster to process than `json` because no reparsing is needed.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The docs say most applications should prefer storing JSON data as jsonb unless they have specialized needs such as legacy assumptions about key ordering.",
+          "text": "`jsonb` supports indexing, which the docs call a significant advantage.",
+          "scope": "core",
+          "url": "https://www.postgresql.org/docs/current/datatype-json.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`jsonb` does not preserve the order of object keys.",
+          "scope": "core",
+          "url": "https://www.postgresql.org/docs/current/datatype-json.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`jsonb` keeps only the last value when the input has duplicate object keys.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/datatype-json.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The docs say most applications should prefer storing JSON data as `jsonb` unless they have specialized needs.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/datatype-json.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -132,40 +178,74 @@
       "goal": "HTTP/2 vs HTTP/3: what differs in the transport and header compression?",
       "nuggets": [
         {
-          "text": "HTTP/3 maps HTTP semantics over the QUIC transport protocol, while HTTP/2 has been used primarily with TLS over TCP.",
+          "text": "HTTP/3 maps HTTP semantics over the QUIC transport protocol.",
+          "scope": "core",
           "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "HTTP/2 has been used primarily with TLS over TCP.",
+          "scope": "core",
+          "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "HTTP/3 replaces HTTP/2's HPACK header compression with QPACK.",
+          "scope": "core",
           "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "QPACK uses separate unidirectional streams to modify and track field table state.",
+          "scope": "core",
           "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "HTTP/3 clients select the protocol via the \"h3\" ALPN token in the TLS handshake, or discover it via Alt-Svc.",
+          "text": "HPACK relies on in-order transmission of compressed field sections, a guarantee QUIC does not provide.",
+          "scope": "supporting",
           "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "If UDP is blocked and a QUIC connection fails, HTTP/3 clients SHOULD attempt a TCP-based version of HTTP.",
+          "text": "HTTP/3 is selected with the \"h3\" ALPN token during the TLS handshake.",
+          "scope": "supporting",
           "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "HTTP/2 uses binary message framing and allows multiple concurrent exchanges interleaved on the same connection.",
+          "text": "An origin can advertise an HTTP/3 endpoint through the `Alt-Svc` response header field.",
+          "scope": "supporting",
+          "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "If a QUIC connection fails because UDP is blocked, HTTP/3 clients SHOULD attempt a TCP-based version of HTTP.",
+          "scope": "supporting",
+          "url": "https://www.rfc-editor.org/rfc/rfc9114.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "HTTP/2 uses binary message framing.",
+          "scope": "supporting",
           "url": "https://www.rfc-editor.org/rfc/rfc9113.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "HTTP/2 allows interleaving of messages from multiple exchanges on the same connection.",
+          "scope": "supporting",
+          "url": "https://www.rfc-editor.org/rfc/rfc9113.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -174,40 +254,53 @@
       "goal": "git merge vs git rebase: how do they integrate branches and when should I avoid rebase?",
       "nuggets": [
         {
-          "text": "git merge performs a three-way merge using the two branch-tip snapshots and their common ancestor.",
+          "text": "When histories have diverged, git merge performs a three-way merge using the two branch-tip snapshots and their common ancestor.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "A merge commit is special in that it has more than one parent.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "If the branch being merged is directly ahead of the current commit, git merge just moves the pointer forward (a fast-forward).",
+          "text": "If the branch being merged is directly ahead of the current commit, git merge just moves the branch pointer forward (a fast-forward).",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "git rebase takes the changes committed on one branch and replays them on top of another branch.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Rebasing produces a linear-looking history, as if all the work happened in series.",
+          "text": "A rebased branch has a linear-looking history, as if all the work happened in series.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Rebasing abandons the existing commits and creates new commits that are similar but different.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Do not rebase commits that exist outside your repository and that people may have based work on.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -216,40 +309,60 @@
       "goal": "Python list vs tuple: mutability and typical use",
       "nuggets": [
         {
-          "text": "Tuples are immutable; assigning to an item raises TypeError: 'tuple' object does not support item assignment.",
+          "text": "Python tuples are immutable.",
+          "scope": "core",
           "url": "https://docs.python.org/3/tutorial/datastructures.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Lists are mutable.",
+          "text": "Python lists are mutable.",
+          "scope": "core",
           "url": "https://docs.python.org/3/tutorial/datastructures.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Tuples usually contain a heterogeneous sequence of elements accessed via unpacking or indexing.",
+          "text": "Assigning to an item of a tuple raises `TypeError`.",
+          "scope": "supporting",
           "url": "https://docs.python.org/3/tutorial/datastructures.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "List elements are usually homogeneous and accessed by iterating over the list.",
+          "text": "Tuples usually contain a heterogeneous sequence of elements.",
+          "scope": "core",
           "url": "https://docs.python.org/3/tutorial/datastructures.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "List elements are usually homogeneous.",
+          "scope": "core",
+          "url": "https://docs.python.org/3/tutorial/datastructures.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Tuple elements are usually accessed via unpacking or indexing.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/tutorial/datastructures.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "List elements are usually accessed by iterating over the list.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/tutorial/datastructures.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "A tuple can contain mutable objects, such as lists.",
+          "scope": "supporting",
           "url": "https://docs.python.org/3/tutorial/datastructures.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "A tuple is created by comma-separated values (tuple packing), e.g. t = 12345, 54321, 'hello!'.",
-          "url": "https://docs.python.org/3/tutorial/datastructures.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -258,40 +371,53 @@
       "goal": "Rust HashMap vs BTreeMap: ordering, key requirements and when to pick which",
       "nuggets": [
         {
-          "text": "HashMap iterates its keys and entries in arbitrary order.",
+          "text": "`HashMap` iterates its keys and entries in arbitrary order.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/collections/struct.HashMap.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "HashMap keys must implement the Eq and Hash traits.",
+          "text": "`HashMap` keys must implement the `Eq` and `Hash` traits.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/collections/struct.HashMap.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "HashMap's hash table is a Rust port of Google's SwissTable.",
-          "url": "https://doc.rust-lang.org/std/collections/struct.HashMap.html",
-          "volatility": "slow",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "HashMap's default hashing algorithm is currently SipHash 1-3, though this is subject to change.",
-          "url": "https://doc.rust-lang.org/std/collections/struct.HashMap.html",
-          "volatility": "slow",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "BTreeMap is an ordered map based on a B-Tree that stores entries in key order, so keys must implement Ord.",
+          "text": "`BTreeMap` stores its entries in key order.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/collections/struct.BTreeMap.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The std::collections guide says to use a BTreeMap when you want a map sorted by its keys or to get a range of entries on demand.",
+          "text": "`BTreeMap` keys must implement the `Ord` trait.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/std/collections/struct.BTreeMap.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The std::collections guide says to use a `BTreeMap` when you want a map sorted by its keys.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/collections/index.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The std::collections guide says to use a `BTreeMap` when you want to get a range of entries on demand.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/collections/index.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`BTreeMap` is an ordered map based on a B-Tree.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/collections/struct.BTreeMap.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -300,34 +426,60 @@
       "goal": "Rust Mutex vs RwLock: differences in locking and poisoning",
       "nuggets": [
         {
-          "text": "An RwLock allows a number of readers or at most one writer at any point in time.",
+          "text": "An `RwLock` allows a number of readers or at most one writer at any point in time.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.RwLock.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A Mutex does not distinguish between readers and writers that acquire the lock.",
+          "text": "A `Mutex` does not distinguish between readers and writers that acquire the lock.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.RwLock.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "RwLock does not guarantee any particular priority policy; it depends on the underlying operating system's implementation.",
+          "text": "`RwLock` does not guarantee any particular priority policy, which depends on the underlying operating system.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/std/sync/struct.RwLock.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A Mutex becomes poisoned if the thread holding it panics, and lock and try_lock then return a Result indicating whether it is poisoned.",
+          "text": "A `Mutex` becomes poisoned if the thread holding it panics.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.Mutex.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Mutex<T> is Sync when T: Send, while RwLock<T> is Sync only when T: Send + Sync.",
+          "text": "The `lock` and `try_lock` methods of a `Mutex` return a `Result` indicating whether it is poisoned.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/std/sync/struct.Mutex.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "An `RwLock` can only be poisoned if a panic occurs while it is locked exclusively in write mode.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/std/sync/struct.RwLock.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`Mutex<T>` is `Sync` when `T: Send`.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/sync/struct.Mutex.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`RwLock<T>` is `Sync` only when `T: Send + Sync`.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/std/sync/struct.RwLock.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     }

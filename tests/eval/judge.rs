@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use web_agent_research::llm::{ChatMessage, Gateway, GatewayConfig};
 
-use super::golden::Goal;
+use super::golden::{Goal, Scope};
 
 /// Pinned judge model id (OpenAI family; the agent runs on `claude-*`).
 pub const DEFAULT_JUDGE_MODEL: &str = "gpt-5.6-sol";
@@ -31,24 +31,53 @@ pub struct Judgement {
     pub nuggets: Vec<bool>,
     /// Supported nuggets / all nuggets.
     pub nugget_recall: f64,
+    /// Supported `core` nuggets / `core` nuggets: the headline recall.
+    pub core_recall: f64,
+    /// Supported `supporting` nuggets / `supporting` nuggets; `None` for a
+    /// goal with no supporting nugget.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supporting_recall: Option<f64>,
     /// The judge's one-line reason; empty for a run with no answer.
     pub rationale: String,
 }
 
 impl Judgement {
+    /// A judgement of `goal` from one flag per nugget; the recalls are
+    /// derived from the flags and the scopes in the golden file.
+    pub fn new(goal: &Goal, grade: Grade, nuggets: Vec<bool>, rationale: String) -> Self {
+        let recall = |scope: Option<Scope>| {
+            let (mut hit, mut all) = (0usize, 0usize);
+            for (nugget, flag) in goal.nuggets.iter().zip(&nuggets) {
+                if scope.is_none_or(|s| nugget.scope == s) {
+                    all += 1;
+                    hit += usize::from(*flag);
+                }
+            }
+            (all > 0).then(|| hit as f64 / all as f64)
+        };
+        Self {
+            grade,
+            nugget_recall: recall(None).unwrap_or(0.0),
+            core_recall: recall(Some(Scope::Core)).unwrap_or(0.0),
+            supporting_recall: recall(Some(Scope::Supporting)),
+            nuggets,
+            rationale,
+        }
+    }
+
     /// A run that produced no answer (non-zero exit): never sent to the
     /// judge, graded NOT_ATTEMPTED with no nugget supported.
     pub fn no_answer(goal: &Goal) -> Self {
-        Self {
-            grade: Grade::NotAttempted,
-            nuggets: vec![false; goal.nuggets.len()],
-            nugget_recall: 0.0,
-            rationale: String::new(),
-        }
+        Self::new(
+            goal,
+            Grade::NotAttempted,
+            vec![false; goal.nuggets.len()],
+            String::new(),
+        )
     }
 }
 
-const SYSTEM: &str = "You grade answers of a web research agent against a list of reference facts (nuggets). You are strict and literal. You reply with one JSON object and nothing else.";
+const SYSTEM: &str = "You grade answers of a web research agent against a list of reference facts (nuggets), each one atomic claim. You are strict and literal. You reply with one JSON object and nothing else.";
 
 /// The grading prompt for one answer.
 pub fn prompt(goal: &Goal, answer: &str) -> String {
@@ -79,8 +108,9 @@ struct Reply {
 }
 
 /// Parse the judge's reply: the outermost `{…}` of `text`, with exactly
-/// one flag per nugget.
-pub fn parse(text: &str, nugget_count: usize) -> Result<Judgement, String> {
+/// one flag per nugget of `goal`.
+pub fn parse(text: &str, goal: &Goal) -> Result<Judgement, String> {
+    let nugget_count = goal.nuggets.len();
     let start = text.find('{').ok_or("judge reply has no JSON object")?;
     let end = text.rfind('}').ok_or("judge reply has no JSON object")?;
     let reply: Reply = serde_json::from_str(&text[start..=end])
@@ -91,13 +121,12 @@ pub fn parse(text: &str, nugget_count: usize) -> Result<Judgement, String> {
             reply.nuggets.len()
         ));
     }
-    let supported = reply.nuggets.iter().filter(|flag| **flag).count();
-    Ok(Judgement {
-        grade: reply.grade,
-        nugget_recall: supported as f64 / nugget_count.max(1) as f64,
-        nuggets: reply.nuggets,
-        rationale: reply.rationale,
-    })
+    Ok(Judgement::new(
+        goal,
+        reply.grade,
+        reply.nuggets,
+        reply.rationale,
+    ))
 }
 
 /// A gateway client pinned to `model`.
@@ -141,7 +170,7 @@ impl Judge {
                 .chat(&messages)
                 .await
                 .map_err(|err| format!("judge gateway: {err}"))?;
-            match parse(&reply.output, goal.nuggets.len()) {
+            match parse(&reply.output, goal) {
                 Ok(judgement) => return Ok(judgement),
                 Err(err) => last = err,
             }
@@ -159,34 +188,55 @@ mod tests {
         Goal {
             id: "g-01".to_owned(),
             goal: "What is X?".to_owned(),
-            nuggets: ["X is a crate.", "X needs tokio."]
-                .into_iter()
-                .map(|text| Nugget {
-                    text: text.to_owned(),
-                    url: "https://x.example/".to_owned(),
-                    volatility: Volatility::Slow,
-                    verified_on: "2026-10-05".to_owned(),
-                })
-                .collect(),
+            nuggets: [
+                ("X is a crate.", Scope::Core),
+                ("X needs tokio.", Scope::Core),
+                ("X is old.", Scope::Supporting),
+            ]
+            .into_iter()
+            .map(|(text, scope)| Nugget {
+                text: text.to_owned(),
+                scope,
+                url: "https://x.example/".to_owned(),
+                volatility: Volatility::Slow,
+                verified_on: "2026-10-08".to_owned(),
+            })
+            .collect(),
         }
     }
 
     #[test]
-    fn a_fenced_reply_parses_and_counts_recall() {
-        let text = "```json\n{\"nuggets\": [true, false], \"grade\": \"CORRECT\", \"rationale\": \"ok\"}\n```";
-        let judgement = parse(text, 2).expect("parses");
+    fn a_fenced_reply_parses_and_counts_recall_per_scope() {
+        let text = "```json\n{\"nuggets\": [true, false, true], \"grade\": \"CORRECT\", \"rationale\": \"ok\"}\n```";
+        let judgement = parse(text, &goal()).expect("parses");
         assert_eq!(judgement.grade, Grade::Correct);
-        assert_eq!(judgement.nuggets, [true, false]);
-        assert_eq!(judgement.nugget_recall, 0.5);
+        assert_eq!(judgement.nuggets, [true, false, true]);
+        assert_eq!(judgement.nugget_recall, 2.0 / 3.0);
+        assert_eq!(judgement.core_recall, 0.5);
+        assert_eq!(judgement.supporting_recall, Some(1.0));
+    }
+
+    #[test]
+    fn a_goal_without_supporting_nuggets_has_no_supporting_recall() {
+        let mut core_only = goal();
+        core_only.nuggets.truncate(2);
+        let judgement = Judgement::new(&core_only, Grade::Correct, vec![true, true], String::new());
+        assert_eq!(judgement.core_recall, 1.0);
+        assert_eq!(judgement.supporting_recall, None);
     }
 
     #[test]
     fn a_wrong_flag_count_or_grade_is_rejected() {
-        assert!(parse("{\"nuggets\": [true], \"grade\": \"CORRECT\"}", 2).is_err());
-        assert!(parse("{\"nuggets\": [true, true], \"grade\": \"MAYBE\"}", 2).is_err());
+        let goal = goal();
+        assert!(parse("{\"nuggets\": [true], \"grade\": \"CORRECT\"}", &goal).is_err());
+        assert!(parse(
+            "{\"nuggets\": [true, true, true], \"grade\": \"MAYBE\"}",
+            &goal
+        )
+        .is_err());
         let judgement = parse(
-            "{\"nuggets\": [false, false], \"grade\": \"NOT_ATTEMPTED\"}",
-            2,
+            "{\"nuggets\": [false, false, false], \"grade\": \"NOT_ATTEMPTED\"}",
+            &goal,
         )
         .expect("ok");
         assert_eq!(judgement.grade, Grade::NotAttempted);
@@ -196,11 +246,12 @@ mod tests {
     fn the_prompt_numbers_every_nugget_and_a_missing_answer_is_not_attempted() {
         let text = prompt(&goal(), "X is a crate.");
         assert!(
-            text.contains("1. X is a crate.\n2. X needs tokio.\n"),
+            text.contains("1. X is a crate.\n2. X needs tokio.\n3. X is old.\n"),
             "{text}"
         );
         let judgement = Judgement::no_answer(&goal());
         assert_eq!(judgement.grade, Grade::NotAttempted);
-        assert_eq!(judgement.nuggets, [false, false]);
+        assert_eq!(judgement.nuggets, [false, false, false]);
+        assert_eq!(judgement.core_recall, 0.0);
     }
 }

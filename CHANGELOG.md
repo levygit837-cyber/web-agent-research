@@ -31,9 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fetch` serves `crates.io/crates/<name>` from the sparse index and API as a markdown block (versions, yanked, `rust_version`, links), without Obscura (#109).
 - eval: `WAR_EVAL_REPLAY_THROUGH=<dir>` and `eval run --mode replay-through` replay `search`, fetch unrecorded pages live and append them to `pages.jsonl` (#129).
 - eval: `eval judge` adds a claim pass that checks each bullet against its cited pages; `claim_precision`, `claim_partly`, `claim_unsupported`, `claim_contradicted`, `uncited_share` in `summary` and `compare` (#123).
+- eval: golden v2: every nugget is one atomic claim with a `scope` (`core` or `supporting`) written in `tests/golden/*.json`, example-bound values are rewritten to the general fact, and `golden::load` rejects compound nuggets and goals with fewer than 2 `core` nuggets (#122).
+- eval: `core_recall` (the headline) and `supporting_recall` beside `nugget_recall` in `summary` and `compare` (#122).
 
 ### Changed
 
+- eval: results files are `format: 2`; `summary`, `compare` and `judge` reject a file judged against golden v1 with an error naming both versions, and `docs/eval/baseline-2026-10-07.json` is judged again against v2 (#122).
+- eval: `docs/eval.md` states that a decision needs K>=3 paired runs; `eval run` already defaults to `--repeats 3` (#122).
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 - A crates.io Hit weighs 2 in the rank fusion, so its rank 1 is not buried behind a URL two engines return at rank 5 (#109).
