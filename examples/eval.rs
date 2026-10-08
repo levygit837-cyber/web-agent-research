@@ -37,10 +37,12 @@ struct Cli {
 enum Command {
     /// Run the golden set; resumes `--out` when it exists.
     Run {
-        /// record (live, taped), replay (taped tools, live gateway) or live.
+        /// record (live, taped), replay (taped tools, live gateway),
+        /// replay-through (replay, but fetch misses go live and are taped)
+        /// or live.
         #[arg(long)]
         mode: Mode,
-        /// Fixture root, one dir per goal id (record/replay).
+        /// Fixture root, one dir per goal id (record/replay/replay-through).
         #[arg(long, default_value = "target/eval/fixtures")]
         fixtures: PathBuf,
         /// Repeats per goal.
@@ -156,7 +158,7 @@ async fn run(
         extra_args,
     };
     let pause = Duration::from_secs(pause_secs);
-    let touches_web = matches!(mode, Mode::Record | Mode::Live);
+    let touches_web = matches!(mode, Mode::Record | Mode::ReplayThrough | Mode::Live);
     let mut first = true;
     for goal in &selected {
         for repeat in 1..=repeats {

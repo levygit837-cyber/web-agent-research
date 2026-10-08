@@ -18,7 +18,9 @@
 //!
 //! Eval record/replay (#107): an optional [`Tape`] records what `search`
 //! and `fetch` returned, or serves both from a fixture dir instead of the
-//! network. Eval-only, selected by env in `run_research`; see `tape.rs`.
+//! network, or (replay-through, #129) serves `search` from it and fetches
+//! live only the pages it lacks. Eval-only, selected by env in
+//! `run_research`; see `tape.rs`.
 
 use std::collections::HashMap;
 #[cfg(test)]
@@ -275,8 +277,12 @@ impl ToolRegistry {
 
     /// One `search` call: live (recorded when taping), or replayed.
     async fn search(&self, searcher: &Searcher, input: SearchInput) -> SearchOutcome {
-        if let Some(Tape::Replay(fixture)) = &self.tape {
-            return fixture.search(&input);
+        if let Some(outcome) = self
+            .tape
+            .as_ref()
+            .and_then(|tape| tape.replayed_search(&input))
+        {
+            return outcome;
         }
         let queries = match &self.tape {
             Some(Tape::Record(_)) => input.queries.clone(),
@@ -305,7 +311,8 @@ impl ToolRegistry {
     }
 
     /// One network `fetch` of a page not yet known this run: live
-    /// (recorded when taping), or replayed. `Err` carries the model-facing
+    /// (recorded when taping), or replayed; replay-through fetches live
+    /// only what the fixture lacks. `Err` carries the model-facing
     /// reason and its [`FailureKind`].
     async fn fetch(
         &self,
@@ -313,8 +320,8 @@ impl ToolRegistry {
         url: &str,
         fetcher: &Fetcher,
     ) -> Result<Evidence, (String, FailureKind)> {
-        if let Some(Tape::Replay(fixture)) = &self.tape {
-            return fixture.fetch(url);
+        if let Some(replayed) = self.tape.as_ref().and_then(|tape| tape.replayed_fetch(url)) {
+            return replayed;
         }
         let outcome = fetch_tool(args, fetcher).await.map_err(|err| match err {
             FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. } => (
@@ -323,8 +330,8 @@ impl ToolRegistry {
             ),
             err => (format!("fetch failed: {err}"), FailureKind::Execution),
         });
-        if let Some(Tape::Record(recorder)) = &self.tape {
-            recorder.fetch(url, &outcome);
+        if let Some(tape) = &self.tape {
+            tape.record_fetch(url, &outcome);
         }
         outcome
     }
@@ -425,4 +432,5 @@ mod tests {
     mod dispatch;
     mod helpers;
     mod parts;
+    mod replay_through;
 }
