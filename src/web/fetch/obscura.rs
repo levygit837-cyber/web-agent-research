@@ -151,9 +151,16 @@ impl Obscura {
             return Err(FetchError::EmptyBody { url: normalized });
         }
 
+        let markdown = super::clean::clean_markdown(&markdown);
+        if super::interstitial::is_interstitial_markdown(&markdown) {
+            return Err(FetchError::Blocked {
+                url: normalized,
+                reason: "Cloudflare security-verification interstitial after rendering".into(),
+            });
+        }
         Ok(FetchedMarkdown {
             url: normalized,
-            markdown: super::clean::clean_markdown(&markdown),
+            markdown,
         })
     }
 }

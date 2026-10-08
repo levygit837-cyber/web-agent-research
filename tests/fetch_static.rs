@@ -71,6 +71,29 @@ fn challenge_body() -> String {
     "<html><title>Just a moment...</title><div class=\"cf-chl-widget\"></div></html>".to_owned()
 }
 
+/// The recorded Cloudflare "security verification" interstitial (#126), served
+/// as plain HTML with HTTP 200 and none of `CHALLENGE_MARKERS`.
+fn verification_body() -> String {
+    "<html><body><h1>stackoverflow.com</h1><h2>Performing security verification</h2>\
+     <p>This website uses a security service to protect against malicious bots. This page is \
+     displayed while the website verifies you are not a bot.</p>\
+     <h2>Verification successful. Waiting for stackoverflow.com to respond</h2>\
+     <p>Ray ID: <code>a45f0daa58bc0675</code></p>\
+     <p>Performance and Security by <a href=\"https://www.cloudflare.com\">Cloudflare</a></p>\
+     </body></html>"
+        .to_owned()
+}
+
+/// A long real article that quotes the interstitial phrases.
+fn verification_article_body() -> String {
+    format!(
+        "<html><body><h1>How bot walls work</h1><p>Cloudflare shows \"Performing security \
+         verification\" and then \"Verification successful. Waiting for example.com to \
+         respond\".</p><p>{}</p></body></html>",
+        "Bot mitigation services score each request before serving the page. ".repeat(40)
+    )
+}
+
 /// A response body, wired as either a length-prefixed or chunked HTTP entity.
 enum Body {
     Plain(String),
@@ -122,6 +145,18 @@ fn route(path: &str) -> RouteResponse {
             content_type: "text/html; charset=utf-8",
             extra_headers: &[],
             body: Body::Plain(noisy_article_html()),
+        },
+        "/verify" | "/interstitial" => RouteResponse {
+            status: 200,
+            content_type: "text/html",
+            extra_headers: &[],
+            body: Body::Plain(verification_body()),
+        },
+        "/verify-article" => RouteResponse {
+            status: 200,
+            content_type: "text/html",
+            extra_headers: &[],
+            body: Body::Plain(verification_article_body()),
         },
         "/cf" => RouteResponse {
             status: 200,
@@ -388,6 +423,36 @@ async fn not_found_is_http_error_without_fallback() {
         panic!("expected Http, got {err}");
     };
     assert_eq!(detail, "HTTP 404");
+}
+
+#[tokio::test]
+async fn static_verification_interstitial_hands_over_to_obscura() {
+    let base = serve().await;
+    let (page, path) = fetcher().fetch(&format!("{base}/verify")).await.unwrap();
+    assert_eq!(path, FetchPath::Browser);
+    assert!(page.markdown.starts_with("# Title"), "{}", page.markdown);
+}
+
+#[tokio::test]
+async fn browser_verification_interstitial_is_blocked() {
+    let base = serve().await;
+    // Static serves the interstitial, the fixture renders the same text.
+    let err = fetcher()
+        .fetch(&format!("{base}/interstitial"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, FetchError::Blocked { .. }), "{err}");
+}
+
+#[tokio::test]
+async fn long_article_quoting_the_verification_phrase_is_content() {
+    let base = serve().await;
+    let (page, path) = fetcher()
+        .fetch(&format!("{base}/verify-article"))
+        .await
+        .unwrap();
+    assert_eq!(path, FetchPath::Static);
+    assert!(page.markdown.contains("How bot walls work"));
 }
 
 #[tokio::test]
