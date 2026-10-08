@@ -76,6 +76,13 @@ pub fn parse_search_args(args: &Value) -> Result<SearchInput, String> {
                     .ok_or_else(|| format!("Provide queries as strings; got {item}."))
             })
             .collect::<Result<Vec<_>, _>>()?,
+        // Models sometimes send the array as a JSON-encoded string (#128).
+        Some(Value::String(text)) => serde_json::from_str::<Vec<String>>(text).map_err(|_| {
+            format!(
+                "Provide queries as an array of strings; got {}.",
+                Value::String(text.clone())
+            )
+        })?,
         Some(other) => {
             return Err(format!(
                 "Provide queries as an array of strings; got {other}."
@@ -229,6 +236,9 @@ mod tests {
             json!({"query": "old shape"}),
             json!({"queries": []}),
             json!({"queries": "not an array"}),
+            json!({"queries": "{\"a\": \"b\"}"}),
+            json!({"queries": "[1, 2]"}),
+            json!({"queries": "[]"}),
             json!({"queries": [1]}),
             json!({"queries": ["a"], "recency": "fortnight"}),
             json!({"queries": ["a"], "top_k": -1}),
@@ -236,6 +246,15 @@ mod tests {
         ] {
             assert!(parse_search_args(&bad).is_err(), "{bad} must be rejected");
         }
+    }
+
+    #[test]
+    fn parse_search_args_accepts_json_encoded_queries_array() {
+        let array = parse_search_args(&json!({"queries": ["a", " b "]})).expect("array");
+        let encoded = parse_search_args(&json!({"queries": "[\"a\", \" b \"]"})).expect("encoded");
+        assert_eq!(encoded.queries, array.queries);
+        let too_many = format!("[{}]", ["\"q\""; 9].join(","));
+        assert!(parse_search_args(&json!({ "queries": too_many })).is_err());
     }
 
     #[test]
