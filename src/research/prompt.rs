@@ -43,7 +43,7 @@ const EVIDENCE_RULES_CLOSE: &str = "</evidence_rules>\n";
 fn size_shape(size: SynthesisSize) -> &'static str {
     match size {
         SynthesisSize::Small => "a 1-2 sentence summary and 1 theme with 2-4 bullets",
-        SynthesisSize::Medium => "a 2-3 sentence summary and 2-4 themes with 2-5 bullets each",
+        SynthesisSize::Medium => "a 2-4 sentence summary and 3-5 themes with 3-6 bullets each",
         SynthesisSize::Large | SynthesisSize::Deep => {
             "a 3-5 sentence summary and 3-6 themes with 3-6 bullets each"
         }
@@ -54,7 +54,7 @@ fn size_shape(size: SynthesisSize) -> &'static str {
 fn pages_target(size: SynthesisSize) -> &'static str {
     match size {
         SynthesisSize::Small => "1-2",
-        SynthesisSize::Medium => "2-4",
+        SynthesisSize::Medium => "3-5",
         SynthesisSize::Large | SynthesisSize::Deep => "3-6",
     }
 }
@@ -65,8 +65,8 @@ fn workflow(size: SynthesisSize, budget: &LoopBudget) -> String {
 1. Search: call `search` once with 2-4 queries that approach the goal from different angles (for example the exact error text, the crate or project name, and the question in plain words).
 2. Choose: pick the Hits most likely to hold the answer first-hand: official documentation and references (docs.rs for a Rust crate), the project's own site or repository, release notes and changelogs, and standards; then well-known Q&A sites and in-depth articles. For topics that change over time, prefer the newest pages. Skip mirrors of a page you already have, listicles, and Hits whose snippet is off-topic.
 3. Fetch: call `fetch` on the chosen Hits, up to {tools} calls in one turn when they do not depend on each other. A {size} answer needs {pages} fetched pages.
-4. Check: read what came back. Search or fetch again only to fill a gap you can name, such as a detail the fetched pages do not cover or a claim that only one page makes.
-5. Answer: reply with no tool call and the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags. That reply ends the run.
+4. Check: read what came back, then list the goal's explicit sub-questions, numbered: one for each part the goal asks for (each item of an enumeration, each clause it joins with a conjunction or a comma, each command, option, version or comparison it names). Beside each, write the fetched page and a few words of the passage that answers it, or `gap`. The list is for you: keep it outside the answer tags. Search or fetch again only to fill a gap you can name: a sub-question with no passage, a detail the fetched pages do not cover, or a claim that only one page makes. Fetch a Hit you skipped, or search again naming the missing part.
+5. Answer: reply with no tool call and the final answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags. Cover every sub-question on the list; one that is still a `gap` is stated as unverified, never dropped. That reply ends the run.
 </workflow>
 ",
         tools = budget.max_tools_per_turn.max(1),
@@ -134,6 +134,7 @@ In the reply that has no tool call, put the final answer inside {ANSWER_OPEN}{AN
 "
     );
     if reads_pages {
+        text.push_str("- Cover every explicit sub-question of the goal: the size below sets how much to write on each, never which ones to leave out. If the fetched pages do not answer one, say in the summary that it is unverified and what you looked for; never leave it out and never answer it from memory.\n");
         text.push_str("- Cite with inline markdown links `[page title](url)` in the summary and in the bullets they support, using the URL on each fetched page's `Source:` line. Every theme should cite at least one fetched page.\n");
         text.push_str("- End every bullet that cites a page with one short quote copied word for word from that page, in the form `(quote: \"…\")`: a sentence or phrase of 5-25 words that states the bullet's point. Copy it exactly, numbers and names included; never paraphrase, translate or join pieces from different places. The quote is checked against the page, and a bullet whose quote is not on the page is flagged to the caller as unsupported.\n");
     }
@@ -275,5 +276,40 @@ mod tests {
             &budget,
         );
         assert!(!search_only.contains("(quote:"), "{search_only}");
+    }
+
+    /// #124: a run that reads pages lists the goal's sub-questions before it
+    /// answers and covers every one, or states it unverified. The rule
+    /// needs `fetch`, so a run without it never sees it.
+    #[test]
+    fn every_sub_question_is_covered_or_stated_unverified() {
+        let budget = LoopBudget::default();
+        let full = build_system_prompt(
+            &[
+                (SEARCH_TOOL_NAME, "find pages"),
+                (FETCH_TOOL_NAME, "read one"),
+            ],
+            SynthesisSize::Medium,
+            &budget,
+        );
+        let start = full.find("<workflow>").expect("workflow");
+        let end = full.find("</workflow>").expect("closed workflow");
+        let workflow = &full[start..end];
+        assert!(workflow.contains("explicit sub-questions"), "{workflow}");
+        assert!(workflow.contains("`gap`"), "{workflow}");
+        assert!(
+            workflow.contains("stated as unverified, never dropped"),
+            "{workflow}"
+        );
+        let format = &full[full.find("<answer_format>").expect("answer format")..];
+        assert!(
+            format.contains("Cover every explicit sub-question"),
+            "{format}"
+        );
+        assert!(format.contains("is unverified"), "{format}");
+        for roster in [vec![], vec![(SEARCH_TOOL_NAME, "find pages")]] {
+            let prompt = build_system_prompt(&roster, SynthesisSize::Medium, &budget);
+            assert!(!prompt.contains("sub-question"), "{prompt}");
+        }
     }
 }
