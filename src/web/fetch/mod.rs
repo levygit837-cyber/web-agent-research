@@ -7,6 +7,7 @@ pub mod error;
 pub mod evidence;
 pub(crate) mod extract;
 pub mod fetcher;
+mod interstitial;
 pub mod obscura;
 pub mod tool;
 

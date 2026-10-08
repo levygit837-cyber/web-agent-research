@@ -170,6 +170,15 @@ async fn fetch_markdown_maps_blocked_markers_regardless_of_exit_code() {
 }
 
 #[tokio::test]
+async fn fetch_markdown_blocks_rendered_security_verification_interstitial() {
+    let err = fake_engine()
+        .fetch_markdown("https://stackoverflow.com/interstitial")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, FetchError::Blocked { .. }), "{err}");
+}
+
+#[tokio::test]
 async fn fetch_markdown_ignores_robots_chatter_on_success() {
     let fetched = fake_engine()
         .fetch_markdown("https://example.com/robots-page")

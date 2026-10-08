@@ -40,6 +40,7 @@ use super::cratesio::{crate_page, CratesIoBases};
 use super::egress::{denied_in_chain, redirect_policy, EgressPolicy, EgressResolver};
 use super::error::{normalize_url, FetchError};
 use super::extract::{extract, keep_extracted};
+use super::interstitial::is_interstitial_markdown;
 use super::obscura::{FetchedMarkdown, Obscura};
 use crate::web::profile::pick_profile;
 use crate::web::search::{apply_navigation_headers, ChainPosition};
@@ -261,7 +262,11 @@ impl Fetcher {
             if is_challenge(&text) {
                 return Ok(StaticOutcome::Fallback(Handover::Challenge));
             }
-            main_content_markdown(&text, self.min_markdown_chars)
+            let markdown = main_content_markdown(&text, self.min_markdown_chars);
+            if is_interstitial_markdown(&markdown) {
+                return Ok(StaticOutcome::Fallback(Handover::Challenge));
+            }
+            markdown
         } else if content_type.starts_with("text/") || content_type.contains("json") {
             text.trim().to_owned()
         } else {
