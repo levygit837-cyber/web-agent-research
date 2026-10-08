@@ -7,33 +7,24 @@
       "nuggets": [
         {
           "text": "E0502 occurs when a variable already borrowed with one mutability (mutable or immutable) is borrowed again with a different mutability.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0502.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "The documented example error is 'cannot borrow `*a` as mutable because `a` is also borrowed as immutable'.",
-          "url": "https://doc.rust-lang.org/error_codes/E0502.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "The fix is to ensure there are no other live references to the variable before accessing it with a different mutability.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0502.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "In the documented fix, the mutable use (bar(a)) is moved before the immutable borrow (let y = &a), so the borrows do not overlap.",
+          "text": "Moving the mutable use before the immutable borrow is created makes the borrows not overlap and fixes the error.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/error_codes/E0502.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "The E0502 page points to the References & Borrowing section of the Rust Book for more on ownership.",
-          "url": "https://doc.rust-lang.org/error_codes/E0502.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -43,39 +34,66 @@
       "nuggets": [
         {
           "text": "E0382 means a variable was used after its contents have been moved elsewhere.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A value of a type not marked Copy is moved on assignment (let y = x), so the original variable can no longer be used.",
+          "text": "Assigning a value of a type not marked `Copy` moves it and leaves the original variable unusable.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "One fix is to pass a reference (&) instead of moving the value, e.g. calculate_length(&s1); a mutable reference uses &mut.",
+          "text": "One fix is to pass a reference (`&`) instead of moving the value.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Another fix is to duplicate the value by calling .clone() on a type that implements Clone, or by adding #[derive(Clone)] to your own type.",
+          "text": "A mutable reference can be created with `&mut`.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Types whose members are all Copy can be marked #[derive(Copy, Clone)] so assignment copies instead of moving.",
+          "text": "Another fix is to duplicate the value by calling `.clone()` on a type that implements `Clone`.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "If mutable shared ownership is truly required, use Rc together with RefCell (RefCell does runtime borrow checking).",
+          "text": "For your own type, `Clone` can be implemented with `#[derive(Clone)]`.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/error_codes/E0382.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A type whose members are all `Copy` can be marked `Copy` with `#[derive(Copy, Clone)]`.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/error_codes/E0382.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "If mutable shared ownership is truly required, `Rc` together with `RefCell` can be used.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/error_codes/E0382.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`RefCell` performs runtime borrow checking.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/error_codes/E0382.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -84,28 +102,39 @@
       "goal": "git says 'fatal: refusing to merge unrelated histories' when I run git pull or git merge. What does it mean and how do I get past it?",
       "nuggets": [
         {
-          "text": "By default, git merge refuses to merge histories that do not share a common ancestor.",
+          "text": "By default, `git merge` refuses to merge histories that do not share a common ancestor.",
+          "scope": "core",
           "url": "https://git-scm.com/docs/git-merge",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The override is the --allow-unrelated-histories option of git merge, meant for merging two projects that started their lives independently.",
+          "text": "The override is the `--allow-unrelated-histories` option of `git merge`.",
+          "scope": "core",
           "url": "https://git-scm.com/docs/git-merge",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Git docs say no configuration variable to enable --allow-unrelated-histories by default exists or will be added, because this is a very rare occasion.",
-          "url": "https://git-scm.com/docs/git-merge",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "git pull also accepts --allow-unrelated-histories, which is only useful when merging (not rebasing).",
+          "text": "`git pull` also accepts the `--allow-unrelated-histories` option.",
+          "scope": "core",
           "url": "https://git-scm.com/docs/git-pull",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The `--allow-unrelated-histories` option is meant for merging the histories of two projects that started their lives independently.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/docs/git-merge",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "No configuration variable to enable `--allow-unrelated-histories` by default exists or will be added, because this is a very rare occasion.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/docs/git-merge",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -114,40 +143,53 @@
       "goal": "Node.js Error [ERR_REQUIRE_ESM]: require() of ES Module not supported - what does this error mean and does it still happen on current Node versions?",
       "nuggets": [
         {
-          "text": "ERR_REQUIRE_ESM means an attempt was made to require() an ES Module.",
+          "text": "`ERR_REQUIRE_ESM` means an attempt was made to `require()` an ES Module.",
+          "scope": "core",
           "url": "https://nodejs.org/api/errors.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "ERR_REQUIRE_ESM is deprecated because require() now supports loading synchronous ES modules.",
+          "text": "`ERR_REQUIRE_ESM` is deprecated because `require()` now supports loading synchronous ES modules.",
+          "scope": "core",
           "url": "https://nodejs.org/api/errors.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "require(esm) no longer needs the --experimental-require-module flag as of v23.0.0, v22.12.0 and v20.19.0.",
+          "text": "`require(esm)` is no longer behind the `--experimental-require-module` flag as of v23.0.0, v22.12.0 and v20.19.0.",
+          "scope": "core",
           "url": "https://nodejs.org/api/modules.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "require() can only load an ES module that is fully synchronous, i.e. contains no top-level await.",
+          "text": "`require()` can only load an ES module that is fully synchronous, i.e. contains no top-level `await`.",
+          "scope": "core",
           "url": "https://nodejs.org/api/modules.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A file qualifies as ESM for require() if it has a .mjs extension, or is a .js file whose closest package.json has \"type\": \"module\".",
-          "url": "https://nodejs.org/api/modules.html",
-          "volatility": "slow",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "If the required ES module contains top-level await, require() throws ERR_REQUIRE_ASYNC_MODULE instead.",
+          "text": "If the required ES module contains top-level `await`, `require()` throws `ERR_REQUIRE_ASYNC_MODULE` instead.",
+          "scope": "supporting",
           "url": "https://nodejs.org/api/errors.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A file with a `.mjs` extension can be loaded by `require()` as an ES module.",
+          "scope": "supporting",
+          "url": "https://nodejs.org/api/modules.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A `.js` file whose closest `package.json` contains `\"type\": \"module\"` can be loaded by `require()` as an ES module.",
+          "scope": "supporting",
+          "url": "https://nodejs.org/api/modules.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -156,34 +198,46 @@
       "goal": "PostgreSQL ERROR: duplicate key value violates unique constraint, SQLSTATE 23505 - what does this code mean and how can I avoid the error on insert?",
       "nuggets": [
         {
-          "text": "SQLSTATE 23505 has the condition name unique_violation.",
+          "text": "SQLSTATE 23505 has the condition name `unique_violation`.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "23505 belongs to SQLSTATE Class 23, Integrity Constraint Violation (alongside not_null_violation 23502, foreign_key_violation 23503 and check_violation 23514).",
-          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "PostgreSQL error codes are five-character SQLSTATE codes, and applications should usually test the code rather than the localized message text.",
-          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "For a unique_violation the server reports the name of the unique constraint in a separate error field.",
-          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "INSERT ... ON CONFLICT DO NOTHING simply skips inserting a conflicting row, while ON CONFLICT DO UPDATE updates the existing conflicting row.",
+          "text": "`INSERT ... ON CONFLICT DO NOTHING` simply skips inserting a row that conflicts.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/sql-insert.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`ON CONFLICT DO UPDATE` updates the existing row that conflicts with the row proposed for insertion.",
+          "scope": "core",
+          "url": "https://www.postgresql.org/docs/current/sql-insert.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "23505 belongs to SQLSTATE Class 23, Integrity Constraint Violation.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Applications should usually test the SQLSTATE error code rather than the textual error message.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "For a `unique_violation` the server reports the name of the unique constraint in a separate error field.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/errcodes-appendix.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -192,34 +246,46 @@
       "goal": "I'm getting HTTP 429 Too Many Requests from an API. What does 429 mean and how should my client respond?",
       "nuggets": [
         {
-          "text": "HTTP 429 Too Many Requests indicates the client has sent too many requests in a given amount of time.",
+          "text": "HTTP `429 Too Many Requests` indicates the client has sent too many requests in a given amount of time.",
+          "scope": "core",
           "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "This mechanism of asking the client to slow down is commonly called rate limiting.",
+          "text": "A 429 response may include a `Retry-After` header indicating how long the client should wait before making the request again.",
+          "scope": "core",
           "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A 429 response may include a Retry-After header indicating how long the client should wait before making the request again.",
+          "text": "Asking the client to slow down the rate of requests is commonly called \"rate limiting\".",
+          "scope": "supporting",
           "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Rate-limiting restrictions are typically based on the client's IP, but can be per user or per authorized application.",
+          "text": "Rate-limiting restrictions are typically based on the client's IP.",
+          "scope": "supporting",
           "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Rate-limiting restrictions can be specific to users or authorized applications.",
+          "scope": "supporting",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "The 429 status code is defined in RFC 6585, section 4.",
+          "scope": "supporting",
           "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/429",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -228,40 +294,60 @@
       "goal": "Python RecursionError: maximum recursion depth exceeded - what triggers it and can I raise the limit?",
       "nuggets": [
         {
-          "text": "RecursionError is raised when the interpreter detects that the maximum recursion depth is exceeded.",
+          "text": "`RecursionError` is raised when the interpreter detects that the maximum recursion depth is exceeded.",
+          "scope": "core",
           "url": "https://docs.python.org/3/library/exceptions.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "RecursionError derives from RuntimeError and was added in Python 3.5; previously a plain RuntimeError was raised.",
+          "text": "`sys.setrecursionlimit(limit)` sets the maximum depth of the Python interpreter stack.",
+          "scope": "core",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Setting the recursion limit too high can lead to a crash.",
+          "scope": "core",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The highest possible recursion limit is platform-dependent.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`sys.getrecursionlimit()` returns the current value of the recursion limit.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The recursion limit exists to prevent infinite recursion from overflowing the C stack and crashing Python.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`sys.setrecursionlimit` raises `RecursionError` if the new limit is too low at the current recursion depth.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/library/sys.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`RecursionError` derives from `RuntimeError`.",
+          "scope": "supporting",
           "url": "https://docs.python.org/3/library/exceptions.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "sys.getrecursionlimit() returns the current maximum depth of the Python interpreter stack.",
-          "url": "https://docs.python.org/3/library/sys.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "sys.setrecursionlimit(limit) sets the maximum depth; the limit exists to prevent infinite recursion from overflowing the C stack and crashing Python.",
-          "url": "https://docs.python.org/3/library/sys.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "Setting the limit too high can crash the interpreter, and the highest possible limit is platform-dependent.",
-          "url": "https://docs.python.org/3/library/sys.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "sys.setrecursionlimit raises RecursionError if the new limit is too low at the current recursion depth.",
-          "url": "https://docs.python.org/3/library/sys.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -270,40 +356,53 @@
       "goal": "Docker prints 'WARNING: Error loading config file: /home/user/.docker/config.json - stat /home/user/.docker/config.json: permission denied'. What causes this and how do I fix it?",
       "nuggets": [
         {
-          "text": "The error indicates the permission settings for the ~/.docker/ directory are incorrect, due to having used the sudo command earlier.",
+          "text": "The error indicates the permission settings for the `~/.docker/` directory are incorrect.",
+          "scope": "core",
           "url": "https://docs.docker.com/engine/install/linux-postinstall/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "One fix is to remove the ~/.docker/ directory; it is recreated automatically but any custom settings are lost.",
+          "text": "The incorrect permissions on `~/.docker/` come from having used the `sudo` command earlier.",
+          "scope": "core",
           "url": "https://docs.docker.com/engine/install/linux-postinstall/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Another fix is sudo chown \"$USER\":\"$USER\" /home/\"$USER\"/.docker -R to change ownership.",
+          "text": "One fix is to remove the `~/.docker/` directory.",
+          "scope": "core",
           "url": "https://docs.docker.com/engine/install/linux-postinstall/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The ownership fix is followed by sudo chmod g+rwx \"$HOME/.docker\" -R to set permissions.",
+          "text": "The `~/.docker/` directory is recreated automatically after it is removed.",
+          "scope": "supporting",
           "url": "https://docs.docker.com/engine/install/linux-postinstall/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "To run docker without sudo, add your user to the docker group with sudo usermod -aG docker $USER, then log out and back in (or run newgrp docker).",
-          "url": "https://docs.docker.com/engine/install/linux-postinstall/",
-          "volatility": "slow",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "The docker group grants root-level privileges to the user.",
+          "text": "Removing the `~/.docker/` directory loses any custom settings.",
+          "scope": "supporting",
           "url": "https://docs.docker.com/engine/install/linux-postinstall/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Another fix is to change ownership with `sudo chown \"$USER\":\"$USER\" /home/\"$USER\"/.docker -R`.",
+          "scope": "core",
+          "url": "https://docs.docker.com/engine/install/linux-postinstall/",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Permissions can then be set with `sudo chmod g+rwx \"$HOME/.docker\" -R`.",
+          "scope": "core",
+          "url": "https://docs.docker.com/engine/install/linux-postinstall/",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     }
