@@ -6,40 +6,60 @@
       "goal": "How do I cross-compile a Rust binary for aarch64 Linux with cargo?",
       "nuggets": [
         {
-          "text": "Install the standard library for the target with `rustup target add <target>` (`rustup target list` shows available targets).",
-          "url": "https://rust-lang.github.io/rustup/cross-compilation.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "text": "The Rust target triple for 64-bit ARM Linux with glibc is `aarch64-unknown-linux-gnu`.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/nightly/rustc/platform-support.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Build for the target by passing the `--target` flag to Cargo, e.g. `cargo build --target=<triple>`.",
+          "text": "Install the standard library for the target with `rustup target add <target>`.",
+          "scope": "core",
           "url": "https://rust-lang.github.io/rustup/cross-compilation.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`rustup target add` only installs the Rust standard library for the target; cross-compiling typically also needs other tools, particularly a linker.",
+          "text": "Build for the target by passing the `--target` flag to Cargo, as in `cargo build --target=<triple>`.",
+          "scope": "core",
           "url": "https://rust-lang.github.io/rustup/cross-compilation.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A linker for a target is configured in Cargo config with the `target.<triple>.linker` key, i.e. a `[target.<triple>]` table with `linker = \"...\"`.",
+          "text": "Cross-compiling typically requires tools beyond the standard library, particularly a linker for the target.",
+          "scope": "core",
+          "url": "https://rust-lang.github.io/rustup/cross-compilation.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A linker for a target is configured in the Cargo config with the `target.<triple>.linker` key.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/cargo/reference/config.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "The linker setting can also be given through the environment variable `CARGO_TARGET_<triple>_LINKER`.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/cargo/reference/config.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "aarch64-unknown-linux-gnu is a Tier 1 with Host Tools target (ARM64 Linux, kernel 4.1+, glibc 2.17+).",
+          "text": "`rustup target list` shows the available targets.",
+          "scope": "supporting",
+          "url": "https://rust-lang.github.io/rustup/cross-compilation.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`aarch64-unknown-linux-gnu` is a Tier 1 with Host Tools target.",
+          "scope": "supporting",
           "url": "https://doc.rust-lang.org/nightly/rustc/platform-support.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -48,34 +68,46 @@
       "goal": "How do I squash the last 3 commits in git?",
       "nuggets": [
         {
-          "text": "Start an interactive rebase with `git rebase -i HEAD~3`.",
+          "text": "Start an interactive rebase of the last three commits with `git rebase -i HEAD~3`.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "In the rebase todo list, keep `pick` on the first (oldest) commit and change `pick` to `squash` on the other two commits.",
+          "text": "In the rebase todo list, keep `pick` on the first (oldest) commit.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "After saving the todo list, Git opens the editor again so you can combine the three commit messages into one.",
+          "text": "In the rebase todo list, change `pick` to `squash` on the other two commits.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "After saving the todo list, Git opens the editor again to merge the commit messages.",
+          "scope": "core",
+          "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "`fixup` is like `squash` but discards the commit's log message.",
+          "scope": "supporting",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Rebasing rewrites the commits (changes their SHA-1s), so do not include commits you have already pushed to a shared repository.",
+          "text": "Commits you have already pushed to a shared repository should be treated as final and not rewritten.",
+          "scope": "supporting",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -85,33 +117,52 @@
       "nuggets": [
         {
           "text": "Use the syntax `ALTER TABLE name ALTER [ COLUMN ] column_name SET DEFAULT expression`.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The new default value only applies to subsequent INSERT or UPDATE commands; it does not change rows already in the table.",
+          "text": "The new default value applies only to subsequent `INSERT` or `UPDATE` commands.",
+          "scope": "core",
           "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "To remove a default use `ALTER COLUMN column_name DROP DEFAULT`, which is equivalent to setting the default to NULL.",
+          "text": "`SET DEFAULT` does not change rows already in the table.",
+          "scope": "supporting",
           "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "When adding a new column with `ADD COLUMN ... DEFAULT now()`, existing rows are filled with the default value as the value of the new column.",
+          "text": "`ALTER COLUMN column_name DROP DEFAULT` removes the default of a column.",
+          "scope": "supporting",
           "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Multiple actions can be combined in one statement, e.g. `ALTER TABLE transactions ADD COLUMN status varchar(30) DEFAULT 'old', ALTER COLUMN status SET default 'current';`.",
+          "text": "Removing a default is equivalent to setting the default value to NULL.",
+          "scope": "supporting",
           "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`ALTER TABLE` can combine several actions in one comma-separated list.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "With `ADD COLUMN` and a non-volatile `DEFAULT`, existing rows return the default value for the new column.",
+          "scope": "supporting",
+          "url": "https://www.postgresql.org/docs/current/sql-altertable.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -120,40 +171,60 @@
       "goal": "How do I pin a GitHub Action to a commit SHA in my workflow?",
       "nuggets": [
         {
-          "text": "Reference the action with its full commit SHA after the `@` in `uses:`, e.g. `uses: actions/javascript-action@a824008085750b8e136effc585c3cd6082bd575f`.",
+          "text": "Reference the action with its full commit SHA after the `@` in `uses:`.",
+          "scope": "core",
           "url": "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/find-and-customize-actions",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "You must use a commit's full SHA value, not an abbreviated one.",
+          "text": "You must use a commit's full SHA value and not an abbreviated one.",
+          "scope": "core",
           "url": "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/find-and-customize-actions",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Verify that the SHA comes from the action's own repository and not from a fork.",
-          "url": "https://docs.github.com/en/actions/reference/security/secure-use",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "Pinning to a full-length commit SHA is currently the only way to use an action as an immutable release, whereas tags can be moved or deleted.",
-          "url": "https://docs.github.com/en/actions/reference/security/secure-use",
-          "volatility": "slow",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "The tradeoff of SHA pinning is that you do not automatically receive updates, including bug fixes and security updates.",
+          "text": "The SHA you select should come from the action's own repository and not from a fork.",
+          "scope": "supporting",
           "url": "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/find-and-customize-actions",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "GitHub offers repository-level and organization-level policies that require actions to be pinned to a full-length commit SHA.",
+          "text": "Pinning to a full-length commit SHA is currently the only way to use an action as an immutable release.",
+          "scope": "supporting",
           "url": "https://docs.github.com/en/actions/reference/security/secure-use",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A tag can be moved or deleted if a bad actor gains access to the repository storing the action.",
+          "scope": "supporting",
+          "url": "https://docs.github.com/en/actions/reference/security/secure-use",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "With SHA pinning you do not automatically receive updates for the action.",
+          "scope": "supporting",
+          "url": "https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/find-and-customize-actions",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "GitHub offers repository-level policies that require actions to be pinned to a full-length commit SHA.",
+          "scope": "supporting",
+          "url": "https://docs.github.com/en/actions/reference/security/secure-use",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "GitHub offers organization-level policies that require actions to be pinned to a full-length commit SHA.",
+          "scope": "supporting",
+          "url": "https://docs.github.com/en/actions/reference/security/secure-use",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -162,34 +233,46 @@
       "goal": "How do I roll back a Kubernetes Deployment to a previous revision with kubectl?",
       "nuggets": [
         {
-          "text": "List the revisions with `kubectl rollout history deployment/<name>` (e.g. deployment/nginx-deployment).",
+          "text": "List the revisions of a Deployment with `kubectl rollout history deployment/<name>`.",
+          "scope": "core",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Inspect a specific revision with `kubectl rollout history deployment/nginx-deployment --revision=2`.",
+          "text": "Roll back to the previous revision with `kubectl rollout undo deployment/<name>`.",
+          "scope": "core",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Roll back to the previous revision with `kubectl rollout undo deployment/nginx-deployment`.",
+          "text": "Roll back to a specific revision with `kubectl rollout undo deployment/<name> --to-revision=<n>`.",
+          "scope": "core",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Roll back to a specific revision with `kubectl rollout undo deployment/nginx-deployment --to-revision=2`.",
+          "text": "Inspect the details of a specific revision with `kubectl rollout history deployment/<name> --revision=<n>`.",
+          "scope": "supporting",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "By default all of the Deployment's rollout history is kept in the system, and this can be changed by modifying the revision history limit.",
+          "text": "By default all of the Deployment's rollout history is kept in the system.",
+          "scope": "supporting",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The amount of kept rollout history can be changed by modifying the revision history limit.",
+          "scope": "supporting",
+          "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -198,34 +281,46 @@
       "goal": "How do I build only one stage of a multi-stage Dockerfile?",
       "nuggets": [
         {
-          "text": "Use `docker build --target <stage-name> -t <tag> .` to stop at a specific build stage (e.g. `docker build --target build -t hello .`).",
+          "text": "Use `docker build --target <stage-name>` to stop the build at a specific stage.",
+          "scope": "core",
           "url": "https://docs.docker.com/build/building/multi-stage/",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Name a stage by adding `AS <NAME>` to its `FROM` instruction (e.g. `FROM golang:1.26 AS build`).",
+          "text": "Name a stage by adding `AS <name>` to its `FROM` instruction.",
+          "scope": "core",
           "url": "https://docs.docker.com/build/building/multi-stage/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Copy artifacts from an earlier stage with `COPY --from=<stage>` (e.g. `COPY --from=build /bin/hello /bin/hello`).",
+          "text": "Copy artifacts from an earlier stage with `COPY --from=<stage>`.",
+          "scope": "supporting",
           "url": "https://docs.docker.com/build/building/multi-stage/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Unnamed stages can be referenced by integer index starting at 0 for the first `FROM` instruction.",
+          "text": "Unnamed stages can be referenced by an integer index that starts at 0 for the first `FROM` instruction.",
+          "scope": "supporting",
           "url": "https://docs.docker.com/build/building/multi-stage/",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "With BuildKit, only the stages that the target stage depends on are built, whereas the legacy builder processes all stages leading up to the selected target.",
+          "text": "With BuildKit, only the stages that the target stage depends on are built.",
+          "scope": "supporting",
           "url": "https://docs.docker.com/build/building/multi-stage/",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Without BuildKit, building a target stage processes all stages.",
+          "scope": "supporting",
+          "url": "https://docs.docker.com/build/building/multi-stage/",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -234,34 +329,60 @@
       "goal": "How do I make Node.js automatically restart my script when files change?",
       "nuggets": [
         {
-          "text": "Run the script with the `--watch` flag, e.g. `node --watch index.js`.",
+          "text": "Run the script with the `--watch` flag, as in `node --watch <script>`.",
+          "scope": "core",
           "url": "https://nodejs.org/api/cli.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "By default watch mode watches the entry point and any required or imported module.",
+          "text": "By default, watch mode restarts the process when the entry point or any required or imported module changes.",
+          "scope": "core",
           "url": "https://nodejs.org/api/cli.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Use `--watch-path` (e.g. `node --watch-path=./src --watch-path=./tests index.js`) to specify which paths to watch; this turns off watching of required or imported modules.",
+          "text": "`--watch-path` specifies which paths to watch.",
+          "scope": "supporting",
           "url": "https://nodejs.org/api/cli.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Watch mode became stable in Node.js v22.0.0 and v20.13.0 (the flag was added in v18.11.0 and v16.19.0).",
+          "text": "Using `--watch-path` turns off watching of required or imported modules.",
+          "scope": "supporting",
+          "url": "https://nodejs.org/api/cli.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Watch mode became stable in Node.js v22.0.0 and v20.13.0.",
+          "scope": "supporting",
           "url": "https://nodejs.org/api/cli.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`--watch` requires a file path argument and cannot be combined with `--check`, `--eval`, `--interactive`, or the REPL; if no file is provided Node.js exits with status code 9.",
+          "text": "`--watch` requires a file path as an argument.",
+          "scope": "supporting",
           "url": "https://nodejs.org/api/cli.html",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`--watch` cannot be combined with `--check`, `--eval`, `--interactive`, or the REPL.",
+          "scope": "supporting",
+          "url": "https://nodejs.org/api/cli.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "If no file is provided with `--watch`, Node.js exits with status code `9`.",
+          "scope": "supporting",
+          "url": "https://nodejs.org/api/cli.html",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -270,40 +391,39 @@
       "goal": "How do I create and activate a Python virtual environment with venv?",
       "nuggets": [
         {
-          "text": "Create the environment by running the venv module: `python -m venv /path/to/new/virtual/environment`.",
+          "text": "Create the environment by running the venv module with `python -m venv <path>`.",
+          "scope": "core",
           "url": "https://docs.python.org/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "On POSIX with bash/zsh activate it with `source <venv>/bin/activate`.",
+          "text": "On POSIX with bash or zsh, activate the environment with `source <venv>/bin/activate`.",
+          "scope": "core",
           "url": "https://docs.python.org/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "On Windows activate it with `<venv>\\Scripts\\activate.bat` in cmd.exe or `<venv>\\Scripts\\Activate.ps1` in PowerShell.",
+          "text": "On Windows in cmd.exe, activate the environment with `<venv>\\Scripts\\activate.bat`.",
+          "scope": "supporting",
           "url": "https://docs.python.org/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "On Windows in PowerShell, activate the environment with `<venv>\\Scripts\\Activate.ps1`.",
+          "scope": "supporting",
+          "url": "https://docs.python.org/3/library/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Deactivate a virtual environment by typing `deactivate` in the shell.",
+          "scope": "supporting",
           "url": "https://docs.python.org/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "The `--system-site-packages` option gives the virtual environment access to the system site-packages directory.",
-          "url": "https://docs.python.org/3/library/venv.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "Virtual environments are not movable or copyable and should not be checked into source control; recreate them in the target location instead (e.g. with `pip install -r requirements.txt`).",
-          "url": "https://docs.python.org/3/library/venv.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     }
