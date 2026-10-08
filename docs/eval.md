@@ -2,14 +2,24 @@
 
 Measures whether a change improves answers. Eval-only: nothing here is part of the Harness contract (`docs/harness.md`), and `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY`/`WAR_EVAL_REPLAY_THROUGH` may change or go away without notice.
 
-Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts 3, 15, 20 across repeats of one goal), so compare paired runs over the whole golden set with K repeats, never single runs.
+Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts 3, 15, 20 across repeats of one goal; `correct` moved -0.089 [-0.217, +0.038] between two K=1 runs of nearly the same code). A decision needs K>=3 paired runs over the whole golden set; a K=1 difference is a hint, never a result. `eval run` defaults to `--repeats 3` for that reason.
 
 ## Pieces
 
-- Golden set: `tests/golden/<category>.json`, 7 categories × 8 goals. Each goal has 3-6 atomic nuggets `{text, url, volatility: never|slow|fast, verified_on}`, each checked against `url` on `verified_on`. Re-verify `fast` nuggets before trusting a recall drop on them.
+- Golden set (v2): `tests/golden/<category>.json`, 7 categories × 8 goals. Each goal has 3-12 nuggets `{text, scope: core|supporting, url, volatility: never|slow|fast, verified_on}`, each checked against `url` on `verified_on`. Re-verify `fast` nuggets before trusting a recall drop on them. See [Golden set rules](#golden-set-rules).
 - Tool tape (`src/research/agent_loop/tape.rs`): records or replays the `search` and `fetch` tools on the `ToolRegistry` path.
 - Driver: `cargo run --example eval -- <run|judge|summary|compare|pack>`, code in `tests/eval/`.
 - Offline gate: `tests/eval_offline.rs`, part of `cargo test`, no network.
+
+## Golden set rules
+
+- Atomic: a nugget is one independently checkable claim, one sentence, at most 200 characters. An answer that states half of a compound claim must still score for that half, so a nugget never joins claims with `;`, a second sentence, or `, but` / `, while` / `, whereas` / `, so` / `, and then` / ` and also` (text inside `code` or "quotes" is exempt). `golden::load` rejects a file that breaks this.
+- Scope, written in the file, never inferred per run (two classification passes of the same run disagreed on 30 of 305 nuggets):
+  - `core`: the goal's question asks for this fact. Every goal has at least 2.
+  - `supporting`: true, related detail a good answer may add and the question does not ask for.
+  - A fact outside the goal has no scope: it is not in the set.
+- General, not example-bound: a nugget states the fact, not the placeholder its source happens to use (a sample crate name, a sample `count: u8`), so a correct answer with another placeholder still matches. A flag name, an error code, a version or a documented default is the fact and stays.
+- Verified: every new or rewritten nugget is re-read on its `url` and dated `verified_on` that day.
 
 ## Models
 
@@ -68,7 +78,15 @@ Flags: `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--paus
 
 ## Metrics
 
-One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses` (replay misses, or live fetches in `replay-through`), `wall_ms`, and the rendered answer. `eval judge` adds `judge` (nuggets, SimpleQA class) and `claims` (one verdict per bullet).
+One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses` (replay misses, or live fetches in `replay-through`), `wall_ms`, and the rendered answer. `eval judge` adds `judge` (nugget flags, the three recalls, SimpleQA class) and `claims` (one verdict per bullet).
+
+Recall, per run (a mean over runs and goals in `summary` and `compare`):
+
+| metric | meaning |
+|---|---|
+| `core_recall` | supported `core` nuggets / `core` nuggets. The headline: it measures what the question asks for. |
+| `supporting_recall` | supported `supporting` nuggets / `supporting` nuggets; reported beside the headline, undefined for a goal with none. A better answer adds detail, so this moves with verbosity as well as quality. |
+| `nugget_recall` | supported nuggets / all nuggets. Kept as the all-nugget mean; it depends on how many supporting nuggets the golden set holds. |
 
 ## Judge
 
@@ -78,7 +96,7 @@ cargo run --example eval -- judge base.json [--model gpt-5.6-sol] [--fixtures ta
 
 One gateway call per answered run, with the same gateway env and a pinned model (default `gpt-5.6-sol`, a different family from the agent's `claude-*`), recorded as `judge_model` in the results file. It returns:
 
-- per nugget: supported or not (same fact, same specific values);
+- per nugget: supported or not (same fact, same specific values); the recalls below come from these flags and the scope of each nugget in the golden file;
 - a SimpleQA class: `CORRECT`, `INCORRECT` (contradicts a nugget, or the core claim is wrong) or `NOT_ATTEMPTED`.
 
 Runs that exited non-zero are `NOT_ATTEMPTED` without a call. Judging is resumable and refuses a file already judged by another model.
@@ -119,9 +137,11 @@ cargo run --example eval -- summary base.json
 cargo run --example eval -- compare a.json b.json
 ```
 
-`summary` prints one Markdown row per category: exit-0 share, SimpleQA shares, mean nugget recall, pooled exact-quote share, and means of citations, turns, tokens and wall time. When any run has claims, a second table follows with the claim shares per category, pooled over bullets.
+Results files carry a format version (`format: 2` since golden v2). `summary`, `compare` and `judge` reject a file of another format with an error naming both versions: nuggets judged against golden v1 are not comparable to v2 scores, so a v1 file is judged again from its recordings (`eval judge` on a copy with `format` set to 2 and the `judge` and `claims` fields removed), never read as is.
 
-`compare` pairs by goal: per metric, each goal in both files gives `d = mean(B over repeats) - mean(A over repeats)`, and the report is the mean of `d` with a two-sided 95% Student-t interval. A difference whose interval contains 0 is noise at this sample size.
+`summary` prints one Markdown row per category: exit-0 share, SimpleQA shares, mean core, supporting and nugget recall, pooled exact-quote share, and means of citations, turns, tokens and wall time. When any run has claims, a second table follows with the claim shares per category, pooled over bullets.
+
+`compare` reports `core_recall`, `supporting_recall` and `nugget_recall` among its metrics. It pairs by goal: per metric, each goal in both files gives `d = mean(B over repeats) - mean(A over repeats)`, and the report is the mean of `d` with a two-sided 95% Student-t interval. A difference whose interval contains 0 is noise at this sample size.
 
 ## Fixtures and the offline gate
 
@@ -141,5 +161,7 @@ A change to the agent loop, prompts or tool rendering can make a committed trans
 
 ## Baseline
 
-- `docs/eval/baseline-2026-10-05.json`: the whole golden set, K=1, `record` mode at `80b1040`, `claude-haiku-4.5`, judged by `gpt-5.6-sol`.
-- `docs/eval/baseline-2026-10-07.json`: the same at `46956ca` (after #116-#120): 79% correct, nugget recall 0.55. Against 2026-10-05, every paired 95% CI on correct and recall contains 0. Compare new changes against this file.
+- `docs/eval/baseline-2026-10-07.json`: the whole golden set, K=1, `record` mode at `46956ca` (after #116-#120), `claude-haiku-4.5`. Judged against golden v2 by `gpt-5.6-sol` with `--fixtures` on the recorded tapes, so it carries the nugget flags, the three recalls and the claim verdicts (`format: 2`). Compare new changes against this file. Its numbers: 84% correct, core recall 0.85, supporting recall 0.44, nugget recall 0.66, claim precision 68% (12% of bullets uncited).
+- `docs/eval/baseline-2026-10-05.json`: the same at `80b1040`, judged against golden v1 (`format: 1`). Kept as history only: `summary` and `compare` reject it. Its v1 nugget recall (0.52) is not comparable to the v2 recalls above.
+
+To judge an older record against a newer golden set, copy its results file, set `format` to the current version, drop every row's `judge` and `claims`, and run `eval judge <copy> --fixtures <the tapes it was recorded into>`.
