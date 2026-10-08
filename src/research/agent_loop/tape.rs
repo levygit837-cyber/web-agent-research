@@ -15,9 +15,16 @@
 //!   queries surfaced, else the union of every recorded Hit, deduped by
 //!   `canonical_url`, Hits with a recorded page first (then first-recorded
 //!   order), cut to `top_k`.
+//! - `WAR_EVAL_REPLAY_THROUGH=<dir>` (#129): `search` replays as above; a
+//!   `fetch` with no recording is fetched live (the normal fetcher and
+//!   egress policy), appended to `<dir>/pages.jsonl` in the `record` format
+//!   and served from there on later runs. A stderr line with the
+//!   `eval replay miss` marker is printed per live fetch. The mode appends
+//!   to the dir, so a comparison starts each arm from its own copy.
 //!
-//! Setting both is a configuration error. The fixture files are JSON Lines,
-//! appended across runs, so K recordings of one goal share one fixture.
+//! Setting more than one is a configuration error. The fixture files are
+//! JSON Lines, appended across runs, so K recordings of one goal share one
+//! fixture.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
@@ -36,6 +43,9 @@ use crate::web::search::types::{MergedResult, SearchInput};
 pub const RECORD_ENV: &str = "WAR_EVAL_RECORD";
 /// Env var naming the fixture dir to replay from.
 pub const REPLAY_ENV: &str = "WAR_EVAL_REPLAY";
+/// Env var naming the fixture dir to replay from, fetching and appending
+/// the pages it lacks.
+pub const REPLAY_THROUGH_ENV: &str = "WAR_EVAL_REPLAY_THROUGH";
 /// Marker every replay-miss reason and stderr line carries.
 pub const REPLAY_MISS: &str = "eval replay miss";
 
@@ -128,15 +138,20 @@ enum PageOutcomeRef<'a> {
     Failed { reason: &'a str, kind: Kind },
 }
 
-/// Record or replay mode of one run's [`ToolRegistry`](super::ToolRegistry).
+/// Record, replay or replay-through mode of one run's
+/// [`ToolRegistry`](super::ToolRegistry).
 pub(crate) enum Tape {
     Record(Recorder),
     Replay(Fixture),
+    /// [`Fixture`] for `search` and for fetches it has; a fetch it lacks
+    /// goes live and the [`Recorder`] appends it to `pages.jsonl`.
+    ReplayThrough(Fixture, Recorder),
 }
 
 impl Tape {
-    /// Mode from [`RECORD_ENV`] / [`REPLAY_ENV`]; `None` when neither is
-    /// set (the normal, live run). Errors name the variable and the dir.
+    /// Mode from [`RECORD_ENV`] / [`REPLAY_ENV`] / [`REPLAY_THROUGH_ENV`];
+    /// `None` when none is set (the normal, live run). Errors name the
+    /// variable and the dir.
     pub(crate) fn from_env() -> Result<Option<Self>, String> {
         let var = |key: &str| {
             std::env::var(key)
@@ -144,15 +159,76 @@ impl Tape {
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty())
         };
-        match (var(RECORD_ENV), var(REPLAY_ENV)) {
-            (None, None) => Ok(None),
-            (Some(_), Some(_)) => Err(format!("set only one of {RECORD_ENV} and {REPLAY_ENV}")),
-            (Some(dir), None) => Recorder::open(Path::new(&dir))
+        match (var(RECORD_ENV), var(REPLAY_ENV), var(REPLAY_THROUGH_ENV)) {
+            (None, None, None) => Ok(None),
+            (Some(dir), None, None) => Recorder::open(Path::new(&dir))
                 .map(|recorder| Some(Self::Record(recorder)))
                 .map_err(|err| format!("{RECORD_ENV}={dir}: {err}")),
-            (None, Some(dir)) => Fixture::load(Path::new(&dir))
+            (None, Some(dir), None) => Fixture::load(Path::new(&dir))
                 .map(|fixture| Some(Self::Replay(fixture)))
                 .map_err(|err| format!("{REPLAY_ENV}={dir}: {err}")),
+            (None, None, Some(dir)) => Self::replay_through(Path::new(&dir))
+                .map(Some)
+                .map_err(|err| format!("{REPLAY_THROUGH_ENV}={dir}: {err}")),
+            _ => Err(format!(
+                "set only one of {RECORD_ENV}, {REPLAY_ENV} and {REPLAY_THROUGH_ENV}"
+            )),
+        }
+    }
+
+    /// Replay-through over `dir`, which must already hold a fixture (a
+    /// typo'd dir is an error, not an empty tape); misses append to it.
+    pub(crate) fn replay_through(dir: &Path) -> Result<Self, String> {
+        let fixture = Fixture::load(dir)?;
+        let recorder = Recorder::open(dir).map_err(|err| err.to_string())?;
+        Ok(Self::ReplayThrough(fixture, recorder))
+    }
+
+    /// The replayed outcome of one `search` call; `None` when the tools
+    /// run live (`Record`).
+    pub(crate) fn replayed_search(&self, input: &SearchInput) -> Option<SearchOutcome> {
+        match self {
+            Self::Replay(fixture) | Self::ReplayThrough(fixture, _) => Some(fixture.search(input)),
+            Self::Record(_) => None,
+        }
+    }
+
+    /// The replayed outcome of one network `fetch`; `None` when the page
+    /// must be fetched live. `Replay` never returns `None` (a miss is a
+    /// failure). `ReplayThrough` prints one [`REPLAY_MISS`] line to stderr
+    /// per live fetch, so `replay_misses` counts them.
+    pub(crate) fn replayed_fetch(
+        &self,
+        url: &str,
+    ) -> Option<Result<Evidence, (String, FailureKind)>> {
+        match self {
+            Self::Replay(fixture) => Some(fixture.fetch(url)),
+            Self::ReplayThrough(fixture, _) => {
+                let found = fixture.lookup(url);
+                if found.is_none() {
+                    eprintln!(
+                        "{REPLAY_MISS}: fetching {url} live, not recorded in {}",
+                        fixture.dir.display()
+                    );
+                }
+                found
+            }
+            Self::Record(_) => None,
+        }
+    }
+
+    /// Append a live `fetch` outcome to `pages.jsonl` (`Record`,
+    /// `ReplayThrough`); `Replay` has nothing live to append.
+    pub(crate) fn record_fetch(
+        &self,
+        url: &str,
+        outcome: &Result<Evidence, (String, FailureKind)>,
+    ) {
+        match self {
+            Self::Record(recorder) | Self::ReplayThrough(_, recorder) => {
+                recorder.fetch(url, outcome);
+            }
+            Self::Replay(_) => {}
         }
     }
 }
@@ -245,7 +321,7 @@ pub(crate) struct Fixture {
 }
 
 impl Fixture {
-    fn load(dir: &Path) -> Result<Self, String> {
+    pub(crate) fn load(dir: &Path) -> Result<Self, String> {
         let searches: Vec<SearchEntry> = read_lines(&dir.join(SEARCH_FILE))?;
         let mut pages: HashMap<String, PageOutcome> = HashMap::new();
         let mut finals: HashMap<String, String> = HashMap::new();
@@ -316,27 +392,32 @@ impl Fixture {
             || self.finals.contains_key(&key)
     }
 
-    /// The recorded page or failure of `url`; a miss is an execution
-    /// failure, printed to stderr, never a network request.
-    pub(crate) fn fetch(&self, url: &str) -> Result<Evidence, (String, FailureKind)> {
+    /// The recorded page or failure of `url`; `None` when it was never
+    /// recorded. Never a network request.
+    fn lookup(&self, url: &str) -> Option<Result<Evidence, (String, FailureKind)>> {
         let key = dedup_key(url);
         let found = self.pages.get(&key).or_else(|| {
             self.finals
                 .get(&key)
                 .and_then(|requested| self.pages.get(requested))
         });
-        match found {
-            Some(PageOutcome::Page { evidence }) => Ok(evidence.clone()),
-            Some(PageOutcome::Failed { reason, kind }) => Err((reason.clone(), (*kind).into())),
-            None => {
-                let reason = format!(
-                    "{REPLAY_MISS}: no recorded page for {url} in {}",
-                    self.dir.display()
-                );
-                eprintln!("{reason}");
-                Err((reason, FailureKind::Execution))
-            }
-        }
+        found.map(|outcome| match outcome {
+            PageOutcome::Page { evidence } => Ok(evidence.clone()),
+            PageOutcome::Failed { reason, kind } => Err((reason.clone(), (*kind).into())),
+        })
+    }
+
+    /// The recorded page or failure of `url`; a miss is an execution
+    /// failure, printed to stderr, never a network request.
+    pub(crate) fn fetch(&self, url: &str) -> Result<Evidence, (String, FailureKind)> {
+        self.lookup(url).unwrap_or_else(|| {
+            let reason = format!(
+                "{REPLAY_MISS}: no recorded page for {url} in {}",
+                self.dir.display()
+            );
+            eprintln!("{reason}");
+            Err((reason, FailureKind::Execution))
+        })
     }
 }
 
@@ -517,5 +598,38 @@ mod tests {
             .err()
             .expect("missing dir fails");
         assert!(err.contains(SEARCH_FILE), "{err}");
+    }
+
+    #[test]
+    fn replay_through_pairs_with_neither_other_mode() {
+        let _env =
+            crate::test_support::EnvGuard::lock(vec![RECORD_ENV, REPLAY_ENV, REPLAY_THROUGH_ENV]);
+        let dir = recorded("through-env");
+        let dir = dir.to_str().expect("utf-8 temp dir");
+        std::env::set_var(REPLAY_THROUGH_ENV, dir);
+        assert!(matches!(
+            Tape::from_env().expect("valid"),
+            Some(Tape::ReplayThrough(..))
+        ));
+        for other in [RECORD_ENV, REPLAY_ENV] {
+            std::env::set_var(other, dir);
+            let err = Tape::from_env().err().expect("pair is an error");
+            assert!(
+                err.contains(REPLAY_THROUGH_ENV) && err.contains(other),
+                "{err}"
+            );
+            std::env::remove_var(other);
+        }
+    }
+
+    #[test]
+    fn replay_through_needs_an_existing_fixture_dir() {
+        let _env =
+            crate::test_support::EnvGuard::lock(vec![RECORD_ENV, REPLAY_ENV, REPLAY_THROUGH_ENV]);
+        let dir = temp_dir("through-missing");
+        std::env::set_var(REPLAY_THROUGH_ENV, &dir);
+        let err = Tape::from_env().err().expect("missing dir fails");
+        assert!(err.starts_with(&format!("{REPLAY_THROUGH_ENV}=")), "{err}");
+        assert!(!dir.exists(), "a typo'd dir must not be created");
     }
 }

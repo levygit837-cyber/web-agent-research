@@ -1,6 +1,6 @@
 # Offline eval
 
-Measures whether a change improves answers. Eval-only: nothing here is part of the Harness contract (`docs/harness.md`), and `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` may change or go away without notice.
+Measures whether a change improves answers. Eval-only: nothing here is part of the Harness contract (`docs/harness.md`), and `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY`/`WAR_EVAL_REPLAY_THROUGH` may change or go away without notice.
 
 Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts 3, 15, 20 across repeats of one goal), so compare paired runs over the whole golden set with K repeats, never single runs.
 
@@ -22,17 +22,28 @@ Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts
 |---|---|
 | `WAR_EVAL_RECORD=<dir>` | Tools run live. Each `search` outcome is appended to `<dir>/search.jsonl`, each `fetch` outcome (cleaned `Evidence.markdown`, or the failure) to `<dir>/pages.jsonl`, keyed by the normalized URL. |
 | `WAR_EVAL_REPLAY=<dir>` | No network for tools. `fetch` serves the recorded page with no TTL. |
+| `WAR_EVAL_REPLAY_THROUGH=<dir>` | `search` replays as above. `fetch` serves the recorded page; a URL with no recording is fetched live, through the normal fetcher and egress policy, and appended to `<dir>/pages.jsonl` in the same record format (a failure is appended too). |
 
-Setting both exits `2`.
+Setting more than one exits `2`.
 
 Replay rules:
 
 - `fetch`: the recorded page of the requested URL (normalized like search dedup), or of a recorded redirect target. A URL with no recording fails the call with `eval replay miss: …`, also printed to stderr and counted as `replay_misses` in the metrics.
 - `search`: the model's queries rarely repeat verbatim across runs, so replay does not depend on exact query strings. A call whose normalized query set (lower-cased, whitespace-collapsed, sorted, deduped) was recorded gets that outcome verbatim. Otherwise it gets the recorded Hits that any of its normalized queries surfaced, else the union of every recorded Hit for the goal; deduped by URL, Hits with a recorded page first, cut to `top_k`.
 
+Replay-through rules:
+
+- Searches stay taped: a live search would bot-wall the IP and change the Hits. Only `fetch` misses go live.
+- Each live fetch prints one `eval replay miss: fetching <url> live, …` line to stderr, so `replay_misses` now counts the live fetches a run made, and a reader sees how much of it was taped. A page fetched live once is a recording from then on: the next run replays it and counts no miss.
+- The dir must already hold a fixture (`search.jsonl`, `pages.jsonl`); a mistyped dir exits `2` instead of starting an empty tape.
+
 Fixture files are JSON Lines and append across runs, so K recordings of one goal share one fixture dir.
 
-A `replay` run with a live gateway is a new run: the model may fetch a URL the recording never fetched. That call fails with a replay miss, and the model sees an ordinary failed fetch. On the 2026-10-05 baseline, two replays had a miss in 20 and 23 of 56 runs (30 and 37 misses). Check `replay_misses` before reading a difference as an effect, and record K>1 to widen the fixtures.
+A `replay` run with a live gateway is a new run: the model may fetch a URL the recording never fetched. That call fails with a replay miss, and the model sees an ordinary failed fetch. On the 2026-10-05 baseline, two replays had a miss in 20 and 23 of 56 runs (30 and 37 misses); on 2026-10-07, the `--size large` replay had 41 misses in 24 of 56 runs. That biases an A/B against the arm that reads more (coverage, gap searches): the tape penalizes it, not the change. Check `replay_misses` before reading a difference as an effect, and record K>1 to widen the fixtures.
+
+Use `replay-through` when the change under test makes the agent read more pages than the recording did. It removes the failed-fetch penalty and leaves the Hits unchanged. Keep plain `replay` when the change should see exactly the recorded web, e.g. the offline gate.
+
+`replay-through` appends to `pages.jsonl`, so it changes the fixtures it runs on. Each arm of an A/B must start from its own copy of the same frozen tape dir (`cp -R` the dir per arm), never share one: the second arm would find the first arm's pages already taped and read a different web. Never point it at `tests/eval_fixtures` or a baseline you still need frozen.
 
 ## Record, replay, live
 
@@ -48,15 +59,16 @@ cargo run --example eval -- run --mode record --fixtures target/eval/fixtures --
 |---|---|---|---|
 | `record` | live, taped into `<fixtures>/<goal id>/` | live, through a recording proxy into `gateway.r<k>.jsonl` | Baseline; new fixtures. |
 | `replay` | from `<fixtures>/<goal id>/` | live | A change to the prompt, loop or model, on fixed web content. |
+| `replay-through` | from `<fixtures>/<goal id>/`; fetch misses live, appended to its `pages.jsonl` | live | A change that reads more pages than the recording did (coverage, gap searches). Copy the frozen dir per arm. |
 | `live` | live, untaped | live | End-to-end, including search and fetch changes. |
 
-Flags: `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--pause-secs` between runs that touch the live web (default 20; engines bot-wall a fast loop, exit `7`), `--bin`, and extra `research` flags after `--`. The results file is rewritten after every run; rerunning with the same `--out` resumes.
+Flags: `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--pause-secs` between runs that touch the live web (default 20; engines bot-wall a fast loop, exit `7`; also applied in `replay-through`, which touches the web for fetch misses), `--bin`, and extra `research` flags after `--`. The results file is rewritten after every run; rerunning with the same `--out` resumes.
 
 `record` also writes `run.r<k>.json` (goal, flags, `GATEWAY_API_FORMAT`, `GATEWAY_MODEL`, metrics) next to the transcript.
 
 ## Metrics
 
-One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses`, `wall_ms`, and the rendered answer.
+One row per run, from the exit code and the `--json` stdout: `exit_code`, `turns_used`, `turn_budget`, token counts, `citations`, `evidence_urls`, `verification` (bullet grounding counts, when present), `replay_misses` (replay misses, or live fetches in `replay-through`), `wall_ms`, and the rendered answer.
 
 ## Judge
 

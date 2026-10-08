@@ -1,4 +1,4 @@
-//! Run the CLI once per goal and repeat, in one of three modes, and turn
+//! Run the CLI once per goal and repeat, in one of four modes, and turn
 //! each run into a [`RunRow`].
 //!
 //! - `record`: live search, fetch and gateway. The tools are taped into
@@ -9,6 +9,11 @@
 //! - `replay`: tools served from `<fixtures>/<goal id>/`
 //!   (`WAR_EVAL_REPLAY`), live gateway: measures a change to the agent
 //!   (prompt, loop, model) on fixed web content.
+//! - `replay-through`: `replay`, but a `fetch` the tape lacks goes live and
+//!   is appended to `<fixtures>/<goal id>/pages.jsonl`
+//!   (`WAR_EVAL_REPLAY_THROUGH`), so a run that reads more is not
+//!   penalized by the tape. Appends to the fixtures: give each A/B arm its
+//!   own copy.
 //! - `live`: no tape at all.
 
 use std::path::{Path, PathBuf};
@@ -25,6 +30,8 @@ use super::transcript::{self, RecordingProxy};
 pub enum Mode {
     Record,
     Replay,
+    #[serde(rename = "replay-through")]
+    ReplayThrough,
     Live,
 }
 
@@ -35,8 +42,11 @@ impl std::str::FromStr for Mode {
         match raw {
             "record" => Ok(Self::Record),
             "replay" => Ok(Self::Replay),
+            "replay-through" => Ok(Self::ReplayThrough),
             "live" => Ok(Self::Live),
-            other => Err(format!("unknown mode {other:?} (record, replay, live)")),
+            other => Err(format!(
+                "unknown mode {other:?} (record, replay, replay-through, live)"
+            )),
         }
     }
 }
@@ -47,7 +57,8 @@ pub struct RunPlan {
     pub mode: Mode,
     /// The `web-agent-research` binary.
     pub bin: PathBuf,
-    /// Fixture root: one dir per goal id (unused in `live`).
+    /// Fixture root: one dir per goal id (unused in `live`; appended to in
+    /// `replay-through`).
     pub fixtures: PathBuf,
     /// Extra `research` flags, e.g. `--size small`.
     pub extra_args: Vec<String>,
@@ -78,7 +89,8 @@ pub async fn invoke(
         .arg("--json")
         .args(extra_args)
         .env_remove("WAR_EVAL_RECORD")
-        .env_remove("WAR_EVAL_REPLAY");
+        .env_remove("WAR_EVAL_REPLAY")
+        .env_remove("WAR_EVAL_REPLAY_THROUGH");
     for (key, value) in env {
         command.env(key, value);
     }
@@ -170,6 +182,15 @@ pub async fn run_one(plan: &RunPlan, goal: &GoldenGoal, repeat: u32) -> Result<R
             }
             env.push(("WAR_EVAL_REPLAY".to_owned(), dir.display().to_string()));
         }
+        Mode::ReplayThrough => {
+            if !dir.is_dir() {
+                return Err(format!("{}: no fixture for this goal", dir.display()));
+            }
+            env.push((
+                "WAR_EVAL_REPLAY_THROUGH".to_owned(),
+                dir.display().to_string(),
+            ));
+        }
         Mode::Live => {}
     }
     eprintln!(
@@ -204,4 +225,21 @@ pub async fn run_one(plan: &RunPlan, goal: &GoldenGoal, repeat: u32) -> Result<R
             .unwrap_or_default()
     );
     Ok(row)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replay_through_parses_and_round_trips_as_a_results_file_mode() {
+        assert_eq!("replay-through".parse::<Mode>(), Ok(Mode::ReplayThrough));
+        let json = serde_json::to_string(&Mode::ReplayThrough).expect("serializes");
+        assert_eq!(json, "\"replay-through\"");
+        assert_eq!(
+            serde_json::from_str::<Mode>(&json).expect("deserializes"),
+            Mode::ReplayThrough
+        );
+        assert!("replay_through".parse::<Mode>().is_err());
+    }
 }
