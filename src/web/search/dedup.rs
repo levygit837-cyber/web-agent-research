@@ -9,6 +9,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use crate::web::search::coverage::QueryTerms;
 use crate::web::search::types::{MergedResult, SearchProvider, SearchResult};
 
 /// Normalised identity of a result URL used for dedup: lowercase host minus
@@ -81,8 +82,9 @@ fn leg_weight(provider: SearchProvider) -> f64 {
 ///
 /// Sort: weighted RRF score desc (one `w / (60 + rank)` term per distinct
 /// (provider, query) leg that returned the URL, using that leg's best
-/// 1-based rank and its [`leg_weight`]), then `queries.len()` desc, best
-/// rank asc, display URL asc.
+/// 1-based rank and its [`leg_weight`]) times the Hit's query-term coverage
+/// factor (#127, `coverage`; `1.0` when `queries` is empty), then
+/// `queries.len()` desc, best rank asc, display URL asc.
 /// `queries` is the validated fan-out input order: legs key by
 /// `(priority, query_index)`.
 pub fn merge_sources(results: Vec<SearchResult>) -> Vec<MergedResult> {
@@ -229,10 +231,11 @@ fn merge_scored(results: Vec<SearchResult>, queries: &[String]) -> Vec<(MergedRe
             }
         }
     }
+    let coverage = QueryTerms::new(queries);
     let mut out: Vec<(MergedResult, f64)> = groups
         .into_values()
         .map(|mut group| {
-            let score = rrf_score(&mut group.leg_ranks);
+            let score = rrf_score(&mut group.leg_ranks) * coverage.factor(&group.merged);
             (group.merged, score)
         })
         .collect();

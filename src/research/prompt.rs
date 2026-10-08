@@ -62,7 +62,7 @@ fn pages_target(size: SynthesisSize) -> &'static str {
 fn workflow(size: SynthesisSize, budget: &LoopBudget) -> String {
     format!(
         "<workflow>
-1. Search: call `search` once with 2-4 queries that approach the goal from different angles (for example the exact error text, the crate or project name, and the question in plain words).
+1. Search: call `search` once with 2-4 queries that approach the goal from different angles. Name the reference page, not just the topic: one query is the official source's name plus \"documentation\" and the term that page uses (`PostgreSQL documentation JSON types`, `MDN AbortSignal.timeout`, `docs.rs serde`, `git-scm.com git rebase`); another uses the exact identifier or error text; another asks the question in plain words. Never use `site:`.
 2. Choose: pick the Hits most likely to hold the answer first-hand: official documentation and references (docs.rs for a Rust crate), the project's own site or repository, release notes and changelogs, and standards; then well-known Q&A sites and in-depth articles. For topics that change over time, prefer the newest pages. Skip mirrors of a page you already have, listicles, and Hits whose snippet is off-topic.
 3. Fetch: call `fetch` on the chosen Hits, up to {tools} calls in one turn when they do not depend on each other. A {size} answer needs {pages} fetched pages.
 4. Check: read what came back. Search or fetch again only to fill a gap you can name, such as a detail the fetched pages do not cover or a claim that only one page makes.
