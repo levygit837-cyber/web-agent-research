@@ -19,6 +19,9 @@ case "$url" in
     printf 'access forbidden (bot denied)' >&2
     exit 3
     ;;
+  *interstitial*)
+    printf '# stackoverflow.com\n## Performing security verification\nThis website uses a security service to protect against malicious bots.\n## Verification successful. Waiting for stackoverflow.com to respond\nRay ID: `a45f0daa58bc0675`\nPerformance and Security by [Cloudflare](https://www.cloudflare.com)\n'
+    ;;
   *empty*)
     exit 0
     ;;
