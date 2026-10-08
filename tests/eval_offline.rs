@@ -1,7 +1,8 @@
 //! Offline eval gate (#107): no network.
 //!
-//! - The golden set is well-formed: 7 categories × 8 goals, 3-6 nuggets
-//!   each, unique ids, dated nuggets with http(s) URLs.
+//! - The golden set (v2) is well-formed: 7 categories × 8 goals, 3-12
+//!   scoped, atomic nuggets each with at least 2 `core`, unique ids, dated
+//!   nuggets with http(s) URLs.
 //! - Every committed fixture (`tests/eval_fixtures/<goal id>/`) replays:
 //!   the CLI runs with its tools served from the fixture
 //!   (`WAR_EVAL_REPLAY`) against a stub gateway that answers with the
@@ -16,13 +17,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use eval::golden::{self, CATEGORIES};
+use eval::golden::{self, Scope, CATEGORIES};
 use eval::metrics::Metrics;
 use eval::runner::{recorded_run_file_name, RecordedRun};
 use eval::transcript::{self, ReplayStub};
 
 #[test]
-fn the_golden_set_has_eight_goals_per_category_with_three_to_six_nuggets() {
+fn the_golden_set_has_eight_goals_per_category_with_scoped_atomic_nuggets() {
     let goals = golden::load(&golden::default_dir()).expect("golden set loads");
     let mut per_category: HashMap<&str, usize> = HashMap::new();
     let mut ids = HashSet::new();
@@ -38,11 +39,24 @@ fn the_golden_set_has_eight_goals_per_category_with_three_to_six_nuggets() {
         assert!(!goal.goal.goal.trim().is_empty(), "{id}: empty goal");
         let nuggets = &goal.goal.nuggets;
         assert!(
-            (3..=6).contains(&nuggets.len()),
+            (3..=12).contains(&nuggets.len()),
             "{id}: {} nuggets",
             nuggets.len()
         );
+        // `load` validated this too; asserted here so a loader change
+        // cannot loosen the gate.
+        assert!(
+            goal.goal.of_scope(Scope::Core).count() >= 2,
+            "{id}: fewer than 2 core nuggets"
+        );
+        golden::validate(&goal.goal).unwrap_or_else(|err| panic!("{err}"));
+        let mut texts = HashSet::new();
         for nugget in nuggets {
+            assert!(
+                texts.insert(nugget.text.to_lowercase()),
+                "{id}: duplicate nugget {:?}",
+                nugget.text
+            );
             assert!(!nugget.text.trim().is_empty(), "{id}: empty nugget");
             assert!(
                 nugget.url.starts_with("https://") || nugget.url.starts_with("http://"),
