@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` tool tape, judge, paired compare (#107).
 - crates.io search leg: crate-shaped Queries return a docs.rs Hit (`<name> <version>`, description) from the keyless API, 1 request/s, with an identifying User-Agent; `WEB_AGENT_RESEARCH_CONTACT` sets its contact (#109).
 - `fetch` serves `crates.io/crates/<name>` from the sparse index and API as a markdown block (versions, yanked, `rust_version`, links), without Obscura (#109).
+- eval: `WAR_EVAL_REPLAY_THROUGH=<dir>` and `eval run --mode replay-through` replay `search`, fetch unrecorded pages live and append them to `pages.jsonl` (#129).
 - eval: `eval judge` adds a claim pass that checks each bullet against its cited pages; `claim_precision`, `claim_partly`, `claim_unsupported`, `claim_contradicted`, `uncited_share` in `summary` and `compare` (#123).
 
 ### Changed
