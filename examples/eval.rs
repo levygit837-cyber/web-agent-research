@@ -213,8 +213,8 @@ async fn judge(path: &Path, model: &str, fixtures: PathBuf) -> Result<(), String
                 None => Judgement::no_answer(goal),
             };
             eprintln!(
-                "judge {} r{}: {:?} recall {:.2}",
-                row.goal_id, row.repeat, judgement.grade, judgement.nugget_recall
+                "judge {} r{}: {:?} core recall {:.2}",
+                row.goal_id, row.repeat, judgement.grade, judgement.core_recall
             );
             file.rows[index].judge = Some(judgement);
             file.write(path)?;

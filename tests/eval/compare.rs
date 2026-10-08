@@ -22,7 +22,7 @@ pub struct Metric {
 }
 
 /// The metrics `eval compare` reports, quality first.
-pub const METRICS: [Metric; 13] = [
+pub const METRICS: [Metric; 15] = [
     Metric {
         name: "correct",
         value: |row| {
@@ -30,6 +30,14 @@ pub const METRICS: [Metric; 13] = [
                 .as_ref()
                 .map(|j| if j.grade == Grade::Correct { 1.0 } else { 0.0 })
         },
+    },
+    Metric {
+        name: "core_recall",
+        value: |row| row.judge.as_ref().map(|j| j.core_recall),
+    },
+    Metric {
+        name: "supporting_recall",
+        value: |row| row.judge.as_ref().and_then(|j| j.supporting_recall),
     },
     Metric {
         name: "nugget_recall",

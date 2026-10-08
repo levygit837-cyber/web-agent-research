@@ -7,33 +7,45 @@
       "nuggets": [
         {
           "text": "Rust ownership rule: each value in Rust has an owner.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Rust ownership rule: there can only be one owner at a time.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Rust ownership rule: when the owner goes out of scope, the value is dropped.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "After `let s2 = s1;` Rust considers s1 no longer valid (the value is moved) to avoid a double free error, where both variables would try to free the same memory when going out of scope.",
+          "text": "After a `String` is assigned to another variable, Rust considers the original variable no longer valid because the value was moved.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Types that implement the Copy trait (such as integers stored on the stack) are trivially copied instead of moved, so the original variable remains valid after assignment.",
+          "text": "Moving a `String` avoids a double free error, which would happen if both variables tried to free the same memory when going out of scope.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Variables of types that implement the `Copy` trait are trivially copied instead of moved and remain valid after assignment to another variable.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -42,34 +54,53 @@
       "goal": "Como funciona o tratamento de erros com Result em Rust: unwrap, expect e o operador ?",
       "nuggets": [
         {
-          "text": "The Result enum is defined as `enum Result<T, E> { Ok(T), Err(E) }`, with the variants Ok and Err.",
+          "text": "The Result enum is defined as `enum Result<T, E> { Ok(T), Err(E) }`.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`unwrap` returns the value inside Ok if the Result is Ok, and calls the panic! macro if the Result is Err.",
+          "text": "`unwrap` returns the value inside `Ok` if the Result is `Ok`.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`expect` works like unwrap but lets you choose the panic! error message.",
+          "text": "`unwrap` calls the `panic!` macro if the Result is `Err`.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The `?` operator placed after a Result returns the inner value if it is Ok, and if it is Err, returns the Err from the whole function as if `return` had been used.",
+          "text": "`expect` lets you choose the `panic!` error message.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Using `?` in a `main` function that returns `()` does not compile (error E0277), because `?` requires a compatible return type such as Result.",
+          "text": "The `?` operator placed after a Result returns the value inside `Ok` and the program continues if the Result is `Ok`.",
+          "scope": "core",
           "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The `?` operator returns the `Err` from the whole function, as if `return` had been used, if the Result is `Err`.",
+          "scope": "core",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Using `?` in a function that returns `()` does not compile and fails with error E0277.",
+          "scope": "supporting",
+          "url": "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -78,34 +109,53 @@
       "goal": "Como criar, ativar e desativar um ambiente virtual em Python e congelar as dependências num requirements.txt?",
       "nuggets": [
         {
-          "text": "A virtual environment is created with `python -m venv /path/to/new/virtual/environment`.",
+          "text": "A virtual environment is created with `python -m venv` followed by the path of the new environment directory.",
+          "scope": "core",
           "url": "https://docs.python.org/pt-br/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Creating a venv places a pyvenv.cfg file in the target directory, with a `home` key pointing to the Python installation it was run from.",
+          "text": "On Unix or macOS a virtual environment is activated with `source <venv>/bin/activate`.",
+          "scope": "core",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "On Windows a virtual environment is activated by running the `Scripts\\activate` script inside the environment directory.",
+          "scope": "core",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "An active virtual environment is deactivated by running `deactivate`.",
+          "scope": "core",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`python -m pip freeze > requirements.txt` writes the installed packages to requirements.txt.",
+          "scope": "core",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`python -m pip install -r requirements.txt` installs all the packages listed in requirements.txt.",
+          "scope": "core",
+          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Creating a venv places a `pyvenv.cfg` file in the target directory with a `home` key pointing to the Python installation the command was run from.",
+          "scope": "supporting",
           "url": "https://docs.python.org/pt-br/3/library/venv.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "On Unix or macOS a venv is activated with `source <env>/bin/activate`; on Windows with `<env>\\Scripts\\activate`.",
-          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "An active virtual environment is deactivated by typing `deactivate` in the terminal.",
-          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "`python -m pip freeze > requirements.txt` writes the installed packages to requirements.txt, and `python -m pip install -r requirements.txt` installs them all.",
-          "url": "https://docs.python.org/pt-br/3/tutorial/venv.html",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -114,34 +164,60 @@
       "goal": "Qual a diferença entre var, let e const em JavaScript quanto a escopo, hoisting e reatribuição?",
       "nuggets": [
         {
-          "text": "`var` declares a variable globally or in the entire function scope, regardless of block scope, whereas `let` is block-scoped.",
-          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/let",
-          "volatility": "never",
-          "verified_on": "2026-10-05"
-        },
-        {
-          "text": "`var` declarations are hoisted: they are processed before any code runs, so a variable can appear to be used before it is declared (moved to the top of the function or global code).",
+          "text": "`var` declares a variable in the entire function scope, or globally outside functions, regardless of block scope.",
+          "scope": "core",
           "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/var",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`const` creates a block-scoped variable whose value cannot be changed by assignment and which cannot be redeclared.",
-          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "text": "`let` declares a variable limited to the scope of the block where it is used.",
+          "scope": "core",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/let",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "A `const` must be initialized at declaration; `const FOO;` throws a SyntaxError (missing = in const declaration).",
-          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "text": "`var` declarations are hoisted: a variable can appear to be used before it is declared.",
+          "scope": "core",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/var",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`const` does not make the value immutable, only the binding: the constant variable cannot be reassigned, but e.g. an object's contents can change.",
+          "text": "`const` creates a block-scoped variable whose value cannot be changed by assignment.",
+          "scope": "core",
           "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Variables declared with `let` are hoisted to the start of the block in which they are defined.",
+          "scope": "supporting",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/let",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A `const` cannot be redeclared.",
+          "scope": "supporting",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "A `const` declaration without an initializer throws a SyntaxError.",
+          "scope": "supporting",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`const` does not make the value immutable, only the binding: an object's contents can still change.",
+          "scope": "supporting",
+          "url": "https://developer.mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/const",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -150,34 +226,60 @@
       "goal": "Como funciona o git rebase e quando não devo usá-lo?",
       "nuggets": [
         {
-          "text": "`git rebase` finds the common ancestor of the current branch and the target branch, takes the diff introduced by each commit of the current branch, and replays them on top of the target.",
+          "text": "`git rebase` takes the changes committed on one branch and replays them on a different branch.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Basic usage: `git checkout experiment` then `git rebase master` replays the experiment branch's work on top of master.",
+          "text": "To rebase a branch onto another, check out the branch and run `git rebase` with the target branch.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Rebasing abandons existing commits and creates new ones that are similar but different.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Rule: do not rebase commits that exist outside your repository and that people may have based work on.",
+          "scope": "core",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`git rebase --onto master server client` takes the client branch's patches since it diverged from server and replays them as if client were based directly on master.",
+          "text": "If others based work on commits that were later rewritten by a rebase and pushed, the collaborators have to re-merge their work.",
+          "scope": "supporting",
           "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`git rebase` works by going to the common ancestor of the current branch and the target branch.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`git rebase` gets the diff introduced by each commit of the current branch and applies each change in turn on top of the target.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`git rebase --onto` replays a branch's patches since it diverged from another branch as if it were based directly on a different branch.",
+          "scope": "supporting",
+          "url": "https://git-scm.com/book/en/v2/Git-Branching-Rebasing",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -186,34 +288,74 @@
       "goal": "Quais obrigações e direitos da LGPD um desenvolvedor precisa considerar: direitos do titular, encarregado, incidentes de segurança e multas?",
       "nuggets": [
         {
-          "text": "LGPD Art. 18: the data subject has the right to obtain from the controller, at any time and upon request, confirmation of the existence of processing and access to the data.",
+          "text": "LGPD Art. 18: the data subject has the right to obtain confirmation of the existence of processing from the controller.",
+          "scope": "core",
           "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "LGPD Art. 18 also grants the rights to correction of incomplete, inaccurate or outdated data and to data portability to another service or product provider.",
+          "text": "LGPD Art. 18: the data subject has the right to access the data processed by the controller.",
+          "scope": "core",
           "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "LGPD Art. 41: the controller must appoint a data protection officer (encarregado), whose identity and contact information must be publicly disclosed, preferably on the controller's website.",
+          "text": "LGPD Art. 18: the data subject has the right to correction of incomplete, inaccurate or outdated data.",
+          "scope": "core",
           "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "LGPD Art. 48: the controller must notify the national authority (ANPD) and the data subject of a security incident that may cause relevant risk or damage to data subjects.",
+          "text": "LGPD Art. 18: the data subject has the right to portability of the data to another service or product provider.",
+          "scope": "core",
           "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "LGPD Art. 52: a simple fine of up to 2% of the company's revenue in Brazil in its last fiscal year, limited in total to R$ 50,000,000.00 per infraction.",
+          "text": "LGPD Art. 41: the controller must appoint a data protection officer (encarregado).",
+          "scope": "core",
           "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "LGPD Art. 41: the identity and contact information of the encarregado must be publicly disclosed, preferably on the controller's website.",
+          "scope": "supporting",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "LGPD Art. 48: the controller must notify the national authority (ANPD) of a security incident that may cause relevant risk or damage to data subjects.",
+          "scope": "core",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "LGPD Art. 48: the controller must notify the data subject of a security incident that may cause relevant risk or damage to data subjects.",
+          "scope": "core",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "LGPD Art. 52: a simple fine can be up to 2% of the company's revenue in Brazil in its last fiscal year.",
+          "scope": "core",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "LGPD Art. 52: the simple fine is limited in total to R$ 50,000,000.00 per infraction.",
+          "scope": "core",
+          "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -222,34 +364,74 @@
       "goal": "Como escrever uma expressão de agendamento no crontab: quais são os cinco campos, seus intervalos e atalhos como @reboot e @daily?",
       "nuggets": [
         {
-          "text": "The crontab time fields are minute (0-59), hour (0-23), day of month (1-31), month (1-12) and day of week (0-7).",
+          "text": "The crontab minute field accepts values from 0 to 59.",
+          "scope": "core",
           "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "In the day of week field, both 0 and 7 mean Sunday (names may also be used).",
+          "text": "The crontab hour field accepts values from 0 to 23.",
+          "scope": "core",
           "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "An asterisk (*) in a crontab field stands for 'first-last'; ranges are inclusive, e.g. 8-11 in the hour field means hours 8, 9, 10 and 11.",
+          "text": "The crontab day of month field accepts values from 1 to 31.",
+          "scope": "core",
           "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "`@reboot` runs the job once after reboot, and `@daily` runs once a day, equivalent to `0 0 * * *`.",
+          "text": "The crontab month field accepts values from 1 to 12, or names.",
+          "scope": "core",
           "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "When both the day-of-month and day-of-week fields are restricted, the command runs if at least one of the two day fields matches the current time.",
+          "text": "The crontab day of week field accepts values from 0 to 7, or names.",
+          "scope": "core",
           "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "In the day of week field, both 0 and 7 mean Sunday.",
+          "scope": "supporting",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "An asterisk (*) in a crontab field always stands for \"first-last\".",
+          "scope": "supporting",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`@reboot` runs the job once after reboot.",
+          "scope": "core",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "`@daily` runs the job once a day, equivalent to `0 0 * * *`.",
+          "scope": "core",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "When both the day of month and day of week fields are restricted, the command runs when either field matches the current time.",
+          "scope": "supporting",
+          "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         }
       ]
     },
@@ -259,33 +441,59 @@
       "nuggets": [
         {
           "text": "Pix is an instant money transfer and instant electronic payment method in Brazilian reais (R$).",
+          "scope": "core",
           "url": "https://pt.wikipedia.org/wiki/Pix",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "Pix is offered by the Banco Central do Brasil (central bank) to individuals and companies.",
+          "text": "Pix is offered by the Banco Central do Brasil (central bank).",
+          "scope": "core",
           "url": "https://pt.wikipedia.org/wiki/Pix",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "Pix is offered to individuals and companies.",
+          "scope": "supporting",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Pix operates 24 hours a day without interruption.",
+          "scope": "supporting",
           "url": "https://pt.wikipedia.org/wiki/Pix",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
           "text": "Pix's initial release date was 5 October 2020.",
+          "scope": "core",
           "url": "https://pt.wikipedia.org/wiki/Pix",
           "volatility": "never",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
         },
         {
-          "text": "The Pix API functional specification is published in the bacen/pix-api GitHub repository in OpenAPI 3.0 format (openapi.yaml).",
+          "text": "Pix was officially launched in full on 16 November 2020.",
+          "scope": "supporting",
+          "url": "https://pt.wikipedia.org/wiki/Pix",
+          "volatility": "never",
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The Pix API functional specification is published in the bacen/pix-api GitHub repository.",
+          "scope": "core",
           "url": "https://github.com/bacen/pix-api",
           "volatility": "slow",
-          "verified_on": "2026-10-05"
+          "verified_on": "2026-10-08"
+        },
+        {
+          "text": "The Pix API specification in the bacen/pix-api repository uses the OpenAPI 3.0 format.",
+          "scope": "supporting",
+          "url": "https://github.com/bacen/pix-api",
+          "volatility": "slow",
+          "verified_on": "2026-10-08"
         }
       ]
     }

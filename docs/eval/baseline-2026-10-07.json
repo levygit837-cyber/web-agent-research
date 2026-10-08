@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "started_unix": 1791401410,
   "mode": "record",
   "agent_model": "claude-haiku-4.5",
@@ -39,11 +39,25 @@
           true,
           false,
           false,
+          false,
+          false,
+          true,
           true,
           false
         ],
-        "nugget_recall": 0.5,
-        "rationale": "The answer correctly identifies the features required for the default multi-threaded runtime, but it does not answer what Tokio's `full` feature does."
+        "nugget_recall": 0.4444444444444444,
+        "core_recall": 0.6,
+        "supporting_recall": 0.25,
+        "rationale": "The answer correctly identifies the features needed for the default multi-threaded runtime but fails to answer what the `full` feature enables or how to enable it."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "uncited"
+        ]
       }
     },
     {
@@ -77,10 +91,23 @@
           true,
           true,
           false,
+          false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly explains enabling the derive feature and accurately states both required trait method signatures, while omitting Serde's trait-system foundation and structure-format separation."
+        "nugget_recall": 0.5,
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains enabling Serde's derive feature and accurately states both required trait method signatures without contradicting any reference fact."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "uncited",
+          "supported",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -118,7 +145,20 @@
           false
         ],
         "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly identifies Tokio and the required json, form, and blocking features, while omitting only the unrelated redirect and client-reuse nuggets."
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly identifies Tokio and all three required Cargo features, while the client-reuse and connection-pooling recommendations are not stated."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited"
+        ]
       }
     },
     {
@@ -149,14 +189,31 @@
         "grade": "CORRECT",
         "nuggets": [
           true,
+          true,
           false,
+          true,
           false,
-          false,
+          true,
           false,
           false
         ],
-        "nugget_recall": 0.16666666666666666,
-        "rationale": "The answer correctly explains clap's struct-and-field derive approach and identifies the required `derive` feature, without contradicting any reference facts."
+        "nugget_recall": 0.5,
+        "core_recall": 0.75,
+        "supporting_recall": 0.25,
+        "rationale": "The answer correctly explains defining a derive-based clap CLI and enabling the `derive` feature, with no contradictions, though it omits several exact details from the reference nuggets."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -188,13 +245,28 @@
         "nuggets": [
           false,
           false,
+          true,
+          false,
+          false,
           false,
           false,
           true,
-          false
+          true
         ],
-        "nugget_recall": 0.16666666666666666,
-        "rationale": "The answer correctly explains context versus lazy with_context usage and the no_std configuration with a required global allocator, without contradicting any reference fact."
+        "nugget_recall": 0.3333333333333333,
+        "core_recall": 0.6,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains eager versus lazy context and the no_std configuration and allocator requirement, without contradicting any reference fact, though it omits the Context trait import, error display ordering, cause formatting, Result alias, and Option's None conversion details."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -224,15 +296,33 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          false,
           true,
+          true,
+          true,
+          true,
+          false,
           true,
           true,
           true,
           false,
           false
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly explains compiling once with Regex::new via LazyLock or once_cell, identifies unsupported look-around and backreferences, and states the O(m * n) bound, though it omits the match API distinctions and regex-lite."
+        "nugget_recall": 0.6363636363636364,
+        "core_recall": 0.8333333333333334,
+        "supporting_recall": 0.4,
+        "rationale": "The answer correctly explains one-time compilation and reuse, identifies look-around and backreferences as unsupported, and states the O(m * n) bound without contradicting any reference nugget."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -264,13 +354,28 @@
         "nuggets": [
           true,
           true,
+          true,
+          true,
+          true,
           false,
           false,
-          false,
+          true,
+          true,
           false
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains parallel iterator imports and both custom and global thread-pool configuration without contradiction, but omits the num_threads(0) case, rayon::join behavior, work stealing, and the data-race-free guarantee."
+        "nugget_recall": 0.7,
+        "core_recall": 0.875,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains parallel iterator imports and global pool configuration without contradicting the reference facts, though it omits one-time initialization errors, the num_threads(0) behavior, and Rayon's data-race freedom guarantee."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -301,14 +406,32 @@
         "grade": "CORRECT",
         "nuggets": [
           true,
+          true,
+          true,
+          true,
           false,
           false,
+          true,
           false,
+          true,
           false,
-          false
+          true
         ],
-        "nugget_recall": 0.16666666666666666,
-        "rationale": "The answer correctly explains the core span, event, and subscriber workflow without contradictions, but omits the async guard warning, Debug formatting detail, events occurring inside spans, tracing’s lack of subscriber implementations, and the full library guidance."
+        "nugget_recall": 0.6363636363636364,
+        "core_recall": 0.7142857142857143,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly explains the core span, event, instrumentation, and subscriber-installation workflow without contradicting the reference facts, though it omits the Debug formatting detail, async enter-guard warning, absence of subscriber implementations in tracing itself, and the characterization of set_global_default as the simplest installation method."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -338,14 +461,24 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          true,
+          true,
           false,
-          true,
-          true,
           false,
           false
         ],
         "nugget_recall": 0.4,
-        "rationale": "The answer correctly states that an absent prefix yields a copy of the original string and that removeprefix was introduced in Python 3.9, without contradicting any nuggets."
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly states that an absent prefix yields a copy of the original string and that str.removeprefix was introduced in Python 3.9."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -382,7 +515,19 @@
           true
         ],
         "nugget_recall": 1.0,
-        "rationale": "The answer accurately states the exact signature, Rust 1.80.0 stabilization, conditional extraction via a mutable-reference predicate, replacement with None when true, and its similarity to Option::take."
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "The answer accurately states the exact signature, stabilization in Rust 1.80.0, conditional extraction using a mutable-reference predicate, replacement with None when true, and its similarity to Option::take."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited"
+        ]
       }
     },
     {
@@ -415,11 +560,22 @@
           true,
           true,
           true,
+          true,
           false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly states that toSorted() returns a new ascending-sorted array without mutating the original and describes the default Unicode string sorting behavior, while omitting sparse-array and browser-availability details not required by the question."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 1.0,
+        "supporting_recall": 0.3333333333333333,
+        "rationale": "The answer correctly states the return value, non-mutating behavior, default Unicode string sorting, and relationship to sort(), while omitting only the sparse-array and browser-availability facts."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -452,11 +608,24 @@
           true,
           true,
           true,
+          true,
+          true,
+          true,
           false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly states the method’s argument, range, return type, and TimeoutError DOMException, but omits active-time suspension behavior and the inability to cancel the timeout."
+        "nugget_recall": 0.75,
+        "core_recall": 1.0,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly states the method's argument, return value, timeout reason, valid range, and active-time semantics, while omitting only the suspension examples and inability to cancel the timeout."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -486,14 +655,25 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          true,
+          true,
+          true,
           false,
-          true,
-          true,
-          true,
-          false
+          true
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly explains the fulfillment values and recursive behavior without contradicting any reference fact, though it omits the signature, version, and mode details."
+        "nugget_recall": 0.8,
+        "core_recall": 1.0,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly explains both resolution values, recursive parent creation, and existing-directory behavior, but does not explicitly state that `recursive` defaults to `false`."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -528,10 +708,25 @@
           true,
           true,
           true,
-          false
+          true,
+          true,
+          true,
+          true
         ],
-        "nugget_recall": 0.8333333333333334,
-        "rationale": "The answer accurately explains the syntax, accepted input types, truncation behavior, valid fields, return types, and time-zone handling, but omits the specific example result."
+        "nugget_recall": 1.0,
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "The answer accurately states the syntax, accepted source types and automatic casts, field behavior, matching return types, truncation semantics, and all time-zone rules."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -564,12 +759,26 @@
           true,
           true,
           true,
-          false,
           true,
+          true,
+          false,
+          false,
           false
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly states both lru_cache parameters and defaults, explains maxsize=None and typed=True, and identifies all four cache_info() fields, while merely omitting hashability, cache_clear(), and thread-safety details."
+        "nugget_recall": 0.625,
+        "core_recall": 1.0,
+        "supporting_recall": 0.4,
+        "rationale": "The answer correctly states both lru_cache parameters and defaults, explains maxsize=None and typed=True, and identifies all four cache_info() fields without contradicting any nugget."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "uncited",
+          "uncited",
+          "uncited"
+        ]
       }
     },
     {
@@ -603,11 +812,27 @@
           false,
           false,
           true,
+          true,
+          true,
+          true,
+          true,
           false,
           false
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The endpoint and 410 behavior are correct, but the answer incorrectly restricts `title` to a string rather than string or integer and omits the access, silent-dropping, and secondary-rate-limiting facts."
+        "nugget_recall": 0.6,
+        "core_recall": 0.6666666666666666,
+        "supporting_recall": 0.5,
+        "rationale": "The answer gives the correct endpoint and status codes, but incorrectly limits `title` to a string and says it is the only required parameter without stating that the `owner` and `repo` path parameters are required."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -638,13 +863,24 @@
         "grade": "CORRECT",
         "nuggets": [
           true,
-          false,
           true,
-          false,
           false
         ],
-        "nugget_recall": 0.4,
-        "rationale": "The answer correctly explains E0502 as overlapping incompatible borrows and says to end the immutable borrow before mutating, without contradicting the reference facts."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains E0502 and the need to avoid overlapping incompatible borrows, but it does not state the specific fix of moving the mutable use before the immutable borrow is created."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited"
+        ]
       }
     },
     {
@@ -676,13 +912,28 @@
         "nuggets": [
           true,
           true,
+          true,
+          false,
+          true,
           false,
           false,
-          false,
+          true,
           true
         ],
-        "nugget_recall": 0.5,
-        "rationale": "The answer correctly explains E0382 and valid fixes without contradicting the reference facts, though it omits the specific &mut syntax, deriving Clone, and the full #[derive(Copy, Clone)] requirement."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 0.8333333333333334,
+        "supporting_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains moved non-Copy values and the main remedies without contradicting the reference facts, though it omits `&mut` and the specific `Clone`/`Copy` derive details."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "partly",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -714,11 +965,25 @@
         "nuggets": [
           true,
           true,
-          false,
+          true,
+          true,
           false
         ],
-        "nugget_recall": 0.5,
-        "rationale": "The answer correctly explains the lack of a common ancestor and gives the proper override for merge and pull, but omits the lack of a default-enabling configuration and the limitation that the pull option applies only when merging, not rebasing."
+        "nugget_recall": 0.8,
+        "core_recall": 1.0,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly explains that Git refuses histories without a common ancestor by default and shows the proper override for both merge and pull, but does not mention that no configuration variable exists to enable it by default."
+      },
+      "claims": {
+        "verdicts": [
+          "uncited",
+          "uncited",
+          "uncited",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -751,12 +1016,25 @@
           true,
           false,
           true,
-          true,
+          false,
+          false,
           false,
           false
         ],
-        "nugget_recall": 0.5,
-        "rationale": "The answer correctly explains the error and current synchronous ESM support without flags at the specified versions, while omitting the deprecation status, ESM file qualification rules, and ERR_REQUIRE_ASYNC_MODULE name."
+        "nugget_recall": 0.2857142857142857,
+        "core_recall": 0.5,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains that ERR_REQUIRE_ESM arose from requiring an ES module and that current specified Node versions support require(esm) without a flag, while omitting several details about deprecation, synchronous-module constraints, the replacement error, and recognized file types."
+      },
+      "claims": {
+        "verdicts": [
+          "uncited",
+          "uncited",
+          "supported",
+          "partly",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -787,13 +1065,28 @@
         "grade": "CORRECT",
         "nuggets": [
           false,
+          true,
+          true,
           false,
           false,
-          false,
-          true
+          false
         ],
-        "nugget_recall": 0.2,
-        "rationale": "The answer correctly explains SQLSTATE 23505 and the two ON CONFLICT behaviors without contradiction, but it omits the exact condition name, Class 23 context, code-versus-message guidance, and the separate constraint-name error field."
+        "nugget_recall": 0.3333333333333333,
+        "core_recall": 0.6666666666666666,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains the duplicate-key error and valid ON CONFLICT strategies without contradicting the reference facts, but it omits the exact condition name, SQLSTATE class, code-based error handling guidance, and the separate constraint-name error field."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited",
+          "uncited"
+        ]
       }
     },
     {
@@ -827,10 +1120,23 @@
           true,
           true,
           false,
+          true,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly explains 429 as rate limiting and advises honoring Retry-After, but it does not state that limits are typically IP-based or that RFC 6585 section 4 defines the status."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 1.0,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly explains 429 and appropriate retry behavior without contradicting any nugget, but it does not state that limits are typically IP-based or that RFC 6585 section 4 defines the code."
+      },
+      "claims": {
+        "verdicts": [
+          "unsupported",
+          "unsupported",
+          "supported",
+          "partly",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -861,14 +1167,28 @@
         "grade": "CORRECT",
         "nuggets": [
           true,
-          false,
+          true,
+          true,
+          true,
           false,
           true,
           true,
-          true
+          false
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly explains what triggers RecursionError, how and why to raise the limit, and the associated risks, but omits its inheritance/version history and sys.getrecursionlimit()."
+        "nugget_recall": 0.75,
+        "core_recall": 1.0,
+        "supporting_recall": 0.6,
+        "rationale": "The answer correctly explains what triggers RecursionError, how to raise the interpreter recursion limit, and the associated safeguards and risks, but it does not state that sys.getrecursionlimit() returns the current limit or that RecursionError derives from RuntimeError."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -902,11 +1222,22 @@
           true,
           true,
           true,
-          false,
-          false
+          true,
+          true,
+          true
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly identifies sudo-created ownership and permission issues and gives both verified fixes, while merely omitting the optional docker-group setup and its root-level privilege warning."
+        "nugget_recall": 1.0,
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "The answer correctly identifies sudo-created ownership and permission problems on ~/.docker and provides both verified fixes, including recreation and loss of custom settings."
+      },
+      "claims": {
+        "verdicts": [
+          "uncited",
+          "uncited",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -938,12 +1269,31 @@
         "nuggets": [
           false,
           true,
+          true,
           false,
+          false,
+          true,
+          true,
+          true,
           true,
           false
         ],
-        "nugget_recall": 0.4,
-        "rationale": "The answer correctly describes major Rust 1.99.0 changes without contradiction, but omits the announcing Rust Release Team, the `VaList` and `VaArgSafe` details, and the specific recommendation to prefer `Box::into_non_null` or `Box::into_raw` over later deallocating leaked memory."
+        "nugget_recall": 0.6,
+        "core_recall": 0.8333333333333334,
+        "supporting_recall": 0.25,
+        "rationale": "The answer correctly identifies the main Rust 1.99.0 changes without contradicting the reference facts, though it omits the Release Team attribution, the explicit `VaList` type and cross-target ABI compatibility, and the documented preference for `Box::into_non_null` or `Box::into_raw`."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -973,14 +1323,28 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          true,
           false,
           true,
           true,
           true,
+          true,
+          true,
+          false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly states the target-tier demotions and cross-compilation impact, but it does not explicitly state the Oct. 2, 2026 announcement date or identify RFC 3999 and MCP 1020."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 1.0,
+        "supporting_recall": 0.4,
+        "rationale": "The answer correctly states the Rust 1.100.0 demotions, loss of host tools, continued standard-library distribution, and cross-compilation requirement, but it does not explicitly state the announcement date or identify RFC 3999 and MCP 1020."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1008,16 +1372,32 @@
       "answer": "The Rust Security Response Team's September 2026 advisory warned that Miri stores all environment variables to `target/`, which can expose secrets to PRs when combined with GitHub Actions caching, as the cache is readable by PR workflows. Projects running Miri in CI with cached `target/` directories and access to secrets are vulnerable to attackers extracting environment variables from the cache.\n\n## Vulnerability Details\n\n- Miri stores all environment variables to `target/` to preserve build-relevant context between runs, causing secrets to persist in caches ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- GitHub Actions cache is typically readable by PRs while only writable by main branch, allowing attackers who can open PRs to extract cached secrets ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n\n## How to Respond\n\n- Vulnerable projects should disable cache for Miri jobs, scope secrets to non-Miri steps, or temporarily disable Miri as quick fixes ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- After applying fixes, clear existing caches and rotate any potentially leaked secrets ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n- The Miri nightly release from September 22, 2026 onwards only preserves `CARGO_*` variables (excluding `CARGO_*_TOKEN`) and `OUT_DIR`, fixing the issue at the source ([GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/))\n\nSources:\n1. [GitHub Actions leaking secrets when Miri output is cached](https://blog.rust-lang.org/2026/09/21/github-actions-leaking-secrets-when-miri-output-is-cached/)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
+          true,
+          true,
           true,
           false,
           true,
           true,
+          true,
+          true,
+          true,
           true
         ],
-        "nugget_recall": 0.8,
-        "rationale": "The answer covers Miri’s environment-variable persistence, the fix, affected nightly, and mitigations, but incorrectly implies that anyone able to open a PR can extract secrets without stating the required condition that they had previously landed a change."
+        "nugget_recall": 0.9,
+        "core_recall": 1.0,
+        "supporting_recall": 0.5,
+        "rationale": "The answer accurately explains the vulnerability, fixed Miri behavior, and recommended mitigations, but does not specifically state that anyone who previously landed a change can trigger a PR CI run to extract cached information."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1050,12 +1430,32 @@
           false,
           true,
           true,
+          true,
+          true,
           false,
           false,
-          false
+          false,
+          true,
+          true
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer correctly addresses Go 1.27 changes without contradicting the reference facts, but omits the exact release date, go doc version queries, the precise two-block tidy behavior, and removal of bzr support."
+        "nugget_recall": 0.6,
+        "core_recall": 0.5,
+        "supporting_recall": 0.75,
+        "rationale": "The answer correctly covers the main language changes and several tooling changes without contradicting the reference facts, though it omits the exact release date, go doc version syntax, bzr removal, and the precise require-block merging behavior."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "partly",
+          "supported",
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "supported",
+          "partly",
+          "partly"
+        ]
       }
     },
     {
@@ -1085,15 +1485,36 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          false,
+          true,
+          true,
+          true,
           true,
           true,
           true,
           false,
-          false,
-          true
+          true,
+          true,
+          false
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly gives the main 3.15 features and exact final-release date without contradiction, though it omits the dedicated `profiling` package detail and the surprise rc3 release circumstances."
+        "nugget_recall": 0.7272727272727273,
+        "core_recall": 0.75,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "The answer correctly gives the main Python 3.15 features and final release date without contradiction, though it does not identify `lazy` as a soft keyword, mention the dedicated `profiling` package, or note the surprise rc3 release."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1127,10 +1548,33 @@
           true,
           true,
           true,
+          true,
+          true,
+          true,
+          false,
+          false,
           false
         ],
-        "nugget_recall": 0.8,
-        "rationale": "The answer gives the correct release date and all specified feature reverts without contradicting the reference facts, though it omits the planned early-October release candidate and possible October GA."
+        "nugget_recall": 0.7,
+        "core_recall": 1.0,
+        "supporting_recall": 0.4,
+        "rationale": "The answer correctly states the release date and all specified reverted or removed features, but omits the several REPACK fixes and the planned release-candidate and GA timing."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -1161,13 +1605,35 @@
         "grade": "INCORRECT",
         "nuggets": [
           true,
+          true,
+          true,
+          false,
+          false,
+          true,
           false,
           false,
           false,
           false
         ],
-        "nugget_recall": 0.2,
-        "rationale": "The answer correctly states the release theme and date, but omits the one deprecation/removal from the enhancement breakdown and incorrectly says HPA scale-to-zero graduated to Stable rather than Beta and enabled by default."
+        "nugget_recall": 0.4,
+        "core_recall": 0.0,
+        "supporting_recall": 0.5714285714285714,
+        "rationale": "The answer correctly states the date, theme, enhancement count, and applicable metric types, but incorrectly labels HorizontalPodAutoscaler scale to zero as Stable rather than Beta and omits the other specified details."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "contradicted",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1201,10 +1667,28 @@
           true,
           true,
           true,
+          true,
+          true,
+          true,
           true
         ],
-        "nugget_recall": 0.8,
-        "rationale": "The answer states four of the five reference facts accurately, omitting only the 2026-09-22 release date, and contradicts none of the nuggets."
+        "nugget_recall": 0.875,
+        "core_recall": 1.0,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "The answer correctly states seven of the eight reference facts and contradicts none, but omits the 2026-09-22 release date and Current status."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "partly",
+          "partly",
+          "supported",
+          "partly",
+          "partly",
+          "partly",
+          "partly",
+          "partly"
+        ]
       }
     },
     {
@@ -1234,15 +1718,29 @@
       "judge": {
         "grade": "INCORRECT",
         "nuggets": [
-          false,
+          true,
+          true,
           true,
           false,
           false,
           true,
+          false,
           false
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer gives the target-add and Cargo build commands and the linker environment variable, but it omits that rustup installs only the target standard library, fails to show Cargo's linker config key, incompletely describes the target tier and requirements, and misleadingly suggests a linker is generally needed only for native dependencies."
+        "nugget_recall": 0.5,
+        "core_recall": 0.6,
+        "supporting_recall": 0.3333333333333333,
+        "rationale": "The answer correctly gives the target, rustup and Cargo commands, and linker environment variable, but its claim that those commands are often sufficient for pure Rust projects conflicts with the stated typical need for a target linker."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -1275,11 +1773,23 @@
           true,
           true,
           true,
+          true,
           false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly explains the interactive rebase steps, but it omits `fixup` and contradicts the warning against rebasing shared pushed commits by recommending a force push."
+        "nugget_recall": 0.6666666666666666,
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains the interactive rebase steps but omits fixup and contradicts the warning against rewriting shared pushed commits by recommending a force push."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1311,12 +1821,25 @@
         "nuggets": [
           true,
           true,
+          true,
+          true,
           false,
           false,
           false
         ],
-        "nugget_recall": 0.4,
-        "rationale": "The answer gives the correct ALTER COLUMN SET DEFAULT syntax, explains that existing rows are unaffected, and provides the DROP DEFAULT syntax without contradicting any nugget."
+        "nugget_recall": 0.5714285714285714,
+        "core_recall": 1.0,
+        "supporting_recall": 0.4,
+        "rationale": "The answer correctly gives the SET DEFAULT syntax, explains its prospective effect without changing existing rows, and shows how to drop a default, with no contradictions."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1350,11 +1873,25 @@
           true,
           false,
           false,
+          true,
           false,
-          false
+          false,
+          true
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains pinning an action by placing its full commit SHA after `@` and contains no contradiction, but it omits fork verification, the unique immutability comparison with tags, the update tradeoff, and repository-level policy support."
+        "nugget_recall": 0.5,
+        "core_recall": 1.0,
+        "supporting_recall": 0.3333333333333333,
+        "rationale": "The answer correctly explains and demonstrates full-SHA pinning without contradicting any reference nugget, though it omits the no-fork requirement, exclusivity of SHA immutability, lack of automatic updates, and repository-level policies."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1388,10 +1925,25 @@
           true,
           true,
           true,
-          false
+          false,
+          true
         ],
-        "nugget_recall": 0.8,
-        "rationale": "The answer correctly gives the history, inspection, previous-revision, and specific-revision commands, but contradicts the reference by saying the default revision history limit is 10 rather than that all rollout history is kept by default."
+        "nugget_recall": 0.8333333333333334,
+        "core_recall": 1.0,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "The answer supports nuggets 1–4 and 6, but contradicts nugget 5 by stating that the default retained history is limited to 10 and older revisions may be garbage-collected."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1425,10 +1977,22 @@
           true,
           false,
           false,
+          true,
           false
         ],
-        "nugget_recall": 0.4,
-        "rationale": "The answer correctly explains using --target with a stage named via AS and accurately notes BuildKit dependency pruning, but it omits COPY --from, numeric stage indexes, and the legacy-builder comparison."
+        "nugget_recall": 0.5,
+        "core_recall": 1.0,
+        "supporting_recall": 0.25,
+        "rationale": "The answer correctly gives the --target command, explains named stages, and states BuildKit dependency behavior without contradicting any reference nugget."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1456,16 +2020,31 @@
       "answer": "Node.js offers multiple ways to automatically restart your script when files change. The simplest approach is to use Node.js's built-in `--watch` flag (available since v18.11.0), but popular third-party tools like Nodemon and PM2 provide more features and configuration options.\n\n## Built-in Node.js Watch Mode\n\n- Node.js has native watch mode built into the runtime. [To start your application in watch mode, prepend the `--watch` flag](https://salivity.github.io/node.js/article/node-js-watch-mode-how-to-auto-restart-with-watch) to your execution command.\n\n## Using Nodemon (Popular Third-Party Tool)\n\n- [Nodemon is a lightweight, open-source tool designed specifically to monitor Node.js applications for file changes and automatically restart the server](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/). Install it with `npm install --save-dev nodemon` and then run `npx nodemon app.js` or add `\"dev\": \"nodemon app.js\"` to your `package.json` scripts. [Nodemon works out of the box, but you can customize its behavior using a `nodemon.json` configuration file](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/) to ignore specific files, watch specific directories, or adjust restart delays.\n\n## Using PM2 (Production-Ready Process Manager)\n\n- [PM2 is a production-grade process manager for Node.js applications that includes a built-in watch mode for auto-reloading](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/). Install globally with `npm install -g pm2`, then start your app with `pm2 start app.js --watch`. [PM2 is designed for both development (auto-reload) and production (monitoring, clustering, logging)](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n\n## Choosing the Right Approach\n\n- [Use Nodemon if you need a lightweight, simple tool focused solely on auto-reloading during development](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n- Use Node.js's native `--watch` if you want zero dependencies and are on Node.js v18.11.0 or later.\n- [Use PM2 if you want a process manager that handles both development (auto-reload) and production (monitoring, clustering, logging)](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/).\n\nSources:\n1. [To start your application in watch mode, prepend the `--watch` flag](https://salivity.github.io/node.js/article/node-js-watch-mode-how-to-auto-restart-with-watch) (unsupported: the cited page does not contain the quoted text)\n2. [Nodemon is a lightweight, open-source tool designed specifically to monitor Node.js applications for file changes and automatically restart the server](https://www.xjavascript.com/blog/how-to-reload-the-nodejs-app-after-making-changes-to-the-file/)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
           true,
           false,
           false,
           false,
+          false,
+          false,
+          false,
           false
         ],
-        "nugget_recall": 0.2,
-        "rationale": "The answer correctly recommends Node.js’s built-in `--watch` flag, but it omits the default watched modules, `--watch-path`, stability versions, and restrictions, while incorrectly implying the feature is only available from v18.11.0 despite also being added in v16.19.0."
+        "nugget_recall": 0.125,
+        "core_recall": 0.5,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly recommends Node.js’s built-in --watch flag for automatic restarts and does not contradict the reference facts, but it omits the detailed default behavior, path semantics, stability versions, incompatibilities, and missing-file exit status."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "uncited",
+          "supported"
+        ]
       }
     },
     {
@@ -1499,11 +2078,23 @@
           true,
           false,
           true,
-          false,
-          false
+          true
         ],
-        "nugget_recall": 0.5,
-        "rationale": "The answer correctly explains how to create, activate, and deactivate a venv, though it omits the explicit .bat suffix for cmd.exe and does not mention system site-packages or environment portability/source-control guidance."
+        "nugget_recall": 0.8,
+        "core_recall": 1.0,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "The answer correctly explains creation, POSIX and PowerShell activation, and deactivation; its cmd.exe command is valid but does not explicitly state the reference’s specific activate.bat filename."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "partly",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1537,10 +2128,25 @@
           true,
           true,
           true,
+          true,
           true
         ],
         "nugget_recall": 1.0,
-        "rationale": "A resposta apresenta corretamente as três regras de ownership, explica o move de String e a invalidação de s1 para evitar double free, e distingue tipos Copy, que permanecem válidos após atribuição."
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "A resposta apresenta corretamente as três regras de ownership, explica o move de String e a prevenção de double free, e distingue tipos Copy que permanecem válidos após atribuição."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1574,10 +2180,27 @@
           true,
           true,
           true,
+          true,
+          true,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "A resposta explica corretamente unwrap, expect e ?, sem contradizer os nuggets, mas não apresenta a definição formal de Result nem menciona especificamente main retornando (), o erro E0277 e a exigência de retorno compatível."
+        "nugget_recall": 0.7142857142857143,
+        "core_recall": 0.8333333333333334,
+        "supporting_recall": 0.0,
+        "rationale": "A resposta explica corretamente unwrap, expect e a propagação com ?, mas omite a definição explícita de Result e não menciona o erro E0277 ao usar ? em uma função que retorna ()."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "contradicted",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1608,13 +2231,33 @@
         "grade": "INCORRECT",
         "nuggets": [
           true,
-          false,
           true,
+          true,
+          true,
+          false,
           true,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "A resposta explica corretamente criação, ativação e desativação, mas não menciona pyvenv.cfg e omite o comando solicitado `python -m pip freeze > requirements.txt`."
+        "nugget_recall": 0.7142857142857143,
+        "core_recall": 0.8333333333333334,
+        "supporting_recall": 0.0,
+        "rationale": "A resposta explica criação, ativação, desativação e reinstalação, mas omite no corpo da resposta o comando solicitado `python -m pip freeze > requirements.txt`, essencial para congelar as dependências."
+      },
+      "claims": {
+        "verdicts": [
+          "uncited",
+          "uncited",
+          "uncited",
+          "supported",
+          "uncited",
+          "uncited",
+          "uncited",
+          "partly",
+          "uncited",
+          "uncited",
+          "supported",
+          "uncited"
+        ]
       }
     },
     {
@@ -1647,11 +2290,27 @@
           true,
           true,
           true,
+          true,
+          true,
+          true,
           false,
           true
         ],
-        "nugget_recall": 0.8,
-        "rationale": "A resposta explica corretamente escopo, hoisting, reatribuição e mutabilidade da vinculação, mas não afirma explicitamente que `const` deve ser inicializada no momento da declaração."
+        "nugget_recall": 0.875,
+        "core_recall": 1.0,
+        "supporting_recall": 0.75,
+        "rationale": "A resposta explica corretamente escopo, hoisting, reatribuição e mutabilidade da ligação, mas não afirma que declarar const sem inicializador causa SyntaxError."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -1681,14 +2340,34 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
-          false,
+          true,
           false,
           true,
           true,
+          false,
+          false,
+          false,
           false
         ],
-        "nugget_recall": 0.4,
-        "rationale": "La respuesta explica correctamente que rebase reaplica commits creando otros nuevos y advierte no usarlo en historial compartido, aunque omite el ancestro común y los ejemplos específicos con experiment/master y --onto."
+        "nugget_recall": 0.375,
+        "core_recall": 0.75,
+        "supporting_recall": 0.0,
+        "rationale": "La respuesta explica correctamente que rebase reaplica commits sobre una nueva base creando commits nuevos y advierte contra reescribir historial compartido, sin contradecir los nuggets, aunque omite el ancestro común, el proceso basado en diffs, la necesidad de reintegración de colaboradores y `--onto`."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1720,12 +2399,42 @@
         "nuggets": [
           true,
           true,
+          true,
+          true,
+          false,
+          true,
           false,
           false,
+          true,
           true
         ],
-        "nugget_recall": 0.6,
-        "rationale": "A resposta cobre os direitos de confirmação, acesso, correção e portabilidade e informa corretamente a multa, mas não afirma explicitamente que o controlador deve nomear o encarregado nem limita a notificação de incidentes aos casos que possam causar risco ou dano relevante."
+        "nugget_recall": 0.7,
+        "core_recall": 0.6666666666666666,
+        "supporting_recall": 1.0,
+        "rationale": "A resposta cobre a maioria dos direitos e as multas, mas não afirma que o controlador deve nomear um encarregado e omite o requisito de risco ou dano relevante para comunicar incidentes à ANPD e aos titulares."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "uncited",
+          "supported",
+          "unsupported",
+          "supported",
+          "partly",
+          "supported",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -1759,10 +2468,36 @@
           true,
           true,
           true,
+          false,
+          true,
+          true,
+          true,
+          true,
           false
         ],
         "nugget_recall": 0.8,
-        "rationale": "A resposta descreve corretamente os cinco campos, seus intervalos, o domingo como 0 ou 7, o asterisco e os intervalos inclusivos, além de @reboot e @daily, mas omite a regra de correspondência alternativa entre dia do mês e dia da semana."
+        "core_recall": 0.8571428571428571,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "A resposta explica corretamente os cinco campos, seus intervalos e os atalhos solicitados, sem contradizer os nuggets, embora não mencione nomes para dias da semana nem a regra de correspondência entre dia do mês e dia da semana."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -1790,16 +2525,31 @@
       "answer": "Pix é um sistema de pagamento instantâneo em tempo real criado e gerenciado pelo [Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix), oferecido gratuitamente a pessoas físicas e jurídicas, que funciona 24 horas ininterruptamente e foi lançado oficialmente em 16 de novembro de 2020.\n\n## O que é Pix\n\n- Pix é um modo de transferência monetária instantâneo e de pagamento eletrônico em real brasileiro, permitindo transferências entre contas em segundos e disponível para contas corrente, poupança ou pré-pagas ([Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix)).\n- O sistema foi estruturado a partir de 2016 por uma equipe técnica do Banco Central liderada pelo engenheiro Carlos Eduardo Brandt, com os requisitos fundamentais estabelecidos em dezembro de 2018 ([pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)).\n\n## Lançamento e Adoção\n\n- O sistema foi aberto a cadastramento de chaves e testes em 5 de outubro de 2020 e lançado oficialmente de forma integral em 16 de novembro de 2020 ([pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)).\n- Alcançou mais de 150 milhões de usuários e se tornou o maior método de pagamento do Brasil, processando 8,6 vezes mais volume de transações que cartões de crédito e débito combinados ([en.wikipedia.org/wiki/Pix_(payment_system)](https://en.wikipedia.org/wiki/Pix_(payment_system))).\n\n## Especificação da API Pix\n\n- A especificação da API Pix está disponível no repositório oficial do Banco Central em [github.com/bacen/pix-api](https://github.com/bacen/pix-api), onde as especificações funcionais são definidas em formato OpenAPI 3.0 ([github.com/bacen/pix-api](https://github.com/bacen/pix-api)).\n- A documentação interativa da API Pix pode ser visualizada em [bacen.github.io/pix-api](https://bacen.github.io/pix-api), sendo a release atual a versão 2.10.0 ([github.com/bacen/pix-api](https://github.com/bacen/pix-api)).\n\nSources:\n1. [Banco Central do Brasil](https://www.bcb.gov.br/estabilidadefinanceira/pix)\n2. [pt.wikipedia.org/wiki/Pix](https://pt.wikipedia.org/wiki/Pix)\n3. [github.com/bacen/pix-api](https://github.com/bacen/pix-api)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
           true,
           true,
           true,
-          false,
-          false
+          true,
+          true,
+          true,
+          true,
+          true
         ],
-        "nugget_recall": 0.6,
-        "rationale": "A resposta contradiz a data de lançamento inicial de 5 de outubro de 2020 ao apresentar 16 de novembro como lançamento oficial e não identifica especificamente o arquivo openapi.yaml."
+        "nugget_recall": 1.0,
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "A resposta afirma todos os oito fatos de referência, incluindo as duas datas de lançamento e o repositório com especificação em OpenAPI 3.0, sem contradizê-los."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -1837,7 +2587,19 @@
           false
         ],
         "nugget_recall": 0.5,
-        "rationale": "The answer correctly identifies Tokio as maintained, async-std as discontinued with migration to smol recommended, and Tokio's work-stealing scheduler, while omitting the exact MSRV and smol compatibility details."
+        "core_recall": 1.0,
+        "supporting_recall": 0.25,
+        "rationale": "The answer correctly identifies async-std as discontinued, recommends smol, and describes Tokio's multithreaded work-stealing scheduler without contradicting any reference nugget."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "partly",
+          "contradicted",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1868,14 +2630,30 @@
         "grade": "CORRECT",
         "nuggets": [
           true,
-          false,
           true,
           true,
-          false,
-          true
+          true,
+          true,
+          true,
+          false
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly recommends Rc for single-threaded sharing and Arc for cross-thread sharing, explains Arc's atomic overhead and conditional Send/Sync support, but does not expand Arc's name or explicitly state that Rc is both !Send and !Sync."
+        "nugget_recall": 0.8571428571428571,
+        "core_recall": 1.0,
+        "supporting_recall": 0.6666666666666666,
+        "rationale": "The answer correctly distinguishes Rc as lower-overhead single-threaded reference counting from Arc as atomic, thread-safe reference counting with conditional Send and Sync, but does not state that Arc stands for Atomically Reference Counted."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "partly",
+          "supported",
+          "partly"
+        ]
       }
     },
     {
@@ -1910,10 +2688,27 @@
           true,
           true,
           true,
+          true,
+          true,
+          true,
           true
         ],
         "nugget_recall": 1.0,
-        "rationale": "The answer accurately covers exact-text versus binary storage, reparsing and performance, jsonb indexing, formatting and key-order preservation, duplicate-key handling, and the recommendation to prefer jsonb except for specialized preservation needs."
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "The answer accurately states all nine reference facts and directly explains the storage, performance, indexing, preservation, duplicate-key, and usage differences."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "partly",
+          "partly",
+          "supported"
+        ]
       }
     },
     {
@@ -1943,15 +2738,32 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
+          true,
           false,
           true,
+          false,
           true,
+          false,
+          false,
           false,
           false,
           false
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains the core transport change from TCP to QUIC and the replacement of HPACK by QPACK with dedicated encoder/decoder streams, while omitting TLS specificity, protocol selection/fallback, and HTTP/2 binary multiplexing details without contradicting the reference facts."
+        "nugget_recall": 0.3,
+        "core_recall": 0.5,
+        "supporting_recall": 0.16666666666666666,
+        "rationale": "The answer correctly identifies QUIC as HTTP/3's transport and QPACK as its replacement for HPACK, explaining the in-order versus out-of-order compression issue without contradicting the reference facts."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -1986,10 +2798,25 @@
           false,
           true,
           true,
+          true,
           true
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly describes merge commits, rebasing, linear history, and avoiding rebase on shared commits, but its blanket claim that merge creates a merge commit contradicts the fast-forward case and it omits the three-way merge mechanism."
+        "nugget_recall": 0.7142857142857143,
+        "core_recall": 0.6666666666666666,
+        "supporting_recall": 1.0,
+        "rationale": "The answer correctly explains merge commits, rebasing, linear history, commit replacement, and the shared-history warning, but incorrectly presents merge as always creating a merge commit and omits both three-way merge mechanics and fast-forward merges."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "supported",
+          "supported",
+          "partly",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -2019,15 +2846,31 @@
       "judge": {
         "grade": "CORRECT",
         "nuggets": [
-          false,
+          true,
+          true,
           true,
           false,
           false,
-          true,
-          false
+          false,
+          false,
+          true
         ],
-        "nugget_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains that lists are mutable and tuples are immutable, including that tuples may contain mutable objects, and it contradicts none of the reference facts."
+        "nugget_recall": 0.5,
+        "core_recall": 0.5,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly states the mutability distinction, that modifying a tuple element raises TypeError, and that tuples may contain mutable objects, while omitting the typical heterogeneity, homogeneity, and access-pattern claims without contradicting them."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "unsupported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -2059,13 +2902,29 @@
         "nuggets": [
           true,
           true,
-          false,
-          false,
+          true,
+          true,
+          true,
           true,
           true
         ],
-        "nugget_recall": 0.6666666666666666,
-        "rationale": "The answer correctly explains ordering, key trait requirements, and selection criteria without contradicting any reference fact, though it omits SwissTable and SipHash 1-3 implementation details."
+        "nugget_recall": 1.0,
+        "core_recall": 1.0,
+        "supporting_recall": 1.0,
+        "rationale": "The answer accurately states HashMap's arbitrary ordering and Eq/Hash requirements, BTreeMap's sorted B-Tree ordering and Ord requirement, and the recommended use of BTreeMap for sorted keys and range queries."
+      },
+      "claims": {
+        "verdicts": [
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported",
+          "supported"
+        ]
       }
     },
     {
@@ -2099,10 +2958,24 @@
           true,
           false,
           true,
+          true,
+          true,
+          false,
           false
         ],
-        "nugget_recall": 0.6,
-        "rationale": "The answer correctly explains the core locking and poisoning differences without contradicting the reference facts, but omits RwLock priority policy and the differing Sync trait bounds."
+        "nugget_recall": 0.625,
+        "core_recall": 1.0,
+        "supporting_recall": 0.0,
+        "rationale": "The answer correctly explains the core locking and poisoning differences without contradicting the reference facts, but omits RwLock priority-policy behavior and the differing Sync trait bounds."
+      },
+      "claims": {
+        "verdicts": [
+          "partly",
+          "partly",
+          "partly",
+          "supported",
+          "partly"
+        ]
       }
     }
   ]
