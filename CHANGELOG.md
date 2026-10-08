@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `fetch` recognizes the Cloudflare "Performing security verification" interstitial on both paths: static hands over to Obscura, a still-interstitial rendered page fails with `Blocked`; long articles quoting the phrase are unaffected (#126).
 - `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
 - Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
 - Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).
