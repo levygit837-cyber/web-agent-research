@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `search` call with no Hits tells the agent each engine's status: rows, no results, suspended, timed out or unrecognized markup (#104).
 - After the 5 s soft deadline, legs already sending wait up to the 30 s hard deadline; only legs still queued are cancelled (#104).
 - DuckDuckGo continuation pages are paced and counted against the engine's request budget (#104).
+- The `search` tool description and workflow step 1 tell the agent to name the reference page in one query (`<project> documentation <topic>`, `docs.rs <crate>`, `MDN <API>`), use the exact identifier in another, and avoid `site:` (#127).
+- `search` multiplies a Hit's RRF score by a factor in `[0.2, 1]`, the share of a query's terms (at most 3) found in the Hit's title, URL and snippet, so home, download and store pages that only match the topic word rank below pages that match the query; no Hit is dropped (#127).
 
 ### Fixed
 
