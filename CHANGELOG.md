@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A `search` call with no Hits tells the agent each engine's status: rows, no results, suspended, timed out or unrecognized markup (#104).
 - After the 5 s soft deadline, legs already sending wait up to the 30 s hard deadline; only legs still queued are cancelled (#104).
 - DuckDuckGo continuation pages are paced and counted against the engine's request budget (#104).
+- After the grounding check, one tools-off repair turn sends the `none`, `partial`, uncited and unfetched-citation bullets back to the agent to rewrite from the cited page with a verbatim quote, or drop; the repaired answer replaces the first only when it has fewer unsupported bullets and no fewer `exact` ones. The call counts in `turns_used` and runs only inside the turn budget and before the deadline's final reserve (#125).
+- The prompt says a specific value (number, version, flag, default) must appear on a fetched page, and that the official source wins over a secondary one when they disagree (#125).
 
 ### Fixed
 

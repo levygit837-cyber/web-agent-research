@@ -18,23 +18,26 @@
 //! sends the same tool defs with `ToolChoice::None`; tool calls in its
 //! reply are not dispatched and count as an empty-answer repair.
 //!
+//! After a parsed answer is checked against the fetched pages, one repair
+//! turn (tools off, counted in `turns_used`) may rewrite the bullets the
+//! check flagged (#125, `repair.rs`).
+//!
 //! The contract types are in `types.rs`; per-turn dispatch and the prompt
 //! notes are in `dispatch.rs`.
 
 use crate::llm::{Gateway, GatewayError, TokenUsage, ToolChoice};
-use crate::research::agent_loop::answer::{parse_answer, retain_fetched_citations};
+use crate::research::agent_loop::answer::parse_answer;
 use crate::research::agent_loop::context::{self, HistoryEntry};
 use crate::research::agent_loop::dispatch::{
     allowed_roster, dispatch_turn, empty_answer_observation, turns_left_note,
 };
 use crate::research::agent_loop::registry::ToolRegistry;
+use crate::research::agent_loop::repair::{ground, repair};
 use crate::research::agent_loop::result::{new_nonce, FailureKind};
 use crate::research::agent_loop::types::{
     LoopBudget, LoopError, LoopInput, RunReport, ToolEvidence,
 };
-use crate::research::agent_loop::verify::verify_synthesis;
 use crate::research::prompt::build_system_prompt;
-use crate::web::search::dedup_key;
 
 /// Run the multi-turn research loop until the first tool-free answer.
 ///
@@ -152,16 +155,25 @@ pub async fn run_loop(
                 None
             };
             if let Some(mut synthesis) = answer {
-                let fetched: std::collections::HashSet<String> = evidence
-                    .iter()
-                    .filter_map(|item| item.url.as_deref())
-                    .map(dedup_key)
-                    .collect();
-                retain_fetched_citations(&mut synthesis, &fetched);
-                verify_synthesis(&mut synthesis, &evidence);
-                return Ok(RunReport {
+                ground(&mut synthesis, &evidence);
+                let repaired = repair(
+                    gateway,
+                    &defs,
+                    &system_prompt,
+                    input,
+                    &history,
+                    budget,
+                    &evidence,
                     synthesis,
-                    turns_used: turn,
+                    &reply.output,
+                    turn,
+                    turn_budget,
+                )
+                .await;
+                usage.add(&repaired.usage);
+                return Ok(RunReport {
+                    synthesis: repaired.synthesis,
+                    turns_used: turn + repaired.turns,
                     turn_budget,
                     failures_used,
                     evidence,
@@ -238,6 +250,7 @@ pub async fn run_loop(
 mod tests {
     mod basic;
     mod budget_and_mix;
+    mod grounding_repair;
     mod helpers;
     mod no_start;
     mod repairs;

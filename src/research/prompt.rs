@@ -30,6 +30,8 @@ const EVIDENCE_RULES: &str = "<evidence_rules>
 - Fetch before you answer. An answer written from snippets alone hands the caller unverified claims with no sources, which defeats the purpose of this tool.
 - Cite only pages you fetched. Links to anything else are removed from the citations the caller receives, so they cannot support a claim.
 - Never invent or guess a URL. Fetch URLs from search Hits, from the goal itself, or from links inside a page you already fetched.
+- State a specific value (a number, version, flag, default, limit or date) only when it appears on a page you fetched; a value you remember or infer is not Evidence. Leave it out, or say the pages do not give it.
+- When an official source (the project's own documentation, repository, release notes, a standard) and a secondary source (a blog, forum answer, aggregator, mirror) disagree, state the official one, and mention the disagreement only if it matters to the goal.
 ";
 
 /// Rules for runs where no offered tool reads pages.

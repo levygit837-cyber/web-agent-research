@@ -296,7 +296,7 @@ The framing and the rule reduce prompt injection; they do not make it impossible
 ```
 
 - `content_trust`: always `untrusted-web` (#98).
-- `turns_used`: LLM calls made. `turn_budget`: the turn budget when the run ended, `--max-turns` plus any search extensions, at most `--max-turns-cap` (#101).
+- `turns_used`: LLM calls made, the grounding repair turn included (see "Repair turn" below). `turn_budget`: the turn budget when the run ended, `--max-turns` plus any search extensions, at most `--max-turns-cap` (#101).
 - `evidence_urls`: pages actually fetched in this run. Hits that were never fetched are not included.
 - `citations` (top-level and per theme): only links to pages fetched in this run, matched against each page's final (post-redirect) URL after normalization (`www.` and trailing-slash variants count as the same page). Links the model copied from inside a fetched page, or to Hits it never fetched, are dropped from `citations`; the prose in `summary`/`points` is left as written.
 - `synthesis` comes from the agent's final reply (its first reply with no tool call). The agent is asked to put its answer inside an `<answer>` … `</answer>` block, each tag on a line of its own, and only the text inside the last such block is parsed, so remarks about its own progress never reach `summary` (#72). A tag counts only when it is alone on its line, in any letter case, so a tag mentioned in a remark or shown in inline code stays text. A reply cut before its closing line parses from the opening line to the end; a reply with no opening line is parsed whole. `summary` is the text before the first `## ` heading, each `## ` section is one theme, and its `- `/`* `/`N. ` bullets are its `points`. A bullet's trailing `(quote: "…")` is removed from its point and kept on its citations (see "Grounding check").
@@ -313,6 +313,15 @@ Citations are checked against the pages, without a model. The agent ends each bu
 - `verification` counts over every bullet: `bullets` all bullets, `cited` those linking at least one fetched page, then `exact`/`partial`/`none` splitting `cited` by best grade.
 
 `exact` means the quoted words and the checked tokens are on the cited page; it does not prove the bullet's reading of them is right. `none` usually means a paraphrased or invented quote, or a claim the page does not make: check those claims before relying on them.
+
+### Repair turn (#125)
+
+When the grounding check flags a bullet (`none`, `partial`, no citation, or a citation of a page the run never fetched), the run makes one more LLM call before it returns, with tools off. The agent gets the flagged bullets with their check result and rewrites each from the page it cites, with a verbatim quote, or drops it. The repaired answer is checked again and replaces the original only when it has fewer unsupported bullets (`none`, uncited or citing an unfetched page) or, with the same number, fewer `partial` ones, and no fewer `exact` ones; otherwise the original answer is returned. `verification` and every `support` describe the answer returned.
+
+- The repair call counts in `turns_used` (at most one, so `turns_used` can exceed the turn at which the first answer was written by 1) and in `usage`, and takes wall time.
+- It runs only when a turn of the budget is left after the answer and the run deadline's final reserve has not been reached (`--deadline-secs`); otherwise the first answer is returned as is. So `turns_used` never exceeds `turn_budget`, and the repair never turns a run that had an answer into exit `5` or `9`.
+- A repair call that fails (gateway error, tool calls in the reply, an unparsable reply) keeps the first answer; the run still exits `0`.
+- A run with no flagged bullet, or that fetched no page, makes no repair call.
 
 ## Exit codes
 
