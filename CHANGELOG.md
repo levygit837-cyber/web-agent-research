@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` tool tape, judge, paired compare (#107).
 - crates.io search leg: crate-shaped Queries return a docs.rs Hit (`<name> <version>`, description) from the keyless API, 1 request/s, with an identifying User-Agent; `WEB_AGENT_RESEARCH_CONTACT` sets its contact (#109).
 - `fetch` serves `crates.io/crates/<name>` from the sparse index and API as a markdown block (versions, yanked, `rust_version`, links), without Obscura (#109).
+- eval: `WAR_EVAL_REPLAY_THROUGH=<dir>` and `eval run --mode replay-through` replay `search`, fetch unrecorded pages live and append them to `pages.jsonl` (#129).
 
 ### Changed
 
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `fetch` recognizes the Cloudflare "Performing security verification" interstitial on both paths: static hands over to Obscura, a still-interstitial rendered page fails with `Blocked`; long articles quoting the phrase are unaffected (#126).
+- `search` accepts `queries` sent as a JSON-encoded array string, validated like an array (#128).
 - `rust-version` said `1.75`, but the locked tree needs Rust 1.88; it now says `1.88` and CI checks it (#105).
 - Obscura output is capped at 5 MiB per stream and the browser is killed on overflow (#97).
 - Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).

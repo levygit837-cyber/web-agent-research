@@ -119,9 +119,10 @@ fn generate_session_id() -> String {
 /// Owns `req`; borrows nothing. Exactly one gateway call per turn.
 /// `allowed_tools` is fixed to `["search", "fetch"]` in registry order.
 /// The key comes only from env (`GATEWAY_API_KEY`), never from the request.
-/// The eval-only `WAR_EVAL_RECORD` / `WAR_EVAL_REPLAY` env vars (#107,
-/// `docs/eval.md`) record or replay the tools; a bad value is
-/// `NotConfigured`.
+/// The eval-only `WAR_EVAL_RECORD` / `WAR_EVAL_REPLAY` /
+/// `WAR_EVAL_REPLAY_THROUGH` env vars (#107, #129, `docs/eval.md`) record,
+/// replay, or replay-and-extend the tools; a bad value, or more than one
+/// set, is `NotConfigured`.
 pub async fn run_research(req: ResearchRequest) -> Result<ResearchResponse, ResearchError> {
     let tape = Tape::from_env().map_err(ResearchError::NotConfigured)?;
     let tools = ToolRegistry::new(Searcher::new(), Fetcher::new()).with_tape(tape);
