@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use web_agent_research::{render, ResearchResponse, VerificationDTO};
 
+use super::claims::Claims;
 use super::judge::Judgement;
 
 /// Stderr marker of a `fetch` the replay fixture had no page for; mirrors
@@ -47,6 +48,10 @@ pub struct RunRow {
     /// Filled by `eval judge`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub judge: Option<Judgement>,
+    /// Filled by the claim pass of `eval judge` (#123); absent on a run
+    /// that was not claim-judged (failed, live, or judged before #123).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claims: Option<Claims>,
 }
 
 impl Metrics {

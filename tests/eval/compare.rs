@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 
+use super::claims::{rate, Verdict};
 use super::judge::Grade;
 use super::metrics::RunRow;
 use super::results::ResultsFile;
@@ -21,7 +22,7 @@ pub struct Metric {
 }
 
 /// The metrics `eval compare` reports, quality first.
-pub const METRICS: [Metric; 8] = [
+pub const METRICS: [Metric; 13] = [
     Metric {
         name: "correct",
         value: |row| {
@@ -37,6 +38,26 @@ pub const METRICS: [Metric; 8] = [
     Metric {
         name: "exact_share",
         value: |row| row.metrics.exact_share(),
+    },
+    Metric {
+        name: "claim_precision",
+        value: |row| rate(row, Verdict::Supported),
+    },
+    Metric {
+        name: "claim_partly",
+        value: |row| rate(row, Verdict::Partly),
+    },
+    Metric {
+        name: "claim_unsupported",
+        value: |row| rate(row, Verdict::Unsupported),
+    },
+    Metric {
+        name: "claim_contradicted",
+        value: |row| rate(row, Verdict::Contradicted),
+    },
+    Metric {
+        name: "uncited_share",
+        value: |row| rate(row, Verdict::Uncited),
     },
     Metric {
         name: "exit_0",
@@ -196,6 +217,7 @@ mod tests {
             answer: None,
             error: None,
             judge: None,
+            claims: None,
         }
     }
 
@@ -213,7 +235,10 @@ mod tests {
 
     #[test]
     fn repeats_are_averaged_per_goal_and_unpaired_goals_dropped() {
-        let metric = &METRICS[4];
+        let metric = METRICS
+            .iter()
+            .find(|m| m.name == "citations")
+            .expect("citations is compared");
         let a = [row("g1", 2), row("g1", 4), row("g2", 10), row("only-a", 99)];
         let b = [row("g1", 5), row("g2", 12)];
         let p = paired(&a, &b, metric);

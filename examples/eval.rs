@@ -4,7 +4,7 @@
 //! ```text
 //! cargo build --release
 //! cargo run --example eval -- run --mode record --fixtures /tmp/war-fix --out base.json
-//! cargo run --example eval -- judge base.json
+//! cargo run --example eval -- judge base.json --fixtures /tmp/war-fix
 //! cargo run --example eval -- summary base.json
 //! cargo run --example eval -- compare a.json b.json
 //! cargo run --example eval -- pack /tmp/war-fix crate_docs-01 how_to-03
@@ -21,6 +21,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand};
 
+use eval::claims::{self, Fixtures, Verdict};
 use eval::golden;
 use eval::judge::{Judge, Judgement, DEFAULT_JUDGE_MODEL};
 use eval::results::{summary_table, ResultsFile, FORMAT};
@@ -62,12 +63,17 @@ enum Command {
         #[arg(last = true)]
         extra_args: Vec<String>,
     },
-    /// Grade every unjudged run of a results file in place.
+    /// Grade every unjudged run of a results file in place, then check the
+    /// claims of every answered, unchecked run against its recorded pages.
     Judge {
         results: PathBuf,
         /// Pinned judge model id.
         #[arg(long, default_value = DEFAULT_JUDGE_MODEL)]
         model: String,
+        /// Fixture root the run recorded its pages into (record/replay):
+        /// the claim pass reads `<fixtures>/<goal id>/pages.jsonl`.
+        #[arg(long, default_value = "target/eval/fixtures")]
+        fixtures: PathBuf,
     },
     /// Per-category summary table (Markdown).
     Summary { results: PathBuf },
@@ -176,7 +182,7 @@ async fn run(
     Ok(())
 }
 
-async fn judge(path: &Path, model: &str) -> Result<(), String> {
+async fn judge(path: &Path, model: &str, fixtures: PathBuf) -> Result<(), String> {
     let mut file = ResultsFile::read(path)?;
     if let Some(pinned) = &file.judge_model {
         if pinned != model {
@@ -189,26 +195,42 @@ async fn judge(path: &Path, model: &str) -> Result<(), String> {
     file.judge_model = Some(model.to_owned());
     let goals = golden::load(&golden::default_dir())?;
     let judge = Judge::from_env(model)?;
+    // A live run has no recorded pages: its claim metrics stay missing.
+    let claim_pass = file.mode != Mode::Live;
+    let mut fixtures = Fixtures::new(fixtures);
     for index in 0..file.rows.len() {
-        if file.rows[index].judge.is_some() {
-            continue;
-        }
         let row = &file.rows[index];
         let goal = &goals
             .iter()
             .find(|g| g.goal.id == row.goal_id)
             .ok_or_else(|| format!("goal {:?} not in the golden set", row.goal_id))?
             .goal;
-        let judgement = match &row.answer {
-            Some(answer) => judge.grade(goal, answer).await?,
-            None => Judgement::no_answer(goal),
-        };
-        eprintln!(
-            "judge {} r{}: {:?} recall {:.2}",
-            row.goal_id, row.repeat, judgement.grade, judgement.nugget_recall
-        );
-        file.rows[index].judge = Some(judgement);
-        file.write(path)?;
+        if row.judge.is_none() {
+            let judgement = match &row.answer {
+                Some(answer) => judge.grade(goal, answer).await?,
+                None => Judgement::no_answer(goal),
+            };
+            eprintln!(
+                "judge {} r{}: {:?} recall {:.2}",
+                row.goal_id, row.repeat, judgement.grade, judgement.nugget_recall
+            );
+            file.rows[index].judge = Some(judgement);
+            file.write(path)?;
+        }
+        let row = &file.rows[index];
+        if let (true, None, Some(answer)) = (claim_pass, &row.claims, &row.answer) {
+            let claims =
+                claims::check(&judge, &mut fixtures, &row.goal_id, &goal.goal, answer).await?;
+            eprintln!(
+                "claims {} r{}: {}/{} supported",
+                row.goal_id,
+                row.repeat,
+                claims.count(Verdict::Supported),
+                claims.verdicts.len()
+            );
+            file.rows[index].claims = Some(claims);
+            file.write(path)?;
+        }
     }
     file.write(path)?;
     println!("{}", summary_table(&file.rows));
@@ -242,7 +264,11 @@ async fn main() -> ExitCode {
             )
             .await
         }
-        Command::Judge { results, model } => judge(&results, &model).await,
+        Command::Judge {
+            results,
+            model,
+            fixtures,
+        } => judge(&results, &model, fixtures).await,
         Command::Summary { results } => {
             ResultsFile::read(&results).map(|file| println!("{}", summary_table(&file.rows)))
         }
