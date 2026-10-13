@@ -23,30 +23,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Session files are created with mode `0600`; `SESSION_MAX_BYTES` (default 256 MiB) evicts the oldest Sessions (#102).
 - Gateway retries honor `Retry-After` (seconds or HTTP-date) on 429/503/529 with full-jitter backoff; error messages carry the upstream detail (#99).
-- Model-free grounding check: each cited bullet's verbatim quote and its numbers, versions, error codes and identifiers are checked against the cited page (#106).
-- Human output marks sources whose page does not support the cited bullets as `(unsupported: …)` or `(partial: …)` (#106).
+- Model-free grounding check: each cited bullet's quote and its numbers, versions, error codes and identifiers are checked against the cited page; human output marks failing sources `(unsupported: …)` or `(partial: …)` (#106).
 - `FETCH_ALLOW_PRIVATE=1` lets `fetch` reach private addresses, for local testing (#97).
-- Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY` tool tape, judge, paired compare (#107).
+- Offline eval: golden set, eval-only `WAR_EVAL_RECORD`/`WAR_EVAL_REPLAY`/`WAR_EVAL_REPLAY_THROUGH` tool tape (`eval run --mode replay-through` fetches unrecorded pages live), judge, paired compare (#107, #129).
 - crates.io search leg: crate-shaped Queries return a docs.rs Hit (`<name> <version>`, description) from the keyless API, 1 request/s, with an identifying User-Agent; `WEB_AGENT_RESEARCH_CONTACT` sets its contact (#109).
 - `fetch` serves `crates.io/crates/<name>` from the sparse index and API as a markdown block (versions, yanked, `rust_version`, links), without Obscura (#109).
-- eval: `WAR_EVAL_REPLAY_THROUGH=<dir>` and `eval run --mode replay-through` replay `search`, fetch unrecorded pages live and append them to `pages.jsonl` (#129).
 - eval: `eval judge` adds a claim pass that checks each bullet against its cited pages; `claim_precision`, `claim_partly`, `claim_unsupported`, `claim_contradicted`, `uncited_share` in `summary` and `compare` (#123).
-- eval: golden v2: every nugget is one atomic claim with a `scope` (`core` or `supporting`) written in `tests/golden/*.json`, example-bound values are rewritten to the general fact, and `golden::load` rejects compound nuggets and goals with fewer than 2 `core` nuggets (#122).
-- eval: `core_recall` (the headline) and `supporting_recall` beside `nugget_recall` in `summary` and `compare` (#122).
+- eval: golden v2: atomic nuggets with a `scope` (`core` or `supporting`), checked by `golden::load`; `core_recall` (the headline) and `supporting_recall` beside `nugget_recall` (#122).
 - eval: `eval judge --jobs N` (default 4) judges N runs at once, so a K=3 file no longer takes hours (#136).
 
 ### Changed
 
-- eval: results files are `format: 2`; `summary`, `compare` and `judge` reject a file judged against golden v1 with an error naming both versions, and `docs/eval/baseline-2026-10-07.json` is judged again against v2 (#122).
-- eval: `docs/eval.md` states that a decision needs K>=3 paired runs; `eval run` already defaults to `--repeats 3` (#122).
+- eval: results files are `format: 2` (golden v1 files are rejected), `docs/eval/baseline-2026-10-07.json` is judged against v2, and decisions need K>=3 paired runs (#122).
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 - A crates.io Hit weighs 2 in the rank fusion, so its rank 1 is not buried behind a URL two engines return at rank 5 (#109).
 - Static fetches keep only the page's `main`/`article` content when no code block, table row or answer is lost (#108).
 - `search` Hits rank by Reciprocal Rank Fusion over engine x query legs, then query coverage, not engine count first (#110).
 - A `search` call with no Hits tells the agent each engine's status: rows, no results, suspended, timed out or unrecognized markup (#104).
-- After the 5 s soft deadline, legs already sending wait up to the 30 s hard deadline; only legs still queued are cancelled (#104).
-- DuckDuckGo continuation pages are paced and counted against the engine's request budget (#104).
+- After the 5 s soft deadline, legs already sending wait up to the 30 s hard deadline; DuckDuckGo continuation pages are paced and counted against its request budget (#104).
 - The `search` tool description and workflow step 1 tell the agent to name the reference page in one query (`<project> documentation <topic>`, `docs.rs <crate>`, `MDN <API>`), use the exact identifier in another, and avoid `site:` (#127).
 - `search` multiplies a Hit's RRF score by a factor in `[0.2, 1]`, the share of a query's terms (at most 3) found in the Hit's title, URL and snippet, so home, download and store pages that only match the topic word rank below pages that match the query; no Hit is dropped (#127).
 
@@ -59,8 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Read timeouts on a 2xx body and error objects in 2xx bodies are classified correctly; `stream` is always `false`; URLs stay out of errors (#99).
 - A hung gateway or tool no longer stretches a run: `connect_timeout` 10 s, one timeout retry, static fetch 10 s, Obscura 30 s (#100).
 - Parallel runs on one `SEARCH_CACHE_DIR` no longer overwrite each other's `engines.json`: it is merged under a file lock (#103).
-- `Retry-After` and stored suspensions are capped at the largest `SEARCH_SUSPEND_*_SECS` value (default 1 h) (#103).
-- Transport errors without an HTTP status no longer suspend an engine; they are retried once (#103).
+- `Retry-After` and stored suspensions are capped at the largest `SEARCH_SUSPEND_*_SECS` (default 1 h); transport errors without an HTTP status are retried once, not suspended (#103).
 - Changed engine markup is a typed `unrecognized markup` error, not an empty answer, and zero-row legs are never cached (#104).
 - Failed cache writes remove their temp file, and stale temp files are evicted (#103).
 
