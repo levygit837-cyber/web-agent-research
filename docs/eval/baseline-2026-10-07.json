@@ -48,7 +48,7 @@
         "nugget_recall": 0.4444444444444444,
         "core_recall": 0.6,
         "supporting_recall": 0.25,
-        "rationale": "The answer correctly identifies the features needed for the default multi-threaded runtime but fails to answer what the `full` feature enables or how to enable it."
+        "rationale": "The answer correctly identifies the features needed for the default multi-threaded runtime but omits the requested explanation that `full` enables all features except `test-util` and unstable features."
       },
       "claims": {
         "verdicts": [
@@ -97,7 +97,7 @@
         "nugget_recall": 0.5,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains enabling Serde's derive feature and accurately states both required trait method signatures without contradicting any reference fact."
+        "rationale": "The answer correctly explains enabling the derive feature and accurately states both required trait method signatures, without contradicting any reference facts."
       },
       "claims": {
         "verdicts": [
@@ -147,7 +147,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly identifies Tokio and all three required Cargo features, while the client-reuse and connection-pooling recommendations are not stated."
+        "rationale": "The answer correctly identifies Tokio and the json, form, and blocking features, but does not mention reusing one Client for keep-alive connection pooling."
       },
       "claims": {
         "verdicts": [
@@ -200,7 +200,7 @@
         "nugget_recall": 0.5,
         "core_recall": 0.75,
         "supporting_recall": 0.25,
-        "rationale": "The answer correctly explains defining a derive-based clap CLI and enabling the `derive` feature, with no contradictions, though it omits several exact details from the reference nuggets."
+        "rationale": "The answer correctly explains defining a derive-based clap CLI and enabling the derive feature, without contradicting any reference facts."
       },
       "claims": {
         "verdicts": [
@@ -256,12 +256,12 @@
         "nugget_recall": 0.3333333333333333,
         "core_recall": 0.6,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains eager versus lazy context and the no_std configuration and allocator requirement, without contradicting any reference fact, though it omits the Context trait import, error display ordering, cause formatting, Result alias, and Option's None conversion details."
+        "rationale": "The answer correctly explains eager and lazy context attachment and the no_std configuration with a global allocator, without contradicting any reference nugget, though it omits several requested details."
       },
       "claims": {
         "verdicts": [
           "partly",
-          "supported",
+          "partly",
           "supported",
           "supported",
           "supported",
@@ -298,7 +298,7 @@
         "nuggets": [
           false,
           true,
-          true,
+          false,
           true,
           true,
           false,
@@ -308,10 +308,10 @@
           false,
           false
         ],
-        "nugget_recall": 0.6363636363636364,
-        "core_recall": 0.8333333333333334,
+        "nugget_recall": 0.5454545454545454,
+        "core_recall": 0.6666666666666666,
         "supporting_recall": 0.4,
-        "rationale": "The answer correctly explains one-time compilation and reuse, identifies look-around and backreferences as unsupported, and states the O(m * n) bound without contradicting any reference nugget."
+        "rationale": "The answer correctly explains one-time lazy compilation and reuse and identifies look-around and backreferences as unsupported, without contradicting any reference nugget."
       },
       "claims": {
         "verdicts": [
@@ -366,14 +366,14 @@
         "nugget_recall": 0.7,
         "core_recall": 0.875,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains parallel iterator imports and global pool configuration without contradicting the reference facts, though it omits one-time initialization errors, the num_threads(0) behavior, and Rayon's data-race freedom guarantee."
+        "rationale": "The answer correctly explains parallel iterator imports and global pool configuration without contradicting any reference fact, though it omits the one-time initialization error, the num_threads(0) behavior, and the data-race-free guarantee."
       },
       "claims": {
         "verdicts": [
           "supported",
           "supported",
           "supported",
-          "partly",
+          "supported",
           "supported"
         ]
       }
@@ -420,7 +420,7 @@
         "nugget_recall": 0.6363636363636364,
         "core_recall": 0.7142857142857143,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly explains the core span, event, instrumentation, and subscriber-installation workflow without contradicting the reference facts, though it omits the Debug formatting detail, async enter-guard warning, absence of subscriber implementations in tracing itself, and the characterization of set_global_default as the simplest installation method."
+        "rationale": "The answer correctly explains the core span, event, instrumentation, and executable subscriber workflow without contradicting any reference nugget, though it omits the Debug formatting, async guard warning, lack of subscriber implementations in tracing itself, and the documented simplest-method characterization."
       },
       "claims": {
         "verdicts": [
@@ -470,7 +470,7 @@
         "nugget_recall": 0.4,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly states that an absent prefix yields a copy of the original string and that str.removeprefix was introduced in Python 3.9."
+        "rationale": "The answer correctly states that an absent prefix yields a copy of the unchanged original string and that str.removeprefix was introduced in Python 3.9."
       },
       "claims": {
         "verdicts": [
@@ -517,7 +517,7 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "The answer accurately states the exact signature, stabilization in Rust 1.80.0, conditional extraction using a mutable-reference predicate, replacement with None when true, and its similarity to Option::take."
+        "rationale": "The answer accurately states the exact signature, stabilization in Rust 1.80.0, conditional extraction via a mutable reference, replacement of self with None when true, and similarity to Option::take."
       },
       "claims": {
         "verdicts": [
@@ -567,7 +567,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.3333333333333333,
-        "rationale": "The answer correctly states the return value, non-mutating behavior, default Unicode string sorting, and relationship to sort(), while omitting only the sparse-array and browser-availability facts."
+        "rationale": "The answer correctly states what toSorted() returns, that it does not mutate the original array, its default string/Unicode sorting behavior, and that it is the copying version of sort(), without contradicting any nugget."
       },
       "claims": {
         "verdicts": [
@@ -617,7 +617,7 @@
         "nugget_recall": 0.75,
         "core_recall": 1.0,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly states the method's argument, return value, timeout reason, valid range, and active-time semantics, while omitting only the suspension examples and inability to cancel the timeout."
+        "rationale": "The answer correctly states the argument, return value, active-time range, and TimeoutError DOMException reason, while omitting suspension/BFCache pausing and the inability to cancel the timeout."
       },
       "claims": {
         "verdicts": [
@@ -664,7 +664,7 @@
         "nugget_recall": 0.8,
         "core_recall": 1.0,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly explains both resolution values, recursive parent creation, and existing-directory behavior, but does not explicitly state that `recursive` defaults to `false`."
+        "rationale": "The answer correctly explains the resolution values and recursive behavior without contradicting any nugget, though it does not explicitly state that `recursive` defaults to `false`."
       },
       "claims": {
         "verdicts": [
@@ -716,7 +716,7 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "The answer accurately states the syntax, accepted source types and automatic casts, field behavior, matching return types, truncation semantics, and all time-zone rules."
+        "rationale": "The answer accurately states the syntax, accepted source types, truncation behavior, matching return types, automatic casts, and all time-zone rules in the reference nuggets."
       },
       "claims": {
         "verdicts": [
@@ -768,7 +768,7 @@
         "nugget_recall": 0.625,
         "core_recall": 1.0,
         "supporting_recall": 0.4,
-        "rationale": "The answer correctly states both lru_cache parameters and defaults, explains maxsize=None and typed=True, and identifies all four cache_info() fields without contradicting any nugget."
+        "rationale": "The answer correctly states both parameters and defaults, the cache_info() fields, unbounded behavior for maxsize=None, and typed=True behavior, while omitting hashability, cache_clear(), and thread safety without contradicting any nugget."
       },
       "claims": {
         "verdicts": [
@@ -822,7 +822,7 @@
         "nugget_recall": 0.6,
         "core_recall": 0.6666666666666666,
         "supporting_recall": 0.5,
-        "rationale": "The answer gives the correct endpoint and status codes, but incorrectly limits `title` to a string and says it is the only required parameter without stating that the `owner` and `repo` path parameters are required."
+        "rationale": "The answer incorrectly limits `title` to a string and says it is the only required parameter without stating that the `owner` and `repo` path parameters are required."
       },
       "claims": {
         "verdicts": [
@@ -869,7 +869,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains E0502 and the need to avoid overlapping incompatible borrows, but it does not state the specific fix of moving the mutable use before the immutable borrow is created."
+        "rationale": "The answer correctly explains conflicting mutable and immutable borrows and fixes the overlap by ending the immutable borrow first, though it does not specifically mention moving the mutable use before creating the immutable borrow."
       },
       "claims": {
         "verdicts": [
@@ -923,7 +923,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 0.8333333333333334,
         "supporting_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains moved non-Copy values and the main remedies without contradicting the reference facts, though it omits `&mut` and the specific `Clone`/`Copy` derive details."
+        "rationale": "The answer correctly explains E0382 and several valid fixes without contradicting the reference facts, though it omits `&mut`, `#[derive(Clone)]`, and the precise `#[derive(Copy, Clone)]` requirement."
       },
       "claims": {
         "verdicts": [
@@ -972,7 +972,7 @@
         "nugget_recall": 0.8,
         "core_recall": 1.0,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly explains that Git refuses histories without a common ancestor by default and shows the proper override for both merge and pull, but does not mention that no configuration variable exists to enable it by default."
+        "rationale": "The answer correctly explains that Git rejects histories without a common commit by default and gives the proper --allow-unrelated-histories override for both merge and pull, but it does not mention the absence of a configuration variable to enable it by default."
       },
       "claims": {
         "verdicts": [
@@ -1016,15 +1016,15 @@
           true,
           false,
           true,
-          false,
+          true,
           false,
           false,
           false
         ],
-        "nugget_recall": 0.2857142857142857,
-        "core_recall": 0.5,
+        "nugget_recall": 0.42857142857142855,
+        "core_recall": 0.75,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains that ERR_REQUIRE_ESM arose from requiring an ES module and that current specified Node versions support require(esm) without a flag, while omitting several details about deprecation, synchronous-module constraints, the replacement error, and recognized file types."
+        "rationale": "The answer correctly explains that ERR_REQUIRE_ESM arose from requiring ESM and accurately states the current version thresholds and top-level-await limitation, without contradicting the reference facts."
       },
       "claims": {
         "verdicts": [
@@ -1074,7 +1074,7 @@
         "nugget_recall": 0.3333333333333333,
         "core_recall": 0.6666666666666666,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains the duplicate-key error and valid ON CONFLICT strategies without contradicting the reference facts, but it omits the exact condition name, SQLSTATE class, code-based error handling guidance, and the separate constraint-name error field."
+        "rationale": "The answer correctly explains SQLSTATE 23505 and the two ON CONFLICT strategies without contradicting any nugget, but it omits the exact condition name, SQLSTATE class, code-based application testing, and the separate constraint-name error field."
       },
       "claims": {
         "verdicts": [
@@ -1126,7 +1126,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly explains 429 and appropriate retry behavior without contradicting any nugget, but it does not state that limits are typically IP-based or that RFC 6585 section 4 defines the code."
+        "rationale": "The answer correctly explains 429 and appropriate client behavior, including Retry-After and rate limiting, without contradicting any reference nugget, though it does not state that IP-based restrictions are typical or cite RFC 6585 section 4."
       },
       "claims": {
         "verdicts": [
@@ -1178,7 +1178,7 @@
         "nugget_recall": 0.75,
         "core_recall": 1.0,
         "supporting_recall": 0.6,
-        "rationale": "The answer correctly explains what triggers RecursionError, how to raise the interpreter recursion limit, and the associated safeguards and risks, but it does not state that sys.getrecursionlimit() returns the current limit or that RecursionError derives from RuntimeError."
+        "rationale": "The answer correctly explains what triggers RecursionError, why the limit exists, how to raise it, platform dependence, crash risk, and the too-low-limit behavior, but it omits sys.getrecursionlimit() and RecursionError's RuntimeError inheritance."
       },
       "claims": {
         "verdicts": [
@@ -1229,7 +1229,7 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "The answer correctly identifies sudo-created ownership and permission problems on ~/.docker and provides both verified fixes, including recreation and loss of custom settings."
+        "rationale": "The answer accurately identifies sudo-created incorrect ownership and permissions on ~/.docker and provides both verified fixes, including the recreation and custom-settings caveats."
       },
       "claims": {
         "verdicts": [
@@ -1281,7 +1281,7 @@
         "nugget_recall": 0.6,
         "core_recall": 0.8333333333333334,
         "supporting_recall": 0.25,
-        "rationale": "The answer correctly identifies the main Rust 1.99.0 changes without contradicting the reference facts, though it omits the Release Team attribution, the explicit `VaList` type and cross-target ABI compatibility, and the documented preference for `Box::into_non_null` or `Box::into_raw`."
+        "rationale": "The answer correctly summarizes Rust 1.99.0’s core changes without contradicting the reference facts, though it omits the announcing team, the explicit `VaList` type and cross-target ABI compatibility, and the documentation’s preferred alternatives to round-trip unleaking."
       },
       "claims": {
         "verdicts": [
@@ -1336,7 +1336,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.4,
-        "rationale": "The answer correctly states the Rust 1.100.0 demotions, loss of host tools, continued standard-library distribution, and cross-compilation requirement, but it does not explicitly state the announcement date or identify RFC 3999 and MCP 1020."
+        "rationale": "The answer correctly states the Rust 1.100.0 tier demotions, loss of host tools, continued standard-library distribution, and cross-compilation requirement, but does not explicitly state the announcement date or identify RFC 3999 and MCP 1020."
       },
       "claims": {
         "verdicts": [
@@ -1388,15 +1388,15 @@
         "nugget_recall": 0.9,
         "core_recall": 1.0,
         "supporting_recall": 0.5,
-        "rationale": "The answer accurately explains the vulnerability, fixed Miri behavior, and recommended mitigations, but does not specifically state that anyone who previously landed a change can trigger a PR CI run to extract cached information."
+        "rationale": "The answer accurately explains the vulnerability, fixed Miri behavior and release date, and recommended mitigations, but does not specifically state that anyone who previously landed a change can trigger an extracting PR CI run."
       },
       "claims": {
         "verdicts": [
           "supported",
+          "supported",
+          "supported",
           "partly",
-          "supported",
-          "supported",
-          "supported"
+          "partly"
         ]
       }
     },
@@ -1441,7 +1441,7 @@
         "nugget_recall": 0.6,
         "core_recall": 0.5,
         "supporting_recall": 0.75,
-        "rationale": "The answer correctly covers the main language changes and several tooling changes without contradicting the reference facts, though it omits the exact release date, go doc version syntax, bzr removal, and the precise require-block merging behavior."
+        "rationale": "The answer correctly states the core Go 1.27 language and tooling changes without contradicting any reference nugget, though it omits the exact release date, go doc version syntax, bzr removal, and the precise require-block behavior."
       },
       "claims": {
         "verdicts": [
@@ -1453,8 +1453,8 @@
           "partly",
           "supported",
           "supported",
-          "partly",
-          "partly"
+          "supported",
+          "supported"
         ]
       }
     },
@@ -1493,14 +1493,14 @@
           true,
           true,
           false,
-          true,
+          false,
           true,
           false
         ],
-        "nugget_recall": 0.7272727272727273,
+        "nugget_recall": 0.6363636363636364,
         "core_recall": 0.75,
-        "supporting_recall": 0.6666666666666666,
-        "rationale": "The answer correctly gives the main Python 3.15 features and final release date without contradiction, though it does not identify `lazy` as a soft keyword, mention the dedicated `profiling` package, or note the surprise rc3 release."
+        "supporting_recall": 0.3333333333333333,
+        "rationale": "The answer correctly gives the principal Python 3.15 features and final release date without contradiction, though it omits PEP 810’s soft-keyword detail, the dedicated profiling package, Tachyon’s inclusion in that package, and the surprise rc3 release."
       },
       "claims": {
         "verdicts": [
@@ -1558,7 +1558,7 @@
         "nugget_recall": 0.7,
         "core_recall": 1.0,
         "supporting_recall": 0.4,
-        "rationale": "The answer correctly states the release date and all specified reverted or removed features, but omits the several REPACK fixes and the planned release-candidate and GA timing."
+        "rationale": "The answer correctly identifies the release date and all specified reverted or removed features, but does not state that Beta 4 included several REPACK fixes or mention the planned release candidate and possible October GA."
       },
       "claims": {
         "verdicts": [
@@ -1618,7 +1618,7 @@
         "nugget_recall": 0.4,
         "core_recall": 0.0,
         "supporting_recall": 0.5714285714285714,
-        "rationale": "The answer correctly states the date, theme, enhancement count, and applicable metric types, but incorrectly labels HorizontalPodAutoscaler scale to zero as Stable rather than Beta and omits the other specified details."
+        "rationale": "The answer correctly states the release date, theme, enhancement count, and applicable metric types, but incorrectly says HPA scale-to-zero is Stable rather than Beta and omits its default enablement, configuration, manifest admission, and pod checkpoint/restore details."
       },
       "claims": {
         "verdicts": [
@@ -1629,7 +1629,7 @@
           "supported",
           "supported",
           "supported",
-          "partly",
+          "supported",
           "supported",
           "supported",
           "supported"
@@ -1675,7 +1675,7 @@
         "nugget_recall": 0.875,
         "core_recall": 1.0,
         "supporting_recall": 0.6666666666666666,
-        "rationale": "The answer correctly states seven of the eight reference facts and contradicts none, but omits the 2026-09-22 release date and Current status."
+        "rationale": "The answer correctly states all seven notable feature nuggets without contradiction, but omits the 2026-09-22 release date."
       },
       "claims": {
         "verdicts": [
@@ -1730,7 +1730,7 @@
         "nugget_recall": 0.5,
         "core_recall": 0.6,
         "supporting_recall": 0.3333333333333333,
-        "rationale": "The answer correctly gives the target, rustup and Cargo commands, and linker environment variable, but its claim that those commands are often sufficient for pure Rust projects conflicts with the stated typical need for a target linker."
+        "rationale": "Although it gives the correct target, rustup, Cargo, and linker environment-variable commands, its claim that those commands alone are often sufficient for pure Rust projects conflicts with the typical need for a target linker."
       },
       "claims": {
         "verdicts": [
@@ -1768,7 +1768,7 @@
       "answer": "To squash the last 3 commits in git, use `git rebase -i HEAD~3` to start an interactive rebase, then change `pick` to `squash` (or `s`) for the commits you want to combine, keeping `pick` for the first commit as the base.\n\n## Interactive Rebase Method\n\n- Run `git rebase -i HEAD~3` to open an editor with the last 3 commits listed ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n- Replace `pick` with `squash` (or `s`) for the second and third commits, leaving the first as `pick` ([How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)).\n- Save the file and git will open another editor for you to write a new combined commit message ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n\n## After Squashing\n\n- If the commits are already pushed to a remote repository, use `git push origin <branch-name> --force` to update the remote with your squashed history ([How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)).\n- Verify the result by running `git log --oneline` to see the combined commit ([Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)).\n\nSources:\n1. [Git Squash Commits – Squashing the Last N Commits into One Commit](https://www.freecodecamp.org/news/git-squash-commits/)\n2. [How to Squash Commits in Git?](https://www.geeksforgeeks.org/git/how-to-squash-commits-in-git/)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
           true,
           true,
@@ -1780,7 +1780,7 @@
         "nugget_recall": 0.6666666666666666,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains the interactive rebase steps but omits fixup and contradicts the warning against rewriting shared pushed commits by recommending a force push."
+        "rationale": "The answer correctly gives the interactive rebase command and squash workflow, while omitting the fixup distinction and caution about rewriting pushed history."
       },
       "claims": {
         "verdicts": [
@@ -1830,7 +1830,7 @@
         "nugget_recall": 0.5714285714285714,
         "core_recall": 1.0,
         "supporting_recall": 0.4,
-        "rationale": "The answer correctly gives the SET DEFAULT syntax, explains its prospective effect without changing existing rows, and shows how to drop a default, with no contradictions."
+        "rationale": "The answer gives the correct SET DEFAULT syntax, explains that it applies only to subsequent INSERT or UPDATE commands without changing existing rows, and provides the correct DROP DEFAULT syntax."
       },
       "claims": {
         "verdicts": [
@@ -1881,7 +1881,7 @@
         "nugget_recall": 0.5,
         "core_recall": 1.0,
         "supporting_recall": 0.3333333333333333,
-        "rationale": "The answer correctly explains and demonstrates full-SHA pinning without contradicting any reference nugget, though it omits the no-fork requirement, exclusivity of SHA immutability, lack of automatic updates, and repository-level policies."
+        "rationale": "The answer correctly explains how to pin an action using a full commit SHA and contains no claims contradicting the reference facts, though it omits several security and policy details."
       },
       "claims": {
         "verdicts": [
@@ -1919,19 +1919,19 @@
       "answer": "To roll back a Kubernetes Deployment to a previous revision, use the `kubectl rollout undo` command, which reverts to a prior pod template and performs a rolling update to restore the previous version [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/).\n\n## Basic Rollback Commands\n\n- Roll back to the immediately previous revision with `kubectl rollout undo deployment/<deployment-name>` [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/)\n- Roll back to a specific revision using `kubectl rollout undo deployment/<deployment-name> --to-revision=<revision-number>` [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n\n## Viewing Revision History\n\n- Check the deployment's revision history with `kubectl rollout history deployment/<deployment-name>` to see all available revisions and their change causes [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n- Inspect a specific revision using `kubectl rollout history deployment/<deployment-name> --revision=<number>` [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n\n## Monitoring and Validation\n\n- Monitor rollback progress with `kubectl rollout status deployment/<deployment-name>` to confirm the rolling update completes successfully [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n- Use `kubectl rollout undo deployment/<deployment-name> --dry-run=server -o yaml` to preview the rollback without making changes [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/)\n\n## Important Limitations\n\n- Rollbacks depend on retained revision history, controlled by `.spec.revisionHistoryLimit` (default: 10), and older revisions may be garbage-collected [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n- In GitOps environments, `kubectl rollout undo` creates state drift from your Git repository, so the preferred approach is to revert the problematic commit in Git and let controllers apply the change [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n\nSources:\n1. [kubectl rollout undo - Kubernetes](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_undo/) (partial: a number or identifier in the claim is not on the cited page)\n2. [How to Roll Back a Deployment in Kubernetes Using kubectl](https://k8studio.io/knowledge-base/kubernetes-rollback-deployments/)\n3. [How to \\`kubectl rollout undo deployment\\` Safely](https://www.plural.sh/blog/kubectl-rollout-undo-deployment/)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
           true,
           true,
           true,
           true,
-          false,
+          true,
           true
         ],
-        "nugget_recall": 0.8333333333333334,
+        "nugget_recall": 1.0,
         "core_recall": 1.0,
-        "supporting_recall": 0.6666666666666666,
-        "rationale": "The answer supports nuggets 1–4 and 6, but contradicts nugget 5 by stating that the default retained history is limited to 10 and older revisions may be garbage-collected."
+        "supporting_recall": 1.0,
+        "rationale": "The answer provides all four required history and rollback commands and correctly states that retained revisions are controlled by the configurable `.spec.revisionHistoryLimit`, whose default is 10."
       },
       "claims": {
         "verdicts": [
@@ -1939,7 +1939,7 @@
           "partly",
           "partly",
           "supported",
-          "supported",
+          "partly",
           "supported",
           "supported",
           "supported"
@@ -1983,7 +1983,7 @@
         "nugget_recall": 0.5,
         "core_recall": 1.0,
         "supporting_recall": 0.25,
-        "rationale": "The answer correctly gives the --target command, explains named stages, and states BuildKit dependency behavior without contradicting any reference nugget."
+        "rationale": "The answer correctly explains using `docker build --target` with a stage named via `AS` and accurately describes BuildKit dependency behavior, without contradicting any reference nugget."
       },
       "claims": {
         "verdicts": [
@@ -2034,7 +2034,7 @@
         "nugget_recall": 0.125,
         "core_recall": 0.5,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly recommends Node.js’s built-in --watch flag for automatic restarts and does not contradict the reference facts, but it omits the detailed default behavior, path semantics, stability versions, incompatibilities, and missing-file exit status."
+        "rationale": "The answer correctly identifies Node.js's built-in `--watch` flag as the way to restart an application on file changes and does not contradict any reference nugget, though it omits the detailed watch behavior, path options, stability versions, and restrictions."
       },
       "claims": {
         "verdicts": [
@@ -2083,14 +2083,14 @@
         "nugget_recall": 0.8,
         "core_recall": 1.0,
         "supporting_recall": 0.6666666666666666,
-        "rationale": "The answer correctly explains creation, POSIX and PowerShell activation, and deactivation; its cmd.exe command is valid but does not explicitly state the reference’s specific activate.bat filename."
+        "rationale": "The answer correctly explains creation, POSIX and PowerShell activation, and deactivation; its cmd.exe command omits the specifically referenced `.bat` suffix but remains a valid noncontradictory activation command."
       },
       "claims": {
         "verdicts": [
           "partly",
           "partly",
           "supported",
-          "supported",
+          "partly",
           "partly",
           "supported",
           "supported"
@@ -2134,7 +2134,7 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "A resposta apresenta corretamente as três regras de ownership, explica o move de String e a prevenção de double free, e distingue tipos Copy que permanecem válidos após atribuição."
+        "rationale": "A resposta enuncia corretamente as três regras de ownership, explica o move de String e a prevenção de double free, e contrasta isso com tipos Copy que permanecem válidos após a atribuição."
       },
       "claims": {
         "verdicts": [
@@ -2187,7 +2187,7 @@
         "nugget_recall": 0.7142857142857143,
         "core_recall": 0.8333333333333334,
         "supporting_recall": 0.0,
-        "rationale": "A resposta explica corretamente unwrap, expect e a propagação com ?, mas omite a definição explícita de Result e não menciona o erro E0277 ao usar ? em uma função que retorna ()."
+        "rationale": "A resposta explica corretamente unwrap, expect e a propagação com ?, mas não apresenta a definição formal de Result nem especifica que seu uso em função que retorna () falha com E0277."
       },
       "claims": {
         "verdicts": [
@@ -2228,7 +2228,7 @@
       "answer": "Um ambiente virtual Python isola as dependências de cada projeto, permitindo que diferentes projetos usem versões diferentes das mesmas bibliotecas sem conflitos. Para criar, ativar e desativar um ambiente virtual, e congelar as dependências, use os comandos do módulo `venv` integrado ao Python 3.3 ou superior.\n\n## Criar um ambiente virtual\n\n- No Linux ou macOS, use `python3 -m venv .venv` se necessário\n- No Windows PowerShell, use `python -m venv C:\\caminho\\para\\novo\\ambiente\\virtual`\n- A pasta `.venv` é uma convenção útil: o ponto deixa o diretório oculto em sistemas Unix, e ferramentas como VS Code reconhecem esse nome\n\n## Ativar o ambiente virtual\n\n- **Linux/macOS (bash/zsh)**: `source .venv/bin/activate` — [o script de ativação prependerá o diretório do ambiente ao seu PATH](https://docs.python.org/pt-br/3/library/venv.html)\n- **Windows (Prompt de Comando)**: `.venv\\Scripts\\activate.bat`\n- **Windows (PowerShell)**: `.venv\\Scripts\\Activate.ps1` — se bloqueado, execute `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`\n- **Fish shell**: `source .venv/bin/activate.fish`\n\n## Desativar o ambiente virtual\n\n- Para sair do ambiente virtual e voltar ao Python do sistema, digite `deactivate` no seu shell. [O mecanismo exato é específico da plataforma](https://docs.python.org/pt-br/3/library/venv.html).\n\n## Congelar as dependências em requirements.txt\n\n- O arquivo gerado contém as versões exatas de todos os pacotes: `flask==3.1.0`, `requests==2.32.0`, etc.\n- Para recriar o ambiente em outra máquina com as mesmas dependências: `python -m pip install -r requirements.txt`\n- [Você pode usar arquivos de requisitos para congelar os requisitos de um ambiente](https://learn.microsoft.com/pt-br/visualstudio/python/managing-required-packages-with-requirements-txt?view=visualstudio).\n\n## Remover o ambiente virtual\n\n- Como o ambiente é apenas uma pasta, basta apagar: `rm -rf .venv` (Linux/macOS) ou `rmdir /s /q .venv` (Windows CMD). Adicione `.venv/` ao seu `.gitignore` — o `requirements.txt` sim deve ser commitado no Git para permitir que outros recriem o ambiente.\n\nSources:\n1. [A documentação oficial do Python recomenda esse comando para criar ambientes virtuais](https://docs.python.org/pt-br/3/library/venv.html)\n2. [O comando mais comum para especificar pacotes dependentes é `pip freeze > requirements.txt`](https://learn.microsoft.com/pt-br/visualstudio/python/managing-required-packages-with-requirements-txt?view=visualstudio)\n",
       "error": null,
       "judge": {
-        "grade": "INCORRECT",
+        "grade": "CORRECT",
         "nuggets": [
           true,
           true,
@@ -2241,7 +2241,7 @@
         "nugget_recall": 0.7142857142857143,
         "core_recall": 0.8333333333333334,
         "supporting_recall": 0.0,
-        "rationale": "A resposta explica criação, ativação, desativação e reinstalação, mas omite no corpo da resposta o comando solicitado `python -m pip freeze > requirements.txt`, essencial para congelar as dependências."
+        "rationale": "A resposta fornece comandos válidos para criar, ativar e desativar o ambiente e instalar/congelar dependências sem contradizer os nuggets, embora não use exatamente `python -m pip freeze > requirements.txt` e não mencione o arquivo `pyvenv.cfg`."
       },
       "claims": {
         "verdicts": [
@@ -2252,7 +2252,7 @@
           "uncited",
           "uncited",
           "uncited",
-          "partly",
+          "supported",
           "uncited",
           "uncited",
           "supported",
@@ -2299,7 +2299,7 @@
         "nugget_recall": 0.875,
         "core_recall": 1.0,
         "supporting_recall": 0.75,
-        "rationale": "A resposta explica corretamente escopo, hoisting, reatribuição e mutabilidade da ligação, mas não afirma que declarar const sem inicializador causa SyntaxError."
+        "rationale": "A resposta explica corretamente escopo, hoisting, reatribuição e mutabilidade da ligação, mas não afirma explicitamente que declarar const sem inicializador causa SyntaxError."
       },
       "claims": {
         "verdicts": [
@@ -2352,7 +2352,7 @@
         "nugget_recall": 0.375,
         "core_recall": 0.75,
         "supporting_recall": 0.0,
-        "rationale": "La respuesta explica correctamente que rebase reaplica commits sobre una nueva base creando commits nuevos y advierte contra reescribir historial compartido, sin contradecir los nuggets, aunque omite el ancestro común, el proceso basado en diffs, la necesidad de reintegración de colaboradores y `--onto`."
+        "rationale": "La respuesta explica correctamente que rebase reaplica commits sobre una nueva base creando commits nuevos y advierte contra reescribir historial compartido, sin contradecir los nuggets."
       },
       "claims": {
         "verdicts": [
@@ -2411,7 +2411,7 @@
         "nugget_recall": 0.7,
         "core_recall": 0.6666666666666666,
         "supporting_recall": 1.0,
-        "rationale": "A resposta cobre a maioria dos direitos e as multas, mas não afirma que o controlador deve nomear um encarregado e omite o requisito de risco ou dano relevante para comunicar incidentes à ANPD e aos titulares."
+        "rationale": "A resposta omite a obrigação do controlador de nomear o encarregado e afirma a notificação de incidentes sem a condição essencial de que possam causar risco ou dano relevante aos titulares."
       },
       "claims": {
         "verdicts": [
@@ -2423,12 +2423,12 @@
           "supported",
           "supported",
           "supported",
-          "supported",
+          "partly",
           "supported",
           "supported",
           "uncited",
           "supported",
-          "unsupported",
+          "partly",
           "supported",
           "partly",
           "supported",
@@ -2478,7 +2478,7 @@
         "nugget_recall": 0.8,
         "core_recall": 0.8571428571428571,
         "supporting_recall": 0.6666666666666666,
-        "rationale": "A resposta explica corretamente os cinco campos, seus intervalos e os atalhos solicitados, sem contradizer os nuggets, embora não mencione nomes para dias da semana nem a regra de correspondência entre dia do mês e dia da semana."
+        "rationale": "A resposta explica corretamente os cinco campos, seus intervalos e os atalhos principais sem contradizer os nuggets, embora omita nomes no campo de dia da semana e a semântica de correspondência quando dia do mês e dia da semana são ambos restritos."
       },
       "claims": {
         "verdicts": [
@@ -2539,16 +2539,16 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "A resposta afirma todos os oito fatos de referência, incluindo as duas datas de lançamento e o repositório com especificação em OpenAPI 3.0, sem contradizê-los."
+        "rationale": "A resposta afirma todos os oito fatos de referência, incluindo definição, provedor, público, disponibilidade contínua, ambas as datas de lançamento e localização e formato da especificação da API."
       },
       "claims": {
         "verdicts": [
           "partly",
           "supported",
+          "partly",
           "supported",
           "supported",
-          "supported",
-          "partly"
+          "supported"
         ]
       }
     },
@@ -2640,7 +2640,7 @@
         "nugget_recall": 0.8571428571428571,
         "core_recall": 1.0,
         "supporting_recall": 0.6666666666666666,
-        "rationale": "The answer correctly distinguishes Rc as lower-overhead single-threaded reference counting from Arc as atomic, thread-safe reference counting with conditional Send and Sync, but does not state that Arc stands for Atomically Reference Counted."
+        "rationale": "The answer correctly explains when to use Rc versus Arc, their threading and performance differences, and the Send/Sync condition, but does not state that Arc stands for Atomically Reference Counted."
       },
       "claims": {
         "verdicts": [
@@ -2696,12 +2696,12 @@
         "nugget_recall": 1.0,
         "core_recall": 1.0,
         "supporting_recall": 1.0,
-        "rationale": "The answer accurately states all nine reference facts and directly explains the storage, performance, indexing, preservation, duplicate-key, and usage differences."
+        "rationale": "The answer states all nine reference facts in equivalent wording and does not contradict any nugget."
       },
       "claims": {
         "verdicts": [
           "supported",
-          "supported",
+          "partly",
           "supported",
           "supported",
           "supported",
@@ -2752,7 +2752,7 @@
         "nugget_recall": 0.3,
         "core_recall": 0.5,
         "supporting_recall": 0.16666666666666666,
-        "rationale": "The answer correctly identifies QUIC as HTTP/3's transport and QPACK as its replacement for HPACK, explaining the in-order versus out-of-order compression issue without contradicting the reference facts."
+        "rationale": "The answer correctly identifies QUIC as HTTP/3's transport and QPACK as its replacement for HPACK, explaining the in-order versus out-of-order compression issue without contradicting any reference nugget."
       },
       "claims": {
         "verdicts": [
@@ -2804,7 +2804,7 @@
         "nugget_recall": 0.7142857142857143,
         "core_recall": 0.6666666666666666,
         "supporting_recall": 1.0,
-        "rationale": "The answer correctly explains merge commits, rebasing, linear history, commit replacement, and the shared-history warning, but incorrectly presents merge as always creating a merge commit and omits both three-way merge mechanics and fast-forward merges."
+        "rationale": "The answer correctly describes merge commits and rebasing, but incorrectly implies merge always creates a merge commit and says existing branches are unchanged, omitting and contradicting the fast-forward case where Git moves the branch pointer forward."
       },
       "claims": {
         "verdicts": [
@@ -2858,7 +2858,7 @@
         "nugget_recall": 0.5,
         "core_recall": 0.5,
         "supporting_recall": 0.5,
-        "rationale": "The answer correctly states the mutability distinction, that modifying a tuple element raises TypeError, and that tuples may contain mutable objects, while omitting the typical heterogeneity, homogeneity, and access-pattern claims without contradicting them."
+        "rationale": "The answer correctly states both mutability facts, the tuple item-assignment TypeError, and shallow immutability, while omitting the typical element-type and access-pattern distinctions without contradicting them."
       },
       "claims": {
         "verdicts": [
@@ -2904,14 +2904,14 @@
           true,
           true,
           true,
-          true,
-          true,
+          false,
+          false,
           true
         ],
-        "nugget_recall": 1.0,
-        "core_recall": 1.0,
-        "supporting_recall": 1.0,
-        "rationale": "The answer accurately states HashMap's arbitrary ordering and Eq/Hash requirements, BTreeMap's sorted B-Tree ordering and Ord requirement, and the recommended use of BTreeMap for sorted keys and range queries."
+        "nugget_recall": 0.7142857142857143,
+        "core_recall": 0.8,
+        "supporting_recall": 0.5,
+        "rationale": "The answer correctly explains both maps' ordering, key trait requirements, B-Tree basis, and selection criteria without contradiction, though it does not specifically attribute the sorted-key and range-query recommendations to the std::collections guide."
       },
       "claims": {
         "verdicts": [
@@ -2966,7 +2966,7 @@
         "nugget_recall": 0.625,
         "core_recall": 1.0,
         "supporting_recall": 0.0,
-        "rationale": "The answer correctly explains the core locking and poisoning differences without contradicting the reference facts, but omits RwLock priority-policy behavior and the differing Sync trait bounds."
+        "rationale": "The answer correctly explains the core locking and poisoning differences, including that only a writer panic poisons an RwLock, while omitting the priority-policy and Sync-bound facts."
       },
       "claims": {
         "verdicts": [

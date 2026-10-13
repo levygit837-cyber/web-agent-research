@@ -161,7 +161,9 @@ A change to the agent loop, prompts or tool rendering can make a committed trans
 
 ## Baseline
 
-- `docs/eval/baseline-2026-10-07.json`: the whole golden set, K=1, `record` mode at `46956ca` (after #116-#120), `claude-haiku-4.5`. Judged against golden v2 by `gpt-5.6-sol` with `--fixtures` on the recorded tapes, so it carries the nugget flags, the three recalls and the claim verdicts (`format: 2`). Compare new changes against this file. Its numbers: 84% correct, core recall 0.85, supporting recall 0.44, nugget recall 0.66, claim precision 68% (12% of bullets uncited).
+- `docs/eval/baseline-2026-10-07.json`: the whole golden set, K=1, `record` mode at `46956ca` (after #116-#120), `claude-haiku-4.5`. Judged against golden v2 by `gpt-5.6-sol` with `--fixtures` on the recorded tapes, so it carries the nugget flags, the three recalls and the claim verdicts (`format: 2`). It was judged again after the #142 audit fixed three nuggets (`crate_docs-08`, `how_to-02`, `how_to-05`); the agent runs are unchanged. Compare new changes against this file. Its numbers: 89% correct (84% before the audit), core recall 0.85, supporting recall 0.43 (0.44), nugget recall 0.66, claim precision 68% (12% of bullets uncited).
 - `docs/eval/baseline-2026-10-05.json`: the same at `80b1040`, judged against golden v1 (`format: 1`). Kept as history only: `summary` and `compare` reject it. Its v1 nugget recall (0.52) is not comparable to the v2 recalls above.
 
 To judge an older record against a newer golden set, copy its results file, set `format` to the current version, drop every row's `judge` and `claims`, and run `eval judge <copy> --fixtures <the tapes it was recorded into>`.
+
+Results judged against different golden revisions are not comparable (the #142 audit moved `correct` by +0.042 on the K=3 control with no change in the answers), so re-judge both sides of a `compare` against the same golden files.

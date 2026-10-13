@@ -524,11 +524,11 @@
           "verified_on": "2026-10-08"
         },
         {
-          "text": "The simplest way to install a subscriber is to call `tracing::subscriber::set_global_default`.",
+          "text": "The tracing crate docs say the simplest way to use a subscriber is to call `tracing::subscriber::set_global_default`.",
           "scope": "core",
           "url": "https://docs.rs/tracing/latest/tracing/",
           "volatility": "slow",
-          "verified_on": "2026-10-08"
+          "verified_on": "2026-10-13"
         },
         {
           "text": "Libraries should not call `set_global_default()` because it conflicts with executables that set the default later.",
