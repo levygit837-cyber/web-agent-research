@@ -36,6 +36,14 @@ struct ParsedLink {
 /// Other schemes and empty targets are skipped; reference-style links
 /// (`[t][r]`) are never parsed by design.
 fn scan_links(text: &str) -> Vec<ParsedLink> {
+    scan_link_spans(text)
+        .into_iter()
+        .map(|(_, link)| link)
+        .collect()
+}
+
+/// [`scan_links`] with the byte range of each `[title](url)` in `text`.
+fn scan_link_spans(text: &str) -> Vec<(std::ops::Range<usize>, ParsedLink)> {
     let mut links = Vec::new();
     let bytes = text.as_bytes();
     let mut cursor = 0;
@@ -68,17 +76,43 @@ fn scan_links(text: &str) -> Vec<ParsedLink> {
             continue;
         }
         let title = title_raw.trim();
-        links.push(ParsedLink {
-            title: if title.is_empty() {
-                None
-            } else {
-                Some(title.to_owned())
+        links.push((
+            open..close_paren + 1,
+            ParsedLink {
+                title: if title.is_empty() {
+                    None
+                } else {
+                    Some(title.to_owned())
+                },
+                url: target_raw.to_owned(),
             },
-            url: target_raw.to_owned(),
-        });
+        ));
         cursor = close_paren + 1;
     }
     links
+}
+
+/// `text` with every inline link removed, the `()` it leaves behind dropped,
+/// and whitespace collapsed (none before `.,;:`). Two bullet texts that differ
+/// only in their links have the same skeleton.
+pub(crate) fn strip_links(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for (span, _) in scan_link_spans(text) {
+        out.push_str(&text[cursor..span.start]);
+        cursor = span.end;
+    }
+    out.push_str(&text[cursor..]);
+    let out = out.replace("()", "");
+    let mut collapsed = String::with_capacity(out.len());
+    for word in out.split_whitespace() {
+        let glue = word.starts_with(['.', ',', ';', ':']);
+        if !collapsed.is_empty() && !glue {
+            collapsed.push(' ');
+        }
+        collapsed.push_str(word);
+    }
+    collapsed
 }
 
 fn dedupe_links(links: Vec<ParsedLink>) -> Vec<Citation> {

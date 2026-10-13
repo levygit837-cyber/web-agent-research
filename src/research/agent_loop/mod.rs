@@ -9,6 +9,7 @@ pub mod answer;
 pub mod context;
 mod dispatch;
 pub mod registry;
+mod repair;
 pub mod result;
 pub mod runner;
 pub(crate) mod tape;
