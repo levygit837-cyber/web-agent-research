@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- eval: results files are `format: 2` (golden v1 files are rejected), `docs/eval/baseline-2026-10-07.json` is judged against v2, and decisions need K>=3 paired runs (#122).
+- eval: results files are `format: 2` (golden v1 files are rejected), `docs/eval/baseline-2026-10-07.json` is judged against v2, and decisions need K>=3 paired runs (#122); the #142 audit fixed three nuggets that graded true answers `INCORRECT` (`crate_docs-08`, `how_to-02`, `how_to-05`) and the baseline was judged again, 84% to 89% correct (#142).
 - Page parts and Hits reach the agent inside per-run nonce containers it cannot close, and the prompt says their text is third-party data, never instructions (#98).
 - The agent ends each cited bullet with `(quote: "…")`, copied verbatim from the cited page (#106).
 - A crates.io Hit weighs 2 in the rank fusion, so its rank 1 is not buried behind a URL two engines return at rank 5 (#109).
