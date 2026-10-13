@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DuckDuckGo continuation pages are paced and counted against the engine's request budget (#104).
 - The `search` tool description and workflow step 1 tell the agent to name the reference page in one query (`<project> documentation <topic>`, `docs.rs <crate>`, `MDN <API>`), use the exact identifier in another, and avoid `site:` (#127).
 - `search` multiplies a Hit's RRF score by a factor in `[0.2, 1]`, the share of a query's terms (at most 3) found in the Hit's title, URL and snippet, so home, download and store pages that only match the topic word rank below pages that match the query; no Hit is dropped (#127).
+- Workflow steps 4-5 and the `answer_format` of a run that can fetch make the agent list the goal's explicit sub-questions, map each to a fetched passage or `gap`, fetch or search again for a gap, and cover every one in the answer, with an uncovered one stated as unverified (#124).
+- The `medium` answer shape is a 2-4 sentence summary and 3-5 themes with 3-6 bullets each (was 2-3 sentences, 2-4 themes, 2-5 bullets), and its pages target is 3-5 (was 2-4) (#124).
 
 ### Fixed
 
