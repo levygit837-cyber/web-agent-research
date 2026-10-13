@@ -103,11 +103,11 @@
           "verified_on": "2026-10-08"
         },
         {
-          "text": "Commits you have already pushed to a shared repository should be treated as final and not rewritten.",
+          "text": "The Pro Git book says to consider pushed work as final unless you have good reason to change it.",
           "scope": "supporting",
           "url": "https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History",
           "volatility": "never",
-          "verified_on": "2026-10-08"
+          "verified_on": "2026-10-13"
         }
       ]
     },
@@ -261,11 +261,11 @@
           "verified_on": "2026-10-08"
         },
         {
-          "text": "By default all of the Deployment's rollout history is kept in the system.",
+          "text": "By default, 10 old ReplicaSets of a Deployment are kept to allow rollback, as set by `.spec.revisionHistoryLimit`.",
           "scope": "supporting",
           "url": "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/",
           "volatility": "slow",
-          "verified_on": "2026-10-08"
+          "verified_on": "2026-10-13"
         },
         {
           "text": "The amount of kept rollout history can be changed by modifying the revision history limit.",
