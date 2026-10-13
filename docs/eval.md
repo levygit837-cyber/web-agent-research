@@ -91,7 +91,7 @@ Recall, per run (a mean over runs and goals in `summary` and `compare`):
 ## Judge
 
 ```sh
-cargo run --example eval -- judge base.json [--model gpt-5.6-sol] [--fixtures target/eval/fixtures]
+cargo run --example eval -- judge base.json [--model gpt-5.6-sol] [--fixtures target/eval/fixtures] [--jobs 4]
 ```
 
 One gateway call per answered run, with the same gateway env and a pinned model (default `gpt-5.6-sol`, a different family from the agent's `claude-*`), recorded as `judge_model` in the results file. It returns:
@@ -99,7 +99,7 @@ One gateway call per answered run, with the same gateway env and a pinned model 
 - per nugget: supported or not (same fact, same specific values); the recalls below come from these flags and the scope of each nugget in the golden file;
 - a SimpleQA class: `CORRECT`, `INCORRECT` (contradicts a nugget, or the core claim is wrong) or `NOT_ATTEMPTED`.
 
-Runs that exited non-zero are `NOT_ATTEMPTED` without a call. Judging is resumable and refuses a file already judged by another model.
+Runs that exited non-zero are `NOT_ATTEMPTED` without a call. Judging is resumable and refuses a file already judged by another model. `--jobs` (default 4, at most 32) judges that many runs at once; each run's nugget pass and claim pass stay in sequence, and every finished run is written at once. After the first failed call, no new run starts; runs already in flight finish and are saved, then `judge` exits with that error.
 
 ### Claim pass
 

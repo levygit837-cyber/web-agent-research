@@ -17,12 +17,13 @@ mod eval;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand};
 
-use eval::claims::{self, Fixtures, Verdict};
-use eval::golden;
+use eval::claims::{self, Claims, Fixtures, Pages, Verdict};
+use eval::golden::{self, Goal};
 use eval::judge::{Judge, Judgement, DEFAULT_JUDGE_MODEL};
 use eval::results::{summary_table, ResultsFile, FORMAT};
 use eval::runner::{env_value, run_one, Mode, RunPlan};
@@ -76,6 +77,10 @@ enum Command {
         /// the claim pass reads `<fixtures>/<goal id>/pages.jsonl`.
         #[arg(long, default_value = "target/eval/fixtures")]
         fixtures: PathBuf,
+        /// Runs judged at once; each run's nugget and claim passes stay in
+        /// sequence.
+        #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(u32).range(1..=32))]
+        jobs: u32,
     },
     /// Per-category summary table (Markdown).
     Summary { results: PathBuf },
@@ -184,7 +189,56 @@ async fn run(
     Ok(())
 }
 
-async fn judge(path: &Path, model: &str, fixtures: PathBuf) -> Result<(), String> {
+/// One run left to judge, owned so it can move into a task.
+struct RowWork {
+    index: usize,
+    goal: Goal,
+    answer: Option<String>,
+    /// The nugget pass is still missing.
+    grade: bool,
+    /// The claim pass is still missing: the goal's recorded pages.
+    pages: Option<Arc<Pages>>,
+}
+
+/// What a task brings back; a pass that failed leaves its field empty and
+/// sets `error`, a pass that succeeded is kept either way.
+struct RowDone {
+    index: usize,
+    judgement: Option<Judgement>,
+    claims: Option<Claims>,
+    error: Option<String>,
+}
+
+async fn judge_row(judge: Arc<Judge>, work: RowWork) -> RowDone {
+    let mut done = RowDone {
+        index: work.index,
+        judgement: None,
+        claims: None,
+        error: None,
+    };
+    if work.grade {
+        let graded = match &work.answer {
+            Some(answer) => judge.grade(&work.goal, answer).await,
+            None => Ok(Judgement::no_answer(&work.goal)),
+        };
+        match graded {
+            Ok(judgement) => done.judgement = Some(judgement),
+            Err(err) => {
+                done.error = Some(err);
+                return done;
+            }
+        }
+    }
+    if let (Some(pages), Some(answer)) = (&work.pages, &work.answer) {
+        match claims::check(&judge, pages, &work.goal.goal, answer).await {
+            Ok(claims) => done.claims = Some(claims),
+            Err(err) => done.error = Some(err),
+        }
+    }
+    done
+}
+
+async fn judge(path: &Path, model: &str, fixtures: PathBuf, jobs: u32) -> Result<(), String> {
     let mut file = ResultsFile::read(path)?;
     if let Some(pinned) = &file.judge_model {
         if pinned != model {
@@ -196,33 +250,58 @@ async fn judge(path: &Path, model: &str, fixtures: PathBuf) -> Result<(), String
     }
     file.judge_model = Some(model.to_owned());
     let goals = golden::load(&golden::default_dir())?;
-    let judge = Judge::from_env(model)?;
+    let judge = Arc::new(Judge::from_env(model)?);
     // A live run has no recorded pages: its claim metrics stay missing.
     let claim_pass = file.mode != Mode::Live;
     let mut fixtures = Fixtures::new(fixtures);
-    for index in 0..file.rows.len() {
-        let row = &file.rows[index];
-        let goal = &goals
+    let mut todo = Vec::new();
+    for (index, row) in file.rows.iter().enumerate() {
+        let grade = row.judge.is_none();
+        let claim = claim_pass && row.claims.is_none() && row.answer.is_some();
+        if !grade && !claim {
+            continue;
+        }
+        let goal = goals
             .iter()
             .find(|g| g.goal.id == row.goal_id)
-            .ok_or_else(|| format!("goal {:?} not in the golden set", row.goal_id))?
-            .goal;
-        if row.judge.is_none() {
-            let judgement = match &row.answer {
-                Some(answer) => judge.grade(goal, answer).await?,
-                None => Judgement::no_answer(goal),
-            };
+            .ok_or_else(|| format!("goal {:?} not in the golden set", row.goal_id))?;
+        let pages = if claim {
+            Some(fixtures.pages(&row.goal_id)?)
+        } else {
+            None
+        };
+        todo.push(RowWork {
+            index,
+            goal: goal.goal.clone(),
+            answer: row.answer.clone(),
+            grade,
+            pages,
+        });
+    }
+    // Up to `jobs` runs in flight. Every finished run is written at once,
+    // so an interrupted judge resumes. After the first error no new run
+    // starts; the ones in flight finish and are kept.
+    let mut todo = todo.into_iter();
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut first_error: Option<String> = None;
+    loop {
+        while first_error.is_none() && tasks.len() < jobs as usize {
+            let Some(work) = todo.next() else { break };
+            tasks.spawn(judge_row(Arc::clone(&judge), work));
+        }
+        let Some(joined) = tasks.join_next().await else {
+            break;
+        };
+        let done = joined.map_err(|err| format!("judge task: {err}"))?;
+        let row = &mut file.rows[done.index];
+        if let Some(judgement) = done.judgement {
             eprintln!(
                 "judge {} r{}: {:?} core recall {:.2}",
                 row.goal_id, row.repeat, judgement.grade, judgement.core_recall
             );
-            file.rows[index].judge = Some(judgement);
-            file.write(path)?;
+            row.judge = Some(judgement);
         }
-        let row = &file.rows[index];
-        if let (true, None, Some(answer)) = (claim_pass, &row.claims, &row.answer) {
-            let claims =
-                claims::check(&judge, &mut fixtures, &row.goal_id, &goal.goal, answer).await?;
+        if let Some(claims) = done.claims {
             eprintln!(
                 "claims {} r{}: {}/{} supported",
                 row.goal_id,
@@ -230,11 +309,18 @@ async fn judge(path: &Path, model: &str, fixtures: PathBuf) -> Result<(), String
                 claims.count(Verdict::Supported),
                 claims.verdicts.len()
             );
-            file.rows[index].claims = Some(claims);
-            file.write(path)?;
+            row.claims = Some(claims);
         }
+        if let Some(err) = done.error {
+            eprintln!("judge {} r{}: {err}", row.goal_id, row.repeat);
+            first_error.get_or_insert(err);
+        }
+        file.write(path)?;
     }
     file.write(path)?;
+    if let Some(err) = first_error {
+        return Err(err);
+    }
     println!("{}", summary_table(&file.rows));
     Ok(())
 }
@@ -270,7 +356,8 @@ async fn main() -> ExitCode {
             results,
             model,
             fixtures,
-        } => judge(&results, &model, fixtures).await,
+            jobs,
+        } => judge(&results, &model, fixtures, jobs).await,
         Command::Summary { results } => {
             ResultsFile::read(&results).map(|file| println!("{}", summary_table(&file.rows)))
         }
