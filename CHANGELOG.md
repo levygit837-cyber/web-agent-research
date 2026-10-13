@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - eval: `eval judge` adds a claim pass that checks each bullet against its cited pages; `claim_precision`, `claim_partly`, `claim_unsupported`, `claim_contradicted`, `uncited_share` in `summary` and `compare` (#123).
 - eval: golden v2: every nugget is one atomic claim with a `scope` (`core` or `supporting`) written in `tests/golden/*.json`, example-bound values are rewritten to the general fact, and `golden::load` rejects compound nuggets and goals with fewer than 2 `core` nuggets (#122).
 - eval: `core_recall` (the headline) and `supporting_recall` beside `nugget_recall` in `summary` and `compare` (#122).
+- eval: `eval judge --jobs N` (default 4) judges N runs at once, so a K=3 file no longer takes hours (#136).
 
 ### Changed
 

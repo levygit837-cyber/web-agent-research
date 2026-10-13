@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -212,10 +212,11 @@ impl Pages {
     }
 }
 
-/// Fixture root with one lazily loaded [`Pages`] per goal.
+/// Fixture root with one lazily loaded [`Pages`] per goal, shared by the
+/// rows of that goal (`eval judge --jobs` checks several at once).
 pub struct Fixtures {
     root: PathBuf,
-    loaded: HashMap<String, Pages>,
+    loaded: HashMap<String, Arc<Pages>>,
 }
 
 impl Fixtures {
@@ -226,25 +227,27 @@ impl Fixtures {
         }
     }
 
-    pub fn pages(&mut self, goal_id: &str) -> Result<&Pages, String> {
-        if !self.loaded.contains_key(goal_id) {
-            let path: PathBuf = [
-                self.root.as_path(),
-                Path::new(goal_id),
-                Path::new("pages.jsonl"),
-            ]
-            .iter()
-            .collect();
-            let text = std::fs::read_to_string(&path).map_err(|err| {
-                format!(
-                    "{}: {err} (pass --fixtures with the recorded pages)",
-                    path.display()
-                )
-            })?;
-            let pages = Pages::parse(&text).map_err(|err| format!("{}: {err}", path.display()))?;
-            self.loaded.insert(goal_id.to_owned(), pages);
+    pub fn pages(&mut self, goal_id: &str) -> Result<Arc<Pages>, String> {
+        if let Some(pages) = self.loaded.get(goal_id) {
+            return Ok(Arc::clone(pages));
         }
-        Ok(&self.loaded[goal_id])
+        let path: PathBuf = [
+            self.root.as_path(),
+            Path::new(goal_id),
+            Path::new("pages.jsonl"),
+        ]
+        .iter()
+        .collect();
+        let text = std::fs::read_to_string(&path).map_err(|err| {
+            format!(
+                "{}: {err} (pass --fixtures with the recorded pages)",
+                path.display()
+            )
+        })?;
+        let pages =
+            Arc::new(Pages::parse(&text).map_err(|err| format!("{}: {err}", path.display()))?);
+        self.loaded.insert(goal_id.to_owned(), Arc::clone(&pages));
+        Ok(pages)
     }
 }
 
@@ -391,16 +394,16 @@ pub fn assemble(plan: &Plan, judged: &[Verdict]) -> Claims {
     Claims { verdicts }
 }
 
-/// The claim pass of one answered run: at most one judge call (two when the
-/// first reply does not parse), none when no bullet cites a fetched page.
+/// The claim pass of one answered run against its goal's recorded `pages`:
+/// at most one judge call (two when the first reply does not parse), none
+/// when no bullet cites a fetched page.
 pub async fn check(
     judge: &Judge,
-    fixtures: &mut Fixtures,
-    goal_id: &str,
+    pages: &Pages,
     goal: &str,
     answer: &str,
 ) -> Result<Claims, String> {
-    let plan = plan(answer, fixtures.pages(goal_id)?);
+    let plan = plan(answer, pages);
     let checked = plan.checked().len();
     if checked == 0 {
         return Ok(assemble(&plan, &[]));
