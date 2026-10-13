@@ -115,10 +115,12 @@ fn repair_message(flagged: &[Flagged<'_>]) -> String {
         ));
     }
     text.push_str(&format!(
-        "\nTools are off. Reply with the complete corrected answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, in the same format as before. For each flagged bullet, do one of two things:\n\
-- Rewrite it from the page it cites: every specific value (number, version, flag, default) must be on that page, and it ends with a `(quote: \"…\")` copied word for word from that page.\n\
-- Drop it.\n\
-Keep every bullet that was not flagged exactly as it is. Add no new claim. When an official source and a secondary source disagree, state the official one."
+        "\nTools are off. Reply with the complete corrected answer inside {ANSWER_OPEN}{ANSWER_CLOSE} tags, in the same format as before. Change only the flagged bullets: copy the summary, the theme headings and every other bullet unchanged.\n\
+For each flagged bullet, in this order of preference:\n\
+- Keep it and fix it from the page it cites: find the sentence on that page that states its point and copy it word for word as the `(quote: \"…\")`. If a number, version, flag or default in the bullet is not on that page, correct it to what the page says or remove only that value; keep the rest of the bullet and every other value that is on the page.\n\
+- If it cites no page you fetched, or its point is on another page you fetched, cite that page and quote it.\n\
+- Drop it only when none of the pages you fetched states its point.\n\
+Add no new claim. When an official source and a secondary source disagree, state the official one."
     ));
     text
 }
