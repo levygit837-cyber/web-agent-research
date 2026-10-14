@@ -128,6 +128,7 @@ pub(super) fn verification_counts(data: &Value) -> String {
 /// `None` for Events that start no step.
 pub(super) fn in_flight(kind: &str, data: &Value) -> Option<String> {
     match kind {
+        "model.retry" => Some("waiting to retry the model call...".to_owned()),
         "turn.started" => Some("waiting for the model".to_owned()),
         "search.started" => Some(format!(
             "{}...",
@@ -165,6 +166,7 @@ pub(super) fn describe(
             Tone::Warn,
         ),
         "model.replied" => (model_replied(data), Tone::Normal),
+        "model.retry" => (model_retry(data), Tone::Warn),
         "search.finished" => search_finished(data),
         "fetch.finished" => fetch_finished(data),
         "tool.failed" => (tool_failed(data), Tone::Bad),
@@ -186,6 +188,17 @@ pub(super) fn describe(
         _ => return None,
     };
     Some(line)
+}
+
+/// `model retry 1 in 0.8s: <reason>`: the failed attempt's number, how long the
+/// gateway waits, and why. The reason is the gateway's own error text.
+fn model_retry(data: &Value) -> String {
+    let seconds = count_of(data, "delay_ms") as f64 / 1000.0;
+    format!(
+        "model retry {} in {seconds:.1}s: {}",
+        count_of(data, "attempt"),
+        clip(text_of(data, "reason").unwrap_or("no reason"), 160),
+    )
 }
 
 fn model_replied(data: &Value) -> String {

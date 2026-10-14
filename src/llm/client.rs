@@ -261,7 +261,6 @@ impl Gateway {
             if self.time_left().is_some_and(|left| left <= delay) {
                 return Err(err);
             }
-            tracing::info!("gateway attempt {attempt} failed ({err}); retrying in {delay:?}");
             on_event(LlmEvent::Retry {
                 attempt,
                 delay_ms: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),

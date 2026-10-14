@@ -130,13 +130,19 @@ pub async fn run_loop_with_events(
             (false, true) => Some(ToolChoice::None),
             (false, false) => Some(ToolChoice::Auto),
         };
-        let reply = match &choice {
-            None => gateway.chat(&messages).await,
-            Some(choice) => {
-                gateway
-                    .chat_with_tools(&messages, &defs, Some(choice.clone()))
-                    .await
-            }
+        // One call path for every Turn: the observer turns the gateway's
+        // stream into `model.delta` / `model.retry` (#154). The tools are
+        // `None` for a zero-tool run, as `chat` sent them.
+        let reply = {
+            let mut observer = events.model_observer(turn);
+            gateway
+                .chat_observed(
+                    &messages,
+                    (!defs.is_empty()).then(|| defs.clone()),
+                    choice.clone(),
+                    &mut observer,
+                )
+                .await
         };
         // Before any early return below, so a failed call is traced too.
         events.trace_model(turn, &messages, &defs, choice.as_ref(), reply.as_ref());

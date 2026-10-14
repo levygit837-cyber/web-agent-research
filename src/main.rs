@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
 use web_agent_research::{
-    render, run_research, EventsSink, ProgressMode, ResearchRequest, CLEAR_LINE,
+    render, run_research, EventsDetail, EventsSink, ProgressMode, ResearchRequest, CLEAR_LINE,
 };
 #[derive(Debug, Parser)]
 #[command(name = "web-agent-research", version, arg_required_else_help = true)]
@@ -41,6 +41,9 @@ enum Command {
         /// Write the Session's lifecycle Events as NDJSON, one per line, to a file (created 0600) or `-` for stderr.
         #[arg(long, value_name = "PATH|-")]
         events: Option<PathBuf>,
+        /// How much of the model stream `--events` carries: `normal` leaves out `model.delta`, `tokens` adds every streamed fragment (high volume).
+        #[arg(long, value_enum, default_value_t = EventsDetailArg::Normal)]
+        events_detail: EventsDetailArg,
         /// Also record every model exchange (messages sent, reply, tool results) in the Session file. Off by default: rows hold page text and the goal.
         #[arg(long, default_value_t = false)]
         trace: bool,
@@ -67,6 +70,21 @@ impl SizeArg {
             Self::Small => SynthesisSize::Small,
             Self::Medium => SynthesisSize::Medium,
             Self::Large => SynthesisSize::Large,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum EventsDetailArg {
+    Normal,
+    Tokens,
+}
+
+impl EventsDetailArg {
+    fn as_detail(self) -> EventsDetail {
+        match self {
+            Self::Normal => EventsDetail::Normal,
+            Self::Tokens => EventsDetail::Tokens,
         }
     }
 }
@@ -148,6 +166,7 @@ async fn main() -> Result<()> {
         session_id,
         session_out,
         events,
+        events_detail,
         trace,
         progress,
         json,
@@ -161,6 +180,7 @@ async fn main() -> Result<()> {
         session_id,
         session_out,
         events: events_sink(events),
+        events_detail: events_detail.as_detail(),
         trace,
         progress: progress.as_mode(),
     };
@@ -306,6 +326,20 @@ mod tests {
             events(&["war", "research", "g", "--events", "out.ndjson"]),
             Some(EventsSink::File(PathBuf::from("out.ndjson")))
         );
+    }
+
+    #[test]
+    fn events_detail_defaults_to_normal_and_accepts_tokens() {
+        let detail = |args: &[&str]| {
+            let Command::Research { events_detail, .. } = parse(args).command;
+            events_detail.as_detail()
+        };
+        assert_eq!(detail(&["war", "research", "g"]), EventsDetail::Normal);
+        assert_eq!(
+            detail(&["war", "research", "g", "--events-detail", "tokens"]),
+            EventsDetail::Tokens
+        );
+        assert!(Cli::try_parse_from(["war", "research", "g", "--events-detail", "all"]).is_err());
     }
 
     #[test]

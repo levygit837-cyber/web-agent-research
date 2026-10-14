@@ -211,8 +211,13 @@ pub(crate) async fn run_research_until(
     let session_id = req.session_id.clone().unwrap_or_else(generate_session_id);
     // An `--events` output that cannot be opened is a configuration error,
     // raised before any gateway call.
-    let events = Events::open(&session_id, req.events.as_ref(), req.progress)
-        .map_err(ResearchError::NotConfigured)?;
+    let events = Events::open(
+        &session_id,
+        req.events.as_ref(),
+        req.events_detail,
+        req.progress,
+    )
+    .map_err(ResearchError::NotConfigured)?;
     if req.trace {
         events.enable_trace();
     }
@@ -399,6 +404,7 @@ mod tests {
     mod events;
     mod gateway_integration;
     mod helpers;
+    mod model_stream;
     mod session_log;
     mod session_path;
     mod tool_events;

@@ -423,3 +423,5 @@ fn the_emitter_feeds_progress_the_events_it_documents() {
         "{text}"
     );
 }
+
+mod stream;

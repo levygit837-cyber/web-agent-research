@@ -69,6 +69,7 @@ pub(super) fn hermetic_request(session_tag: &str) -> ResearchRequest {
         session_id: Some(format!("test-{session_tag}")),
         session_out: Some(temp_session_out(session_tag)),
         events: None,
+        events_detail: crate::research::events::EventsDetail::Normal,
         trace: false,
         progress: crate::research::events::ProgressMode::Off,
     }
