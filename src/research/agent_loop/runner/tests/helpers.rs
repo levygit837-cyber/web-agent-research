@@ -67,6 +67,7 @@ pub(super) fn canned_search() -> ToolResult {
             "https://example.com/t",
         )],
         engine_status: Vec::new(),
+        engines: Vec::new(),
     }
 }
 
@@ -80,6 +81,7 @@ pub(super) fn canned_fetch() -> ToolResult {
         part: 1,
         parts: 1,
         first_delivery: true,
+        served: crate::research::agent_loop::result::Served::Network,
     }
 }
 

@@ -3,7 +3,7 @@
 //! the model sees when a call returns no Hits.
 
 use super::leg::LegOutcome;
-use crate::web::search::types::{SearchProvider, SearchProviderError};
+use crate::web::search::types::{EngineProblem, EngineReport, SearchProvider, SearchProviderError};
 
 /// Format leg failures as `"id: msg; id: msg"` (Omp
 /// `formatSearchProviderFailures`), one entry per engine in first-seen
@@ -71,6 +71,78 @@ pub(super) fn engine_status(
             format!("{}: {}", provider.id(), parts.join(", "))
         })
         .collect()
+}
+
+/// The structured twin of [`engine_status`] (#148): one report per engine in
+/// `enabled`, aggregated over that engine's legs. `cache_hit[i]` says leg
+/// `i` (the same order as `legs`) was served from the disk cache.
+pub(super) fn engine_reports(
+    enabled: &[SearchProvider],
+    legs: &[(SearchProvider, LegOutcome)],
+    cache_hit: &[bool],
+) -> Vec<EngineReport> {
+    enabled
+        .iter()
+        .map(|provider| {
+            let mut report = EngineReport {
+                engine: provider.id().to_string(),
+                rows: 0,
+                answered_legs: 0,
+                cached_legs: 0,
+                problems: Vec::new(),
+            };
+            for (index, (_, outcome)) in legs
+                .iter()
+                .enumerate()
+                .filter(|(_, (leg, _))| leg == provider)
+            {
+                match outcome {
+                    Ok(found) => {
+                        report.answered_legs += 1;
+                        report.rows += found.len();
+                        if cache_hit.get(index).copied().unwrap_or(false) {
+                            report.cached_legs += 1;
+                        }
+                    }
+                    Err(err) => {
+                        let problem = engine_problem(err);
+                        if !report.problems.contains(&problem) {
+                            report.problems.push(problem);
+                        }
+                    }
+                }
+            }
+            report
+        })
+        .collect()
+}
+
+fn engine_problem(err: &SearchProviderError) -> EngineProblem {
+    match err {
+        SearchProviderError::Challenge { detail, .. } => EngineProblem::Challenge {
+            detail: detail.clone(),
+        },
+        SearchProviderError::Timeout { .. } => EngineProblem::Timeout,
+        SearchProviderError::Suspended {
+            remaining_secs,
+            reason,
+            ..
+        } => EngineProblem::Suspended {
+            reason: reason.clone(),
+            remaining_secs: *remaining_secs,
+        },
+        SearchProviderError::Throttled { detail, .. } => EngineProblem::Throttled {
+            detail: detail.clone(),
+        },
+        SearchProviderError::Upstream { detail, status, .. } => EngineProblem::Error {
+            detail: detail.clone(),
+            http_status: *status,
+        },
+        other => EngineProblem::Error {
+            detail: error_detail(other),
+            http_status: None,
+        },
+    }
 }
 
 /// [`error_detail`] without the Query a timeout names: the status line is

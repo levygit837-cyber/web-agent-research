@@ -31,7 +31,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::llm::{RequestedToolCall, ToolDef};
 use crate::research::agent_loop::context::page_parts;
-use crate::research::agent_loop::result::{plural_parts, FailureKind, ToolResult};
+use crate::research::agent_loop::result::{plural_parts, FailureKind, Served, ToolResult};
 use crate::research::agent_loop::tape::{SearchOutcome, Tape};
 use crate::web::fetch::tool::{
     fetch_tool, fetch_tool_schema, FetchInput, FETCH_TOOL_NAME, FETCH_TOOL_PURPOSE,
@@ -192,9 +192,11 @@ impl ToolRegistry {
                     SearchOutcome::Hits {
                         hits,
                         engine_status,
+                        engines,
                     } => ToolResult::Search {
                         hits: self.mark_already_fetched(hits),
                         engine_status,
+                        engines,
                     },
                     SearchOutcome::Note { note } => ToolResult::SearchNote { note },
                     SearchOutcome::Blocked { detail } => ToolResult::SearchBlocked { detail },
@@ -237,11 +239,17 @@ impl ToolRegistry {
                                 .unwrap_or(u32::MAX),
                             }
                         }
-                        part => deliver_part(call, &stored, part.unwrap_or(1), part_chars),
+                        part => deliver_part(
+                            call,
+                            &stored,
+                            part.unwrap_or(1),
+                            part_chars,
+                            Served::Memory,
+                        ),
                     };
                 }
                 match self.fetch(&args, &input.url, fetcher).await {
-                    Ok(evidence) => {
+                    Ok((evidence, served)) => {
                         let source_key = dedup_key(&evidence.source_url);
                         let stored = {
                             let mut fetched = self.fetched.lock().expect("fetched lock");
@@ -262,7 +270,7 @@ impl ToolRegistry {
                             fetched.insert(requested_key, Arc::clone(&stored));
                             stored
                         };
-                        deliver_part(call, &stored, input.part.unwrap_or(1), part_chars)
+                        deliver_part(call, &stored, input.part.unwrap_or(1), part_chars, served)
                     }
                     Err((reason, kind)) => failed(call, reason, kind),
                 }
@@ -294,6 +302,7 @@ impl ToolRegistry {
                 None => SearchOutcome::Hits {
                     hits: output.results,
                     engine_status: output.engine_status,
+                    engines: output.engines,
                 },
             },
             Err(crate::web::search::types::SearchProviderError::AllFailed {
@@ -319,9 +328,9 @@ impl ToolRegistry {
         args: &serde_json::Value,
         url: &str,
         fetcher: &Fetcher,
-    ) -> Result<Evidence, (String, FailureKind)> {
+    ) -> Result<(Evidence, Served), (String, FailureKind)> {
         if let Some(replayed) = self.tape.as_ref().and_then(|tape| tape.replayed_fetch(url)) {
-            return replayed;
+            return replayed.map(|evidence| (evidence, Served::Tape));
         }
         let outcome = fetch_tool(args, fetcher).await.map_err(|err| match err {
             FetchError::InvalidUrl { .. } | FetchError::InvalidPart { .. } => (
@@ -333,7 +342,7 @@ impl ToolRegistry {
         if let Some(tape) = &self.tape {
             tape.record_fetch(url, &outcome);
         }
-        outcome
+        outcome.map(|evidence| (evidence, Served::Network))
     }
 
     /// Search Hits already fetched this run get an `(already fetched)`
@@ -395,6 +404,7 @@ fn deliver_part(
     stored: &StoredPage,
     part: u32,
     part_chars: usize,
+    served: Served,
 ) -> ToolResult {
     let mut spans = part_spans(&stored.page.markdown, part_chars);
     let parts = u32::try_from(spans.len()).unwrap_or(u32::MAX);
@@ -415,6 +425,7 @@ fn deliver_part(
         part,
         parts,
         first_delivery: !stored.delivered.swap(true, Ordering::Relaxed),
+        served,
     }
 }
 

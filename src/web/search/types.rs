@@ -273,6 +273,81 @@ pub struct SearchOutput {
     /// when a call returns no Hits, so an empty answer is never mistaken
     /// for "nothing exists" when the engines were walled or drifted.
     pub engine_status: Vec<String>,
+    /// The same per-engine outcome as `engine_status`, structured (#148):
+    /// one report per engine that ran a leg, in priority order. Empty when
+    /// no leg ran (`note`).
+    #[serde(default)]
+    pub engines: Vec<EngineReport>,
+}
+
+/// What one engine did in a fan-out call, aggregated over its legs (#148).
+/// The structured twin of an `engine_status` line, so a caller can tell a
+/// suspended engine from a walled or a slow one without parsing prose.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EngineReport {
+    /// [`SearchProvider::id`] of the engine.
+    pub engine: String,
+    /// Rows its answered legs returned, before merging.
+    pub rows: usize,
+    /// Legs that got a recognized results page (rows or none).
+    pub answered_legs: usize,
+    /// Of the answered legs, how many came from the disk cache instead of
+    /// the network (#67).
+    pub cached_legs: usize,
+    /// Each distinct way its other legs failed.
+    pub problems: Vec<EngineProblem>,
+}
+
+impl EngineReport {
+    /// One word for the engine's call: `rows`, `no_results`, or, when no
+    /// leg answered, the kind of its first problem.
+    pub fn status(&self) -> &'static str {
+        if self.answered_legs > 0 {
+            if self.rows > 0 {
+                "rows"
+            } else {
+                "no_results"
+            }
+        } else {
+            self.problems
+                .first()
+                .map_or("no_results", EngineProblem::kind)
+        }
+    }
+}
+
+/// Why one engine leg did not answer (#148). Mirrors the leg-level
+/// [`SearchProviderError`] variants a leg can end with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum EngineProblem {
+    /// A live bot wall.
+    Challenge { detail: String },
+    /// The leg hit a deadline.
+    Timeout,
+    /// Skipped under an active suspension; no request was sent.
+    Suspended { reason: String, remaining_secs: u64 },
+    /// Skipped by a local cap; no request was sent.
+    Throttled { detail: String },
+    /// Transport error or non-2xx without a challenge marker, or any other
+    /// failure; `http_status` is the real status when a response arrived.
+    Error {
+        detail: String,
+        http_status: Option<u16>,
+    },
+}
+
+impl EngineProblem {
+    /// The serde tag: `challenge`, `timeout`, `suspended`, `throttled`, `error`.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Challenge { .. } => "challenge",
+            Self::Timeout => "timeout",
+            Self::Suspended { .. } => "suspended",
+            Self::Throttled { .. } => "throttled",
+            Self::Error { .. } => "error",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

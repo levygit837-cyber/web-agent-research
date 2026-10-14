@@ -17,7 +17,9 @@ use crate::test_support::{CannedResponse, CannedServer, EnvGuard};
 
 const ENV: [&str; 3] = ["GATEWAY_BASE_URL", "GATEWAY_API_KEY", "GATEWAY_MODEL"];
 
-fn request_with_events(tag: &str) -> (ResearchRequest, std::path::PathBuf, std::path::PathBuf) {
+pub(super) fn request_with_events(
+    tag: &str,
+) -> (ResearchRequest, std::path::PathBuf, std::path::PathBuf) {
     let mut req = hermetic_request(tag);
     let events_path = temp_session_out(&format!("{tag}-events"));
     req.events = Some(EventsSink::File(events_path.clone()));
@@ -28,7 +30,7 @@ fn request_with_events(tag: &str) -> (ResearchRequest, std::path::PathBuf, std::
 /// Read the NDJSON file back and hold it to the envelope contract: every
 /// line is one envelope of this Session, `seq` is 1, 2, 3, … and
 /// `session.finished` appears once, last.
-fn read_events(path: &Path) -> Vec<Value> {
+pub(super) fn read_events(path: &Path) -> Vec<Value> {
     let text = std::fs::read_to_string(path).expect("events file exists");
     let events: Vec<Value> = text
         .lines()
@@ -61,18 +63,18 @@ fn read_events(path: &Path) -> Vec<Value> {
     events
 }
 
-fn types(events: &[Value]) -> Vec<&str> {
+pub(super) fn types(events: &[Value]) -> Vec<&str> {
     events
         .iter()
         .map(|event| event["type"].as_str().expect("type"))
         .collect()
 }
 
-fn finished(events: &[Value]) -> &Value {
+pub(super) fn finished(events: &[Value]) -> &Value {
     &events.last().expect("events")["data"]
 }
 
-fn cleanup(paths: &[&Path]) {
+pub(super) fn cleanup(paths: &[&Path]) {
     for path in paths {
         let _ = std::fs::remove_file(path);
     }
@@ -107,10 +109,15 @@ async fn a_successful_session_emits_its_lifecycle_in_order() {
             "session.started",
             "turn.started",
             "model.replied",
+            "search.started",
+            "search.finished",
             "turn.started",
             "model.replied",
+            "fetch.started",
+            "fetch.finished",
             "turn.started",
             "model.replied",
+            "answer.verified",
             "session.finished",
         ]
     );
@@ -137,7 +144,15 @@ async fn a_successful_session_emits_its_lifecycle_in_order() {
         .is_some_and(|m| !m.is_empty()));
     assert!(started["data"]["stream"].is_boolean());
 
-    let turn_started = [&events[1], &events[3], &events[5]];
+    let turn_started: Vec<&Value> = events
+        .iter()
+        .filter(|event| event["type"] == "turn.started")
+        .collect();
+    let replies: Vec<&Value> = events
+        .iter()
+        .filter(|event| event["type"] == "model.replied")
+        .collect();
+    assert_eq!((turn_started.len(), replies.len()), (3, 3));
     for (index, event) in turn_started.iter().enumerate() {
         assert_eq!(event["turn"], index as u64 + 1);
         assert_eq!(event["data"]["turn_budget"], 8);
@@ -146,7 +161,7 @@ async fn a_successful_session_emits_its_lifecycle_in_order() {
         assert_eq!(event["data"]["final_reason"], Value::Null);
     }
 
-    let first_reply = &events[2];
+    let first_reply = replies[0];
     assert_eq!(first_reply["turn"], 1);
     assert_eq!(first_reply["data"]["finish_reason"], "tool_calls");
     assert_eq!(
@@ -154,7 +169,7 @@ async fn a_successful_session_emits_its_lifecycle_in_order() {
         serde_json::json!([{ "id": "c1", "name": "search" }])
     );
     assert_eq!(first_reply["data"]["usage"]["total_tokens"], 2);
-    let last_reply = &events[6];
+    let last_reply = replies[2];
     assert_eq!(last_reply["data"]["finish_reason"], "stop");
     assert_eq!(last_reply["data"]["tool_calls"], serde_json::json!([]));
     assert_eq!(
@@ -199,6 +214,9 @@ async fn budget_exhaustion_ends_with_exit_5_after_a_final_turn() {
             "session.started",
             "turn.started",
             "model.replied",
+            // The final Turn called a tool instead of answering: nothing is
+            // dispatched and the empty-answer repair is reported.
+            "tool.failed",
             "session.finished"
         ]
     );
@@ -301,8 +319,12 @@ async fn a_search_blocked_session_ends_with_exit_7_after_the_loop() {
             "session.started",
             "turn.started",
             "model.replied",
+            "search.started",
+            "search.finished",
+            "tool.failed",
             "turn.started",
             "model.replied",
+            "answer.verified",
             "session.finished",
         ]
     );

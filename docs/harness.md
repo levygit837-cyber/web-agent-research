@@ -392,6 +392,25 @@ Design: `docs/adr/0010-session-events-and-token-streaming.md`.
 
 `usage` has the same fields as the `--json` `usage`. A Turn whose gateway call failed has a `turn.started` and no `model.replied`.
 
+### Tool and verification types (#148)
+
+Every one carries the Turn it belongs to in `turn`. `call_id` is the id in that Turn's `model.replied.tool_calls`; an empty id from the gateway is replaced by a synthesized one, the same in the Event and in the Session's tool messages. Calls run one after another, so a Turn's `*.started` and `*.finished` pairs do not interleave.
+
+| `type` | When | `data` |
+|---|---|---|
+| `search.started` | a `search` call is about to run | `call_id`, `queries`, `recency` (as the model sent them; `null` when absent) |
+| `search.finished` | the call returned, failed or timed out | `call_id`, `ok`, `hits` (merged Hits), `engines`, `note`, `error` |
+| `fetch.started` | a `fetch` call is about to run | `call_id`, `url`, `part` (as sent; `null` when absent) |
+| `fetch.finished` | the call returned, failed or timed out | `call_id`, `ok`, `final_url`, `fetch_path`, `part`, `parts`, `chars`, `served_from`, `error` |
+| `tool.failed` | every failed call, and an empty answer | `call_id`, `tool`, `kind`, `reason`, `consecutive_failures`, `max_repairs` |
+| `context.truncated` | before a gateway call whose transcript dropped the oldest Turns to fit | `dropped_turns`, `max_context_chars` |
+| `answer.verified` | once, after the answer is parsed and checked against the fetched pages | `bullets`, `cited`, `exact`, `partial`, `none` (the `--json` `verification`), `citations` (citations kept) |
+
+- `search.finished.engines` lists every engine the call consulted: `engine`, `status`, `rows` (Hits it returned), `cached` (every leg that answered came from the search cache), `problems`. `status` is `rows`, `no_results`, or, when no leg answered, the kind of its first problem. A `problems` entry is `{kind: "challenge", detail}`, `{kind: "timeout"}`, `{kind: "suspended", reason, remaining_secs}` (skipped, no request made), `{kind: "throttled", detail}` or `{kind: "error", detail, http_status}`. `engines` is empty when the call never searched (`note` says why, for example a query that is not crate-shaped) or failed as a whole (`error` names every engine).
+- `fetch.finished.served_from` is `network` (fetched now), `memory` (a page this Session already fetched: a later `part`, or a repeat of the URL) or `tape` (replayed). `fetch_path` is `static`, `browser` or `api`. `part` and `parts` are the delivered part and the page's part count; a repeat fetch without `part` delivers nothing (`part` `null`, `chars` `0`). `chars` is the size of the delivered part. A failure leaves `final_url`, `fetch_path`, `part`, `parts` and `served_from` `null` and carries its reason in `error`: egress refusal, HTTP status, timeout, or a `part` out of range.
+- `tool.failed.kind` is `dispatch` (unknown tool, bad arguments, `part` out of range), `execution` (the tool ran and failed, or timed out) or `empty_answer`, where the reply was neither a tool call nor a valid answer: `call_id` and `tool` are `null`. `consecutive_failures` is the repair counter after the Turn (a successful call in the same Turn resets it); the Session aborts when it exceeds `max_repairs`. A call dropped over the per-Turn tool cap is not a failure and has no Event.
+- `context.truncated` replaces nothing: the `tracing` line stays for the human log until Progress (#149) takes it over.
+
 ### `session.finished`
 
 It is the last line on success and on every error exit `2` to `9` and `130`, including exit `7` (decided after the loop) and exit `6` (an explicit `--session-out` that could not be written). `outcome` and `exit_code` match the "Exit codes" table:

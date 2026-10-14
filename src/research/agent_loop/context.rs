@@ -152,13 +152,15 @@ pub(crate) fn truncate_history(
 /// note, then surviving history. A text turn skips its assistant message
 /// when empty; a tool turn always emits its assistant `tool_calls` message
 /// (empty commentary serializes as wire `content: null`) followed by its
-/// `tool` messages. `was_truncated` telemetry logs when turns were dropped.
+/// `tool` messages. Also returns how many turns truncation dropped (0 when
+/// none), for the `context.truncated` Event (#148); the `tracing` line stays
+/// for humans until Progress replaces it (#149).
 pub(crate) fn assemble(
     system_prompt: &str,
     input: &LoopInput,
     history: &[HistoryEntry],
     budget: &LoopBudget,
-) -> Vec<ChatMessage> {
+) -> (Vec<ChatMessage>, usize) {
     let goal = goal_message(input);
     let system_chars = system_prompt.chars().count();
     let goal_chars = goal.chars().count();
@@ -200,7 +202,7 @@ pub(crate) fn assemble(
             }
         }
     }
-    messages
+    (messages, dropped_turns)
 }
 
 /// Test-shared invariant: every `tool` message pairs with a preceding
@@ -279,7 +281,7 @@ mod tests {
     #[test]
     fn layout_is_system_goal_then_tool_turn() {
         let history = vec![tool_turn(1)];
-        let messages = assemble("sys", &input(), &history, &LoopBudget::default());
+        let messages = assemble("sys", &input(), &history, &LoopBudget::default()).0;
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0].role, "system");
         assert_eq!(messages[0].content_text(), "sys");
@@ -306,7 +308,7 @@ mod tests {
             assistant: "thinking".to_owned(),
             observation: "repair note".to_owned(),
         }];
-        let messages = assemble("sys", &input(), &history, &LoopBudget::default());
+        let messages = assemble("sys", &input(), &history, &LoopBudget::default()).0;
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[2].role, "assistant");
         assert_eq!(messages[2].content_text(), "thinking");
@@ -317,7 +319,7 @@ mod tests {
 
     #[test]
     fn empty_history_is_exactly_two_messages() {
-        let messages = assemble("sys", &input(), &[], &LoopBudget::default());
+        let messages = assemble("sys", &input(), &[], &LoopBudget::default()).0;
         assert_eq!(messages.len(), 2);
     }
 
@@ -327,7 +329,7 @@ mod tests {
             assistant: String::new(),
             observation: "repair note".to_owned(),
         }];
-        let messages = assemble("sys", &input(), &history, &LoopBudget::default());
+        let messages = assemble("sys", &input(), &history, &LoopBudget::default()).0;
         assert_eq!(messages.len(), 3);
         assert_eq!(messages[2].role, "user");
     }
@@ -343,7 +345,7 @@ mod tests {
             }],
             replay: ReplayBlocks::default(),
         }];
-        let messages = assemble("sys", &input(), &history, &LoopBudget::default());
+        let messages = assemble("sys", &input(), &history, &LoopBudget::default()).0;
         assert_eq!(messages[2].role, "assistant");
         assert_eq!(
             messages[2].content, None,
@@ -355,10 +357,10 @@ mod tests {
     #[test]
     fn truncation_drops_oldest_whole_turns() {
         let history: Vec<HistoryEntry> = (1..=4).map(tool_turn).collect();
-        let full = assemble("sys", &input(), &history, &LoopBudget::default());
+        let full = assemble("sys", &input(), &history, &LoopBudget::default()).0;
         assert_eq!(full.len(), 2 + 4 * 2);
         let tiny = budget_for(140);
-        let messages = assemble("sys", &input(), &history, &tiny);
+        let messages = assemble("sys", &input(), &history, &tiny).0;
         assert!(
             messages.len() < full.len(),
             "truncation must shrink the transcript"
@@ -381,7 +383,7 @@ mod tests {
     fn single_turn_survives_even_over_cap() {
         let history = vec![tool_turn(1)];
         let tiny = budget_for(1);
-        let messages = assemble("sys", &input(), &history, &tiny);
+        let messages = assemble("sys", &input(), &history, &tiny).0;
         assert!(messages
             .iter()
             .any(|message| message.content_text().contains("result 1")));
