@@ -46,7 +46,7 @@ pub(crate) fn utc_now_rfc3339() -> String {
 }
 
 /// Unix seconds → RFC 3339 UTC via Howard Hinnant's civil-from-days algorithm.
-fn format_timestamp(secs: u64) -> String {
+pub(crate) fn format_timestamp(secs: u64) -> String {
     let days = (secs / 86_400) as i64;
     let secs_of_day = (secs % 86_400) as i64;
     let hour = secs_of_day / 3600;

@@ -28,6 +28,7 @@ fn request(session_id: Option<&str>, session_out: Option<PathBuf>) -> ResearchRe
         deadline_secs: 300,
         session_id: session_id.map(str::to_owned),
         session_out,
+        events: None,
     }
 }
 

@@ -4,25 +4,28 @@
 //! gateway construction, `run_loop` wiring, JSONL append, and the response
 //! shape. `src/main.rs` is the only adapter: it prints `Ok` to stdout
 //! (`--json` or the human `render`) and maps `Err` to a CLI exit code via
-//! `exit_for`. The wire DTOs (`ResearchRequest`, `ResearchResponse`, ...)
+//! `ResearchError::exit_code`. The wire DTOs (`ResearchRequest`, `ResearchResponse`, ...)
 //! are in `dto.rs`.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::llm::{Gateway, GatewayConfig};
 use crate::research::agent_loop::tape::Tape;
-use crate::research::agent_loop::{run_loop, LoopBudget, LoopError, LoopInput, ToolRegistry};
+use crate::research::agent_loop::{
+    run_loop_with_events, LoopBudget, LoopError, LoopInput, ToolRegistry,
+};
 use crate::research::data_dir;
 use crate::research::dto::{
     ResearchRequest, ResearchResponse, SynthesisDTO, UsageDTO, CONTENT_TRUST_UNTRUSTED_WEB,
 };
+use crate::research::events::Events;
 use crate::research::session::{SessionHeader, SessionSink, SessionUsage, TurnRow};
 use crate::research::synthesis::Support;
 use crate::web::fetch::{Evidence, Fetcher};
 use crate::web::search::tool::Searcher;
 
 /// Failures of one research run; each maps to a CLI exit code via
-/// `exit_for` in `main.rs` (`NotConfigured→2`, `GatewayExhausted→3`,
+/// [`ResearchError::exit_code`] (`NotConfigured→2`, `GatewayExhausted→3`,
 /// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`,
 /// `GatewayRejected→8`, `DeadlineExceeded→9`).
 #[derive(Debug)]
@@ -84,6 +87,38 @@ impl std::fmt::Display for ResearchError {
 
 impl std::error::Error for ResearchError {}
 
+impl ResearchError {
+    /// The CLI exit code, and the only place the mapping is written
+    /// (`docs/harness.md` "Exit codes"): `main.rs` exits with it and
+    /// `session.finished` carries it.
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            Self::NotConfigured(_) => 2,
+            Self::GatewayExhausted(_) => 3,
+            Self::ToolFailure(_) => 4,
+            Self::BudgetExhausted { .. } => 5,
+            Self::Io(_) => 6,
+            Self::SearchBlocked(_) => 7,
+            Self::GatewayRejected(_) => 8,
+            Self::DeadlineExceeded { .. } => 9,
+        }
+    }
+
+    /// The `outcome` of `session.finished` for this failure (ADR-0010 §3).
+    pub fn outcome(&self) -> &'static str {
+        match self {
+            Self::NotConfigured(_) => "not_configured",
+            Self::GatewayExhausted(_) => "gateway_exhausted",
+            Self::ToolFailure(_) => "tool_failure",
+            Self::BudgetExhausted { .. } => "budget_exhausted",
+            Self::Io(_) => "session_io",
+            Self::SearchBlocked(_) => "search_blocked",
+            Self::GatewayRejected(_) => "gateway_rejected",
+            Self::DeadlineExceeded { .. } => "deadline_exceeded",
+        }
+    }
+}
+
 fn map_loop_error(err: LoopError) -> ResearchError {
     match err {
         LoopError::NoStart(reason) => ResearchError::NotConfigured(reason),
@@ -134,6 +169,34 @@ pub(crate) async fn run_research_with(
     req: ResearchRequest,
     tools: ToolRegistry,
 ) -> Result<ResearchResponse, ResearchError> {
+    // The Session id is the first thing resolved: Events name their Session,
+    // so an invalid `--session-id` exits 2 with no Events (ADR-0010 §3).
+    if let Some(id) = req.session_id.as_deref() {
+        data_dir::validate_session_id(id).map_err(ResearchError::NotConfigured)?;
+    }
+    // Generated before the loop (not after) so it can be sent as
+    // `prompt_cache_key` on every turn of this run, keeping cache-routing
+    // stable across the whole Session rather than only the persisted rows.
+    let session_id = req.session_id.clone().unwrap_or_else(generate_session_id);
+    // An `--events` output that cannot be opened is a configuration error,
+    // raised before any gateway call.
+    let events =
+        Events::open(&session_id, req.events.as_ref()).map_err(ResearchError::NotConfigured)?;
+    // Every exit of the Session body, present or future, passes through this
+    // one emit: `session.finished` is the last Event of the Session.
+    let result = run_session(&req, session_id, tools, &events).await;
+    events.session_finished(&result);
+    result
+}
+
+/// The Session body behind [`run_research_with`]: validation, the loop, the
+/// Session file. Returns early freely; the caller emits `session.finished`.
+async fn run_session(
+    req: &ResearchRequest,
+    session_id: String,
+    tools: ToolRegistry,
+    events: &Events,
+) -> Result<ResearchResponse, ResearchError> {
     if req.goal.trim().is_empty() {
         return Err(ResearchError::NotConfigured(
             "research goal is empty".to_owned(),
@@ -155,13 +218,6 @@ pub(crate) async fn run_research_with(
             "deadline_secs must be >= 1".to_owned(),
         ));
     }
-    if let Some(id) = req.session_id.as_deref() {
-        data_dir::validate_session_id(id).map_err(ResearchError::NotConfigured)?;
-    }
-    // Generated before the loop (not after) so it can be sent as
-    // `prompt_cache_key` on every turn of this run, keeping cache-routing
-    // stable across the whole Session rather than only the persisted rows.
-    let session_id = req.session_id.clone().unwrap_or_else(generate_session_id);
     let config = GatewayConfig::from_env()
         .map_err(|err| ResearchError::NotConfigured(err.to_string()))?
         .with_prompt_cache_key(session_id.clone());
@@ -181,13 +237,15 @@ pub(crate) async fn run_research_with(
     let deadline = budget
         .deadline
         .expect("with_deadline always sets the run deadline");
+    // Configuration is valid: the Session starts.
+    events.session_started(req, &config);
     let gateway = Gateway::new(config).with_deadline(deadline);
     let input = LoopInput {
         goal: req.goal.clone(),
         size: req.size,
         allowed_tools: vec!["search".to_owned(), "fetch".to_owned()],
     };
-    let report = run_loop(&gateway, &tools, &input, &budget)
+    let report = run_loop_with_events(&gateway, &tools, &input, &budget, events)
         .await
         .map_err(map_loop_error)?;
 
@@ -303,6 +361,7 @@ pub fn render(response: &ResearchResponse) -> String {
 
 #[cfg(test)]
 mod tests {
+    mod events;
     mod gateway_integration;
     mod helpers;
     mod session_path;

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--events <path|->` streams Session lifecycle Events (`session.started`, `turn.started`, `model.replied`, `session.finished`) as NDJSON; `session.finished` ends every exit `0` to `9` (#147).
 - `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: OpenAI-format replies stream as SSE and are assembled into the same reply; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152).
 
 ### Changed

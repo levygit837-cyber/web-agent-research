@@ -5,6 +5,7 @@
 pub mod agent_loop;
 pub(crate) mod data_dir;
 pub mod dto;
+pub mod events;
 pub mod prompt;
 pub mod run;
 pub mod session;
@@ -14,4 +15,5 @@ pub use dto::{
     CitationDTO, ResearchRequest, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO,
     VerificationDTO, CONTENT_TRUST_UNTRUSTED_WEB,
 };
+pub use events::EventsSink;
 pub use run::{render, run_research, ResearchError};

@@ -33,6 +33,7 @@ use crate::research::agent_loop::types::{
     LoopBudget, LoopError, LoopInput, RunReport, ToolEvidence,
 };
 use crate::research::agent_loop::verify::verify_synthesis;
+use crate::research::events::Events;
 use crate::research::prompt::build_system_prompt;
 use crate::web::search::dedup_key;
 
@@ -45,6 +46,19 @@ pub async fn run_loop(
     tools: &ToolRegistry,
     input: &LoopInput,
     budget: &LoopBudget,
+) -> Result<RunReport, LoopError> {
+    run_loop_with_events(gateway, tools, input, budget, &Events::disabled()).await
+}
+
+/// [`run_loop`] that reports each Turn to `events` (ADR-0010):
+/// `turn.started` before the gateway call, `model.replied` after it.
+/// `run_loop` is this with a disabled emitter.
+pub async fn run_loop_with_events(
+    gateway: &Gateway,
+    tools: &ToolRegistry,
+    input: &LoopInput,
+    budget: &LoopBudget,
+    events: &Events,
 ) -> Result<RunReport, LoopError> {
     if input.goal.trim().is_empty() {
         return Err(LoopError::NoStart("research goal is empty".to_owned()));
@@ -95,6 +109,16 @@ pub async fn run_loop(
         turn += 1;
         let deadline_final = budget.in_final_reserve();
         let final_turn = turn >= turn_budget || deadline_final;
+        // The budget names the final Turn when both apply: it would be final
+        // with all the time in the world.
+        let final_reason = if turn >= turn_budget {
+            Some("budget")
+        } else if deadline_final {
+            Some("deadline")
+        } else {
+            None
+        };
+        events.turn_started(turn, turn_budget, final_turn, final_reason);
         let messages = context::assemble(&system_prompt, input, &history, budget);
         let reply = if defs.is_empty() {
             gateway.chat(&messages).await
@@ -120,6 +144,7 @@ pub async fn run_loop(
             }
             Err(err) => return Err(LoopError::Gateway(err)),
         };
+        events.model_replied(turn, &reply);
         usage.add(&reply.usage);
         if reply.finish_reason.as_deref() == Some("length") {
             tracing::warn!("agent loop turn {turn} hit the model length limit; continuing");

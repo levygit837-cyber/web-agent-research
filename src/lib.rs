@@ -13,6 +13,7 @@ pub(crate) mod test_support;
 pub mod web;
 
 pub use research::{
-    render, run_research, CitationDTO, ResearchError, ResearchRequest, ResearchResponse,
-    SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO, CONTENT_TRUST_UNTRUSTED_WEB,
+    render, run_research, CitationDTO, EventsSink, ResearchError, ResearchRequest,
+    ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO,
+    CONTENT_TRUST_UNTRUSTED_WEB,
 };

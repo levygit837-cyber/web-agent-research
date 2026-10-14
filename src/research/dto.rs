@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::llm::TokenUsage;
 use crate::research::agent_loop::LoopBudget;
+use crate::research::events::EventsSink;
 use crate::research::session::SessionUsage;
 use crate::research::synthesis::{
     Citation, Support, Synthesis, SynthesisSize, ThemeSection, Verification,
@@ -132,6 +133,11 @@ pub struct ResearchRequest {
     /// explicit path must be writable (failure is `ResearchError::Io`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_out: Option<PathBuf>,
+    /// Where to write the Session's NDJSON Events (`--events`, ADR-0010).
+    /// `None` writes none. An output that cannot be opened is
+    /// `ResearchError::NotConfigured`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events: Option<EventsSink>,
 }
 
 /// One inline `[title](url)` citation, in document order, with how well
