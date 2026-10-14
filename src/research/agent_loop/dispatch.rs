@@ -138,7 +138,7 @@ pub(super) struct TurnOutcome {
 /// `tool` message. Execution failures never stop sibling calls; the last
 /// failure in the turn wins for `failure`/`failure_reason` (a turn mixing
 /// failure kinds is exceptional and untested — either kind aborts the run
-/// the same way once repairs are exhausted). `cutoff` is the latest instant
+/// the same way once repairs are exhausted). The cutoff (`budget.work_cutoff()`) is the latest instant
 /// a call may run to (the run deadline minus the final-answer reserve,
 /// #100); each call's timeout is `tool_timeout` clamped to it. `nonce` tags
 /// the containers that frame page and Hit text (#98). `search` and `fetch`
@@ -150,10 +150,10 @@ pub(super) async fn dispatch_turn(
     tools: &ToolRegistry,
     allowed: &[String],
     budget: &LoopBudget,
-    cutoff: Option<Instant>,
     nonce: &str,
     events: &Events,
 ) -> TurnOutcome {
+    let cutoff = budget.work_cutoff();
     let cap = budget.max_tools_per_turn.max(1);
     let resolved = resolve_call_ids(turn, calls);
 

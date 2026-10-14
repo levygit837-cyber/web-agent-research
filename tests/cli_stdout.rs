@@ -196,10 +196,11 @@ fn events_to_stderr_leave_stdout_one_json_object() {
             "session.started",
             "turn.started",
             "model.replied",
+            "answer.verified",
             "session.finished"
         ]
     );
-    let end = &events[3]["data"];
+    let end = &events[4]["data"];
     assert_eq!(
         (end["outcome"].as_str(), end["exit_code"].as_u64()),
         (Some("ok"), Some(0))

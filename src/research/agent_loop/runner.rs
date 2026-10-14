@@ -244,7 +244,6 @@ pub async fn run_loop_with_events(
             tools,
             &input.allowed_tools,
             budget,
-            budget.work_cutoff(),
             &nonce,
             events,
         )
