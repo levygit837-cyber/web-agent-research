@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
+Answers cite verbatim quotes checked against the page, runs end within a deadline, and fetch refuses private networks.
+
 ### Breaking
 
 - Sessions default to `<data root>/sessions/<id>.jsonl` (`$WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `~/.local/share/web-agent-research`), not `./sessions/`; a failed defaulted write warns and exits `0`, exit `6` is only for an explicit `--session-out` (#102).
@@ -168,7 +172,8 @@ First versioned release: CLI prototype scaffold with the domain core in place.
 
 - `mod.rs` wiring, so the scaffold compiles.
 
-[Unreleased]: https://github.com/levygit837-cyber/web-agent-research/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/levygit837-cyber/web-agent-research/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/levygit837-cyber/web-agent-research/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/levygit837-cyber/web-agent-research/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/levygit837-cyber/web-agent-research/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/levygit837-cyber/web-agent-research/releases/tag/v0.1.0

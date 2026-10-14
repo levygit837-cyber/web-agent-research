@@ -61,12 +61,12 @@ pub(crate) struct BrowserProfile {
     pub(crate) accept_language: &'static str,
 }
 
-/// Chrome stable + the 2 previous majors, observed 2026-09-28 via
+/// Chrome stable + the 2 previous majors, observed 2026-10-14 via
 /// `versionhistory.googleapis.com/v1/chrome/platforms/{mac,win,linux}/channels/stable/versions`
-/// (stable `155.0.8059.12`). Bump procedure: `docs/harness.md` "Browser
+/// (stable `156.0.8078.12`). Bump procedure: `docs/harness.md` "Browser
 /// profile bump" -- there's also an ignored live test
 /// (`profile_table_matches_chrome_stable`) that fails once this lags.
-const STABLE_MAJORS: [u32; 3] = [155, 154, 153];
+const STABLE_MAJORS: [u32; 3] = [156, 155, 154];
 
 const PLATFORMS: [Platform; 3] = [Platform::MacOs, Platform::Windows, Platform::Linux];
 
