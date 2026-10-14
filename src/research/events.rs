@@ -21,9 +21,10 @@
 //! before any other output writes to stderr and renders last.
 //!
 //! The Session log is the Session file in format 2: `emit` appends every
-//! Event (except `model.delta`) as an `event` row in the same call that
-//! writes the NDJSON line, and [`Events::turn_ended`] appends the `turn` rows,
-//! which are not Events. A write failure never reaches the loop: the
+//! Event as an `event` row in the same call that writes the NDJSON line, and
+//! [`Events::turn_ended`] appends the `turn` rows, which are not Events.
+//! `model.delta` (#154, see `model.rs`) never reaches `emit`, so the Session
+//! log cannot store it. A write failure never reaches the loop: the
 //! [`SessionSink`] warns (defaulted path) or records the failure (explicit
 //! path) and the Session turns it into exit 6 when it ends.
 //!
@@ -55,8 +56,10 @@ use crate::research::session::{EventLine, SessionHeader, SessionSink, SessionUsa
 use crate::research::trace::{self, TraceState};
 use crate::web::fetch::evidence::format_timestamp;
 
+mod model;
 mod progress;
 mod tools;
+pub use model::EventsDetail;
 use progress::Progress;
 pub use progress::ProgressMode;
 pub use progress::CLEAR_LINE;
@@ -92,6 +95,12 @@ struct State {
     /// `None` once a write failed: the output is disabled for the rest of
     /// the Session, `seq` keeps counting.
     ndjson: Option<Box<dyn Write + Send>>,
+    /// `--events-detail tokens` with an `--events` output: `model.delta`
+    /// is an Event of the stream and takes a `seq` (#154).
+    deltas_in_stream: bool,
+    /// The NDJSON line being built, kept between Events so a delta costs no
+    /// allocation of its own.
+    line: Vec<u8>,
     /// The Session file (format 2), attached once the Session starts.
     session: Option<SessionSink>,
     /// The human view on stderr (`--progress`, #149); `None` when off.
@@ -100,8 +109,14 @@ struct State {
     trace: Option<TraceState>,
 }
 
+impl State {
+    fn elapsed_ms(&self) -> u64 {
+        u64::try_from(self.created.elapsed().as_millis()).unwrap_or(u64::MAX)
+    }
+}
+
 #[derive(Serialize)]
-struct Envelope<'a> {
+struct Envelope<'a, D: Serialize> {
     v: u32,
     seq: u64,
     ts: String,
@@ -111,7 +126,27 @@ struct Envelope<'a> {
     turn: Option<u32>,
     #[serde(rename = "type")]
     kind: &'a str,
-    data: Value,
+    data: D,
+}
+
+/// Write `envelope` as one NDJSON line and flush. A failure is warned about
+/// once and turns the output off: a paid Session never fails on its audit
+/// output.
+fn write_ndjson<D: Serialize>(
+    writer: &mut Option<Box<dyn Write + Send>>,
+    line: &mut Vec<u8>,
+    envelope: &Envelope<'_, D>,
+) {
+    let Some(out) = writer.as_mut() else {
+        return;
+    };
+    line.clear();
+    serde_json::to_writer(&mut *line, envelope).expect("an envelope serializes");
+    line.push(b'\n');
+    if let Err(err) = out.write_all(line).and_then(|()| out.flush()) {
+        eprintln!("warning: events not written: {err}");
+        *writer = None;
+    }
 }
 
 impl Events {
@@ -130,6 +165,7 @@ impl Events {
     pub fn open(
         session_id: &str,
         sink: Option<&EventsSink>,
+        detail: EventsDetail,
         progress: ProgressMode,
     ) -> Result<Self, String> {
         let writer: Option<Box<dyn Write + Send>> = match sink {
@@ -152,8 +188,9 @@ impl Events {
         };
         let mut events = Self::new(session_id, writer);
         if let Some(state) = events.state.as_mut() {
-            state.get_mut().unwrap_or_else(|p| p.into_inner()).progress =
-                Progress::for_stderr(progress, sink);
+            let state = state.get_mut().unwrap_or_else(|p| p.into_inner());
+            state.deltas_in_stream = detail == EventsDetail::Tokens && state.ndjson.is_some();
+            state.progress = Progress::for_stderr(progress, sink);
         }
         Ok(events)
     }
@@ -186,6 +223,8 @@ impl Events {
                 turn_budget: 0,
                 usage: TokenUsage::default(),
                 ndjson,
+                deltas_in_stream: false,
+                line: Vec::new(),
                 session: None,
                 progress: None,
                 trace: None,
@@ -211,7 +250,7 @@ impl Events {
             v: ENVELOPE_VERSION,
             seq: state.seq,
             ts: now_rfc3339_millis(),
-            elapsed_ms: u64::try_from(state.created.elapsed().as_millis()).unwrap_or(u64::MAX),
+            elapsed_ms: state.elapsed_ms(),
             session_id: &state.session_id,
             turn,
             kind,
@@ -221,25 +260,10 @@ impl Events {
         if let Some(progress) = state.progress.as_mut() {
             progress.clear();
         }
-        let mut line = serde_json::to_string(&envelope).expect("an envelope serializes");
-        line.push('\n');
-        if let Some(writer) = state.ndjson.as_mut() {
-            if let Err(err) = writer
-                .write_all(line.as_bytes())
-                .and_then(|()| writer.flush())
-            {
-                // A paid Session never fails on its audit output: say so once
-                // and stop writing.
-                eprintln!("warning: events not written: {err}");
-                state.ndjson = None;
-            }
-        }
-        // Deltas are fragments of a reply the `turn`/`trace` rows keep whole.
-        if kind != "model.delta" {
-            if let Some(sink) = state.session.as_mut() {
-                // A failure is kept by the sink; the loop never sees it.
-                let _ = sink.append(&EventLine::new(&envelope));
-            }
+        write_ndjson(&mut state.ndjson, &mut state.line, &envelope);
+        if let Some(sink) = state.session.as_mut() {
+            // A failure is kept by the sink; the loop never sees it.
+            let _ = sink.append(&EventLine::new(&envelope));
         }
         if let Some(progress) = state.progress.as_mut() {
             progress.render(envelope.turn, kind, envelope.elapsed_ms, &envelope.data);

@@ -82,11 +82,11 @@ fn run(base_url: &str, tag: &str, args: &[&str]) -> Output {
 
 #[test]
 fn info_logs_go_to_stderr_and_stdout_is_one_json_object() {
-    // The 500 forces a retry, which logs at INFO.
-    let base = canned_gateway(vec![
-        (500, r#"{"error":{"message":"boom"}}"#.to_owned()),
-        (200, text_body(ANSWER)),
-    ]);
+    // A reply cut by the model's length limit logs a `warn!` and the loop
+    // goes on with the text it has.
+    let mut cut: serde_json::Value = serde_json::from_str(&text_body(ANSWER)).expect("json");
+    cut["choices"][0]["finish_reason"] = "length".into();
+    let base = canned_gateway(vec![(200, cut.to_string())]);
     let output = run(
         &base,
         "json",
@@ -104,10 +104,54 @@ fn info_logs_go_to_stderr_and_stdout_is_one_json_object() {
     assert!(value.is_object(), "{stdout}");
     assert_eq!(value["turns_used"], 1);
     assert_eq!(value["turn_budget"], 1);
-    assert!(stderr.contains("retrying"), "INFO log on stderr: {stderr}");
+    assert!(
+        stderr.contains("hit the model length limit"),
+        "log on stderr: {stderr}"
+    );
     assert!(
         !stderr.contains('\u{1b}'),
         "no ANSI when stderr is a pipe: {stderr}"
+    );
+}
+
+/// The gateway's retry is a `model.retry` Event now, not a log line: Progress
+/// says it on stderr while stdout stays one JSON object.
+#[test]
+fn a_gateway_retry_shows_in_progress_and_stdout_stays_one_json_object() {
+    let base = canned_gateway(vec![
+        (500, r#"{"error":{"message":"boom"}}"#.to_owned()),
+        (200, text_body(ANSWER)),
+    ]);
+    let output = run(
+        &base,
+        "retry",
+        &[
+            "--json",
+            "--progress",
+            "plain",
+            "--max-turns",
+            "1",
+            "--max-turns-cap",
+            "1",
+        ],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "status {:?}; stderr: {stderr}",
+        output.status
+    );
+    let value: serde_json::Value =
+        serde_json::from_str(stdout.trim_end()).expect("stdout is exactly one JSON object");
+    assert_eq!(value["turns_used"], 1);
+    assert!(
+        stderr.contains("model retry 1 in ") && stderr.contains("boom"),
+        "the retry line on stderr: {stderr}"
+    );
+    assert!(
+        !stderr.contains("retrying in"),
+        "the old gateway log line is gone: {stderr}"
     );
 }
 

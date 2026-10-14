@@ -44,6 +44,7 @@ async fn live_research_terminates_within_budget() -> anyhow::Result<()> {
         session_id: None,
         session_out: None,
         events: None,
+        events_detail: web_agent_research::EventsDetail::Normal,
         trace: false,
         progress: web_agent_research::ProgressMode::Off,
     };

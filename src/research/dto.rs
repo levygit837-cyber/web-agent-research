@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::llm::TokenUsage;
 use crate::research::agent_loop::LoopBudget;
-use crate::research::events::{EventsSink, ProgressMode};
+use crate::research::events::{EventsDetail, EventsSink, ProgressMode};
 use crate::research::session::SessionUsage;
 use crate::research::synthesis::{
     Citation, Support, Synthesis, SynthesisSize, ThemeSection, Verification,
@@ -138,6 +138,11 @@ pub struct ResearchRequest {
     /// `ResearchError::NotConfigured`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events: Option<EventsSink>,
+    /// How much of the model stream `--events` carries (`--events-detail`,
+    /// #154, ADR-0010 §4): `normal` leaves `model.delta` out, `tokens` adds
+    /// it. Has no effect without `events`.
+    #[serde(default, skip_serializing_if = "EventsDetail::is_normal")]
+    pub events_detail: EventsDetail,
     /// Record every model exchange in the Session file as `trace` rows
     /// (`--trace`, #151, ADR-0010 §5). Off by default: the rows hold page
     /// text and the goal, and make the file several times larger.

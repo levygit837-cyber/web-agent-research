@@ -16,5 +16,5 @@ pub use dto::{
     CitationDTO, ResearchRequest, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO,
     VerificationDTO, CONTENT_TRUST_UNTRUSTED_WEB,
 };
-pub use events::{EventsSink, ProgressMode, CLEAR_LINE};
+pub use events::{EventsDetail, EventsSink, ProgressMode, CLEAR_LINE};
 pub use run::{render, run_research, ResearchError};

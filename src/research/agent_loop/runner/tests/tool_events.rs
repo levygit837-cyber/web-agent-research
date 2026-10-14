@@ -14,7 +14,7 @@ use super::helpers::{
 use crate::research::agent_loop::result::ToolResult;
 use crate::research::agent_loop::runner::run_loop_with_events;
 use crate::research::agent_loop::types::LoopBudget;
-use crate::research::events::{Events, EventsSink, ProgressMode};
+use crate::research::events::{Events, EventsDetail, EventsSink, ProgressMode};
 
 /// Run the loop against `double` with an NDJSON sink and return every
 /// Event emitted, in order.
@@ -35,6 +35,7 @@ async fn run_observed(
     let events = Events::open(
         "loop-test",
         Some(&EventsSink::File(path.clone())),
+        EventsDetail::Normal,
         ProgressMode::Off,
     )
     .expect("open");

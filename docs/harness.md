@@ -376,7 +376,7 @@ Design: `docs/adr/0010-session-events-and-token-streaming.md`.
 ```
 
 - `v`: envelope version (`1`). Adding a field or a type keeps it; renaming or removing one bumps it. Ignore fields and types you do not know.
-- `seq`: starts at `1`, strictly increasing per Session.
+- `seq`: starts at `1`, strictly increasing per Session. The `--events` stream has no holes: an Event that `--events-detail` leaves out (`model.delta` at the default detail) takes no `seq`, so a gap you see is a real one. With `--events-detail tokens` the Session file skips `model.delta`, so its `seq` shows the gaps.
 - `ts`: UTC RFC 3339 with milliseconds. `elapsed_ms`: since the Session id was resolved (the emitter was created).
 - `session_id`: the Session the Event belongs to.
 - `turn`: the Turn number; absent on Session-level Events.
@@ -392,6 +392,22 @@ Design: `docs/adr/0010-session-events-and-token-streaming.md`.
 | `session.finished` | last Event of every Session that has an id | `outcome`, `exit_code`, `turns_used`, `turn_budget`, `usage`, `evidence_urls`, `error` |
 
 `usage` has the same fields as the `--json` `usage`. A Turn whose gateway call failed has a `turn.started` and no `model.replied`.
+
+### Model stream types (#154)
+
+`--events-detail normal|tokens` (default `normal`) decides whether `--events` carries `model.delta`. It has no effect without `--events`, and it does not change Progress, the Session file or stdout.
+
+| `type` | When | `data` |
+|---|---|---|
+| `model.delta` | per streamed fragment, with `--events-detail tokens` only; before the Turn's `model.replied` | `attempt`, `channel` (`text`, `thinking` or `tool_args`), `text` (the fragment); on `tool_args` also `index`, `id` and `name` once the model has said them |
+| `model.retry` | before a gateway retry sleeps, at every detail | `attempt` (the failed one), `delay_ms`, `reason` |
+
+- A Turn with a streamed reply has `turn.started`, then its `model.delta` Events, then `model.replied`. A gateway that answers one JSON body (`GATEWAY_STREAM=off`, or a gateway that ignores `stream`) sends no `model.delta`.
+- `attempt` starts at `1` for every Turn. A `model.retry` with `attempt: n` says the attempt `n` failed: discard every `model.delta` of that Turn with `attempt <= n`. The next ones carry `attempt: n + 1`, and `model.replied` describes the last attempt only. The attempt number is in each delta so a reader that missed the retry can still tell the attempts apart.
+- `tool_args` fragments of one call share `index` (the call's position in the reply). Join their `text` in order to get the call's JSON arguments, which can be incomplete JSON until the last fragment. The first one can have an empty `text`: it announces the call (its `id` and `name`). `id` is the call id the model chose; it is the `id` in `model.replied.tool_calls` unless the gateway sent none (then the loop synthesizes one, see below).
+- `thinking` fragments come from reasoning blocks; `text` fragments are the answer or the model's remarks before a tool call.
+- Volume: one Event per fragment, often a few tokens each. Use `tokens` for a live view or a debugger, not as a default.
+- `model.retry` replaces the old gateway log line `gateway attempt N failed (...); retrying in ...`, which is no longer written.
 
 ### Tool and verification types (#148)
 
@@ -444,11 +460,22 @@ For a person at a terminal. Progress is rendered from the same Events as `--even
 [61.2s] finished: deadline_exceeded, 3/10 turns, 9.4k tokens: run deadline of 60s exceeded
 ```
 
-It also shows `model.replied` (tokens and tool calls or `answer`), `tool.failed`, `context.truncated` and `answer.verified`. The last line comes from `session.finished`: outcome, Turns used, tokens, the grounding counts on success, and the reason on an error exit. `error: <message>` is still printed after it, exactly as before.
+It also shows `model.replied` (tokens and tool calls or `answer`), `model.retry`, `tool.failed`, `context.truncated` and `answer.verified`. The last line comes from `session.finished`: outcome, Turns used, tokens, the grounding counts on success, and the reason on an error exit. `error: <message>` is still printed after it, exactly as before.
+
+On a terminal the model's reply shows as it forms (#154), on the transient status line only, whatever `--events-detail` says:
+
+```text
+turn 3/10: model writing: ...tokio 1.47.1 is the latest stable release, publ
+turn 2/10: model writing search args... 120 chars
+turn 2/10: model thinking... 840 chars
+[turn 1/10 - 5.1s] model retry 1 in 0.8s: gateway transport error: stream cut mid-body
+```
+
+The answer line shows the end of the text so far, cut to fit one line; tool arguments and thinking show a character count. Fragments never become permanent lines, so scrollback holds the same lines as without streaming. A `model.retry` erases the partial, prints the permanent `model retry` line (the attempt that failed, the wait, the reason) and the next attempt starts from nothing; `model.replied` and the next Turn also clear it. `plain`, `off` and piped stderr print nothing per fragment.
 
 | `--progress` | Behaviour |
 |---|---|
-| `auto` (default) | on a TTY stderr: the lines, coloured unless `NO_COLOR` is set and non-empty, plus one transient status line for the step in flight (redrawn on each Event, erased before every permanent line and at the end). Piped or redirected stderr: nothing, so a Harness sees the same stderr as without Progress |
+| `auto` (default) | on a TTY stderr: the lines, coloured unless `NO_COLOR` is set and non-empty, plus one transient status line for the step in flight (redrawn on each Event and on each model fragment, erased before every permanent line and at the end). Piped or redirected stderr: nothing, so a Harness sees the same stderr as without Progress |
 | `plain` | the lines with no ANSI codes and no status line, even when piped |
 | `off` | nothing |
 

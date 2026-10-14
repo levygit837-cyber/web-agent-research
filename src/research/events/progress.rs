@@ -14,6 +14,13 @@
 //!   emitter lock. It is cleared before anything else is written to stderr
 //!   and when the Session finishes.
 //!
+//! On a terminal the transient line also follows the reply as it streams
+//! (#154): the tail of the answer text forming, or a character count while the
+//! model writes tool arguments or thinks. Fragments only ever replace that
+//! line; a `model.retry`, the next Turn and the reply itself drop them, so no
+//! partial text reaches a permanent line. `plain` and piped Progress take no
+//! fragments at all.
+//!
 //! Meaning never rests on colour: failures say `failed`, outcomes are words.
 
 use std::io::{IsTerminal, Write};
@@ -21,9 +28,11 @@ use std::io::{IsTerminal, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::model::Delta;
 use super::EventsSink;
 
 mod lines;
+mod stream;
 #[cfg(test)]
 mod tests;
 
@@ -105,6 +114,8 @@ pub(super) struct Progress {
     status: Option<String>,
     /// A transient line is on screen and must be erased before any write.
     drawn: bool,
+    /// The reply in flight, for the transient line (terminal only).
+    partial: stream::Partial,
 }
 
 impl Progress {
@@ -124,7 +135,36 @@ impl Progress {
             verification: None,
             status: None,
             drawn: false,
+            partial: stream::Partial::default(),
         }
+    }
+
+    /// Whether this renderer draws fragments: only a terminal does.
+    pub(super) fn wants_deltas(&self) -> bool {
+        matches!(self.style, Style::Tty { .. })
+    }
+
+    /// Redraw the transient line with the reply so far. One `write`, no
+    /// permanent line: the fragment lives on the status line alone.
+    pub(super) fn delta(&mut self, turn: u32, delta: &Delta<'_>) {
+        if !self.wants_deltas() {
+            return;
+        }
+        let label = format!("{}: ", self.turn_label(turn));
+        let room = STATUS_MAX_CHARS.saturating_sub(label.chars().count());
+        self.partial.push(delta, room);
+        let Some(indicator) = self.partial.indicator(room) else {
+            return;
+        };
+        let status = lines::clip(&format!("{label}{indicator}"), STATUS_MAX_CHARS);
+        let mut out = String::new();
+        if std::mem::take(&mut self.drawn) {
+            out.push_str(CLEAR_LINE);
+        }
+        out.push_str(&self.paint(&status, "2"));
+        self.status = Some(status);
+        self.drawn = true;
+        self.write(&out);
     }
 
     /// Erase the transient line, if one is showing. `emit` calls this before
@@ -142,7 +182,9 @@ impl Progress {
             "turn.started" => {
                 self.turn_budget =
                     u32::try_from(lines::count_of(data, "turn_budget")).unwrap_or(u32::MAX);
+                self.partial.reset();
             }
+            "model.retry" | "model.replied" => self.partial.reset(),
             "answer.verified" => self.verification = Some(lines::verification_counts(data)),
             _ => {}
         }

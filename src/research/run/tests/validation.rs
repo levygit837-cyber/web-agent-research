@@ -20,6 +20,7 @@ async fn empty_goal_is_not_configured_without_io() {
         session_id: Some("test-empty".to_owned()),
         session_out: Some(session_out.clone()),
         events: None,
+        events_detail: crate::research::events::EventsDetail::Normal,
         trace: false,
         progress: crate::research::events::ProgressMode::Off,
     };
@@ -44,6 +45,7 @@ async fn zero_max_turns_is_not_configured() {
         session_id: Some("test-zero".to_owned()),
         session_out: Some(temp_session_out("zero-turns")),
         events: None,
+        events_detail: crate::research::events::EventsDetail::Normal,
         trace: false,
         progress: crate::research::events::ProgressMode::Off,
     };
@@ -76,6 +78,7 @@ async fn a_context_window_smaller_than_the_reply_reserve_is_not_configured() {
         session_id: Some("test-tiny-window".to_owned()),
         session_out: Some(session_out.clone()),
         events: None,
+        events_detail: crate::research::events::EventsDetail::Normal,
         trace: false,
         progress: crate::research::events::ProgressMode::Off,
     };
@@ -110,6 +113,7 @@ async fn cap_below_max_turns_and_zero_deadline_are_not_configured() {
             session_id: Some(format!("test-{names}")),
             session_out: Some(session_out.clone()),
             events: None,
+            events_detail: crate::research::events::EventsDetail::Normal,
             trace: false,
             progress: crate::research::events::ProgressMode::Off,
         };
