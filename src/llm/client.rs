@@ -2,11 +2,12 @@
 //! formats (OpenAI Chat Completions, Anthropic Messages).
 //!
 //! The external seam is `Gateway::new`, `Gateway::with_deadline`,
-//! `Gateway::chat`, `Gateway::chat_with_tools`, and `GatewayConfig::from_env`.
-//! Retry, backoff, status mapping, and the format branch hide behind `chat`
-//! and `chat_with_tools`; `with_client` and `backoff_delay` exist only as the
-//! unit-test surface. The format is an enum branch, not a `trait`
-//! (ADR-0007).
+//! `Gateway::chat`, `Gateway::chat_with_tools`, `Gateway::chat_observed`
+//! (the same call plus an `LlmEvent` closure), and
+//! `GatewayConfig::from_env`. Retry, backoff, status mapping, SSE
+//! streaming, and the format branch hide behind them; `with_client` and
+//! `backoff_delay` exist only as the unit-test surface. The format is an
+//! enum branch, not a `trait` (ADR-0007).
 
 use std::time::{Duration, SystemTime};
 
@@ -18,6 +19,7 @@ use super::config::{ApiFormat, GatewayConfig};
 use super::reply::LlmReply;
 use super::request::{ChatMessage, ChatRequest, ToolChoice, ToolDef};
 use super::response::{parse_reply, ChatResponse};
+use super::stream::{self, LlmEvent};
 
 /// Upper bound on any upstream error text carried in a [`GatewayError`],
 /// so a gateway that echoes a whole request cannot flood stderr.
@@ -171,7 +173,7 @@ impl Gateway {
     }
 
     pub async fn chat(&self, messages: &[ChatMessage]) -> Result<LlmReply, GatewayError> {
-        self.chat_with_body(messages, None, None).await
+        self.chat_observed(messages, None, None, &mut |_| {}).await
     }
 
     /// Same path as [`Gateway::chat`], but offers native function-calling
@@ -183,15 +185,24 @@ impl Gateway {
         tools: &[ToolDef],
         tool_choice: Option<ToolChoice>,
     ) -> Result<LlmReply, GatewayError> {
-        self.chat_with_body(messages, Some(tools.to_vec()), tool_choice)
+        self.chat_observed(messages, Some(tools.to_vec()), tool_choice, &mut |_| {})
             .await
     }
 
-    async fn chat_with_body(
+    /// The one call behind [`Gateway::chat`] and [`Gateway::chat_with_tools`],
+    /// with a caller closure that sees each [`LlmEvent`] as it happens
+    /// (ADR-0010 §6). `tools` is optional, as in `chat`.
+    ///
+    /// Fragments (`Text`, `Thinking`, `ToolArgs`) belong to the attempt in
+    /// flight; [`LlmEvent::Retry`] fires just before the backoff sleep, and
+    /// the caller discards the failed attempt's fragments. The returned
+    /// reply is the same whether the gateway streamed or sent one body.
+    pub async fn chat_observed(
         &self,
         messages: &[ChatMessage],
         tools: Option<Vec<ToolDef>>,
         tool_choice: Option<ToolChoice>,
+        on_event: &mut (dyn FnMut(LlmEvent) + Send),
     ) -> Result<LlmReply, GatewayError> {
         if self.config.api_key().is_empty() {
             return Err(GatewayError::MissingApiKey);
@@ -208,8 +219,10 @@ impl Gateway {
                     tools,
                     tool_choice,
                 )
+                .with_stream(self.config.stream)
                 .to_wire_value(extra),
             ),
+            // Anthropic keeps the single-body path until #153.
             ApiFormat::Anthropic => (
                 format!("{}/messages", self.config.base_url),
                 anthropic::request_body(
@@ -231,7 +244,7 @@ impl Gateway {
                 Some(left) if left < self.config.request_timeout => Some(left),
                 _ => None,
             };
-            let err = match self.try_once(&url, &body, attempt_timeout).await {
+            let err = match self.try_once(&url, &body, attempt_timeout, on_event).await {
                 Ok(reply) => return Ok(reply),
                 Err(err) => err,
             };
@@ -249,6 +262,11 @@ impl Gateway {
                 return Err(err);
             }
             tracing::info!("gateway attempt {attempt} failed ({err}); retrying in {delay:?}");
+            on_event(LlmEvent::Retry {
+                attempt,
+                delay_ms: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
+                reason: err.to_string(),
+            });
             tokio::time::sleep(delay).await;
             attempt += 1;
         }
@@ -264,6 +282,7 @@ impl Gateway {
         url: &str,
         body: &serde_json::Value,
         attempt_timeout: Option<Duration>,
+        on_event: &mut (dyn FnMut(LlmEvent) + Send),
     ) -> Result<LlmReply, GatewayError> {
         let mut request = self.client.post(url).json(body);
         if let Some(timeout) = attempt_timeout {
@@ -308,6 +327,17 @@ impl Gateway {
             });
         }
 
+        // An SSE body is read incrementally; anything else (a gateway that
+        // ignored `stream: true`, or `GATEWAY_STREAM=off`) is one JSON body.
+        if self.config.api_format == ApiFormat::Openai {
+            let content_type = resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok());
+            if stream::is_event_stream(content_type) {
+                return stream::read_openai(resp, self.config.stream_idle_timeout, on_event).await;
+            }
+        }
         // Bytes first: a timeout or reset while the body streams in is a
         // transport failure (retryable), not a parse failure.
         let raw = resp.bytes().await.map_err(map_reqwest_error)?;
@@ -329,7 +359,7 @@ impl Gateway {
 /// Send/read failures: timeout, builder (not retryable), or transport. The
 /// URL is stripped so credentials in `GATEWAY_BASE_URL` never reach stderr;
 /// the source chain is kept, since reqwest's own message is generic.
-fn map_reqwest_error(err: reqwest::Error) -> GatewayError {
+pub(super) fn map_reqwest_error(err: reqwest::Error) -> GatewayError {
     if err.is_timeout() {
         return GatewayError::Timeout;
     }
@@ -451,5 +481,6 @@ mod tests {
     mod helpers;
     mod openai_wire;
     mod retry_and_status;
+    mod streaming;
     mod tool_calls;
 }

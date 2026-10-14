@@ -54,14 +54,19 @@ pub(crate) fn clear_env_keys(keys: &[&'static str]) {
 
 /// One scripted HTTP response for [`CannedServer`]. `status`/`body` are
 /// always sent; `headers` are appended verbatim after the standard
-/// `Content-Type`/`Content-Length`/`Connection` lines; `delay_before_response`
-/// sleeps (on the server thread, after reading the request) before writing
-/// the reply, for timeout tests.
+/// `Content-Type`/`Content-Length`/`Connection` lines (a `Content-Type`
+/// header here replaces the default `application/json`);
+/// `delay_before_response` sleeps (on the server thread, after reading the
+/// request) before writing the reply, for timeout tests. `chunks`, when
+/// set, replaces `body`: the reply has no `Content-Length` and each piece is
+/// written after its own pause, the connection closing after the last one,
+/// for streamed (SSE) bodies.
 pub(crate) struct CannedResponse {
     pub(crate) status: u16,
     pub(crate) headers: Vec<(&'static str, String)>,
     pub(crate) body: String,
     pub(crate) delay_before_response: Duration,
+    pub(crate) chunks: Option<Vec<(String, Duration)>>,
 }
 
 impl CannedResponse {
@@ -71,6 +76,7 @@ impl CannedResponse {
             headers: Vec::new(),
             body: body.into(),
             delay_before_response: Duration::ZERO,
+            chunks: None,
         }
     }
 
@@ -87,6 +93,15 @@ impl CannedResponse {
 
     pub(crate) fn with_delay(mut self, delay: Duration) -> Self {
         self.delay_before_response = delay;
+        self
+    }
+
+    /// A streamed body: each piece is flushed after its pause, with no
+    /// `Content-Length`, so a pause longer than the client's idle bound
+    /// shows up as silence mid-body and the end of the pieces is the end of
+    /// the body.
+    pub(crate) fn with_chunks(mut self, chunks: Vec<(String, Duration)>) -> Self {
+        self.chunks = Some(chunks);
         self
     }
 }
@@ -124,15 +139,34 @@ impl CannedServer {
                 if !canned.delay_before_response.is_zero() {
                     std::thread::sleep(canned.delay_before_response);
                 }
-                let mut head = format!(
-                    "HTTP/1.1 {} x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n",
-                    canned.status,
-                    canned.body.len()
-                );
+                let has_content_type = canned
+                    .headers
+                    .iter()
+                    .any(|(name, _)| name.eq_ignore_ascii_case("content-type"));
+                let mut head = format!("HTTP/1.1 {} x\r\n", canned.status);
+                if !has_content_type {
+                    head.push_str("Content-Type: application/json\r\n");
+                }
+                if canned.chunks.is_none() {
+                    head.push_str(&format!("Content-Length: {}\r\n", canned.body.len()));
+                }
+                head.push_str("Connection: close\r\n");
                 for (name, value) in &canned.headers {
                     head.push_str(&format!("{name}: {value}\r\n"));
                 }
-                let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
+                if let Some(chunks) = &canned.chunks {
+                    let _ = stream.write_all(format!("{head}\r\n").as_bytes());
+                    let _ = stream.flush();
+                    for (piece, pause) in chunks {
+                        std::thread::sleep(*pause);
+                        if stream.write_all(piece.as_bytes()).is_err() {
+                            break;
+                        }
+                        let _ = stream.flush();
+                    }
+                } else {
+                    let _ = stream.write_all(format!("{head}\r\n{}", canned.body).as_bytes());
+                }
                 if served >= total {
                     return;
                 }

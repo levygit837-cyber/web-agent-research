@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: OpenAI-format replies stream as SSE and are assembled into the same reply; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152).
+
+### Changed
+
+- OpenAI-format requests now send `stream: true` by default; `GATEWAY_STREAM=off` restores the single JSON body. The Anthropic format is unchanged (#152).
+
 ## [0.4.0] - 2026-10-14
 
 Answers cite verbatim quotes checked against the page, runs end within a deadline, and fetch refuses private networks.

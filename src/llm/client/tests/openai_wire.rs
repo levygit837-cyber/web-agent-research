@@ -138,14 +138,44 @@ async fn extra_body_collision_typed_field_wins_on_wire() {
     );
 }
 
-/// `stream` is typed `false`, so `GATEWAY_EXTRA_BODY` cannot switch the
-/// gateway to an SSE body the client would fail to parse.
+/// `stream` and `stream_options` are typed and follow `GATEWAY_STREAM`, so
+/// `GATEWAY_EXTRA_BODY` can neither switch an SSE body on when streaming is
+/// off nor switch it off when it is on.
 #[tokio::test]
-async fn stream_is_always_false_even_when_extra_body_asks_for_it() {
-    let mut cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned());
-    cfg.extra_body = Some(serde_json::json!({"stream": true}));
+async fn typed_stream_follows_the_flag_and_wins_over_extra_body() {
+    for (stream_on, extra) in [(true, false), (false, true)] {
+        let mut cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+            .with_stream(stream_on);
+        cfg.extra_body = Some(serde_json::json!({"stream": extra, "stream_options": {"x": 1}}));
+        let (_, requests, gateway) = model_gateway(cfg);
+        gateway.chat(&messages()).await.expect("call must succeed");
+        let body = wire_body_of(&requests.requests()[0]);
+        assert_eq!(body["stream"], serde_json::json!(stream_on), "{body}");
+        if stream_on {
+            assert_eq!(
+                body["stream_options"],
+                serde_json::json!({"include_usage": true}),
+                "{body}"
+            );
+        } else {
+            // Typed stream_options is omitted when off, so the extra body's
+            // own key passes through untouched.
+            assert_eq!(
+                body["stream_options"],
+                serde_json::json!({"x": 1}),
+                "{body}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn stream_off_sends_no_stream_options() {
+    let cfg = GatewayConfig::new("http://x".to_owned(), "k".to_owned(), "m".to_owned())
+        .with_stream(false);
     let (_, requests, gateway) = model_gateway(cfg);
     gateway.chat(&messages()).await.expect("call must succeed");
     let body = wire_body_of(&requests.requests()[0]);
     assert_eq!(body["stream"], serde_json::json!(false), "{body}");
+    assert!(body.get("stream_options").is_none(), "{body}");
 }

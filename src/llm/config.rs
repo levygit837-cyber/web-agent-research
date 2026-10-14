@@ -8,6 +8,9 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+/// Longest silence between two chunks of a streamed reply.
+const DEFAULT_STREAM_IDLE: Duration = Duration::from_secs(30);
+
 /// Standard reasoning-effort levels shared by OpenAI's `reasoning_effort`
 /// and OpenRouter's unified `reasoning.effort`. Serializes lowercase to the
 /// top-level `reasoning_effort` wire field; `GATEWAY_REASONING_EFFORT`
@@ -131,6 +134,13 @@ pub struct GatewayConfig {
     /// `extra_body` semantics). Always a JSON object; typed fields and
     /// `model`/`messages`/`tools`/`tool_choice` win on key collision.
     pub extra_body: Option<serde_json::Value>,
+    /// `GATEWAY_STREAM`: ask for an SSE reply (`stream: true`) in the OpenAI
+    /// format (#152). Default on. Anthropic stays single-body until #153,
+    /// whatever this says.
+    pub stream: bool,
+    /// `GATEWAY_STREAM_IDLE_SECS`: longest silence between two body chunks
+    /// of a streamed reply before the attempt is a `Timeout`. Default 30 s.
+    pub stream_idle_timeout: Duration,
 }
 
 impl std::fmt::Debug for GatewayConfig {
@@ -148,6 +158,8 @@ impl std::fmt::Debug for GatewayConfig {
             .field("max_attempts", &self.max_attempts)
             .field("context_window_tokens", &self.context_window_tokens)
             .field("prompt_cache_key", &self.prompt_cache_key)
+            .field("stream", &self.stream)
+            .field("stream_idle_timeout", &self.stream_idle_timeout)
             .field("prompt_cache_key_enabled", &self.prompt_cache_key_enabled)
             .field("extra_body", &self.extra_body)
             .finish()
@@ -205,6 +217,8 @@ impl GatewayConfig {
             prompt_cache_key: None,
             prompt_cache_key_enabled: true,
             extra_body: None,
+            stream: true,
+            stream_idle_timeout: DEFAULT_STREAM_IDLE,
         }
     }
 
@@ -341,6 +355,30 @@ impl GatewayConfig {
                 Ok(value)
             })
             .transpose()?;
+        let stream = match std::env::var("GATEWAY_STREAM")
+            .map(|v| v.trim().to_ascii_lowercase())
+            .ok()
+            .filter(|v| !v.is_empty())
+            .as_deref()
+        {
+            None | Some("on") => true,
+            Some("off") => false,
+            Some(other) => {
+                anyhow::bail!("GATEWAY_STREAM must be on|off, got: {other:?}");
+            }
+        };
+        let stream_idle_timeout = std::env::var("GATEWAY_STREAM_IDLE_SECS")
+            .map(|v| v.trim().to_owned())
+            .ok()
+            .filter(|v| !v.is_empty())
+            .map(|v| match v.parse::<u64>() {
+                Ok(secs) if secs > 0 => Ok(Duration::from_secs(secs)),
+                _ => Err(anyhow::anyhow!(
+                    "GATEWAY_STREAM_IDLE_SECS must be a positive integer, got: {v:?}"
+                )),
+            })
+            .transpose()?
+            .unwrap_or(DEFAULT_STREAM_IDLE);
 
         Ok(Self {
             api_format,
@@ -357,6 +395,8 @@ impl GatewayConfig {
             prompt_cache_key: None,
             prompt_cache_key_enabled,
             extra_body,
+            stream,
+            stream_idle_timeout,
         })
     }
 
@@ -372,6 +412,17 @@ impl GatewayConfig {
 
     pub fn with_max_attempts(mut self, n: u32) -> Self {
         self.max_attempts = n;
+        self
+    }
+
+    /// Turn SSE streaming on or off (tests; the env var is `GATEWAY_STREAM`).
+    pub fn with_stream(mut self, stream: bool) -> Self {
+        self.stream = stream;
+        self
+    }
+
+    pub fn with_stream_idle_timeout(mut self, idle: Duration) -> Self {
+        self.stream_idle_timeout = idle;
         self
     }
 
@@ -424,7 +475,7 @@ mod tests {
     use crate::llm::request::ChatRequest;
     use crate::test_support::EnvGuard;
 
-    const ALL_GATEWAY_KEYS: [&str; 10] = [
+    const ALL_GATEWAY_KEYS: [&str; 12] = [
         "GATEWAY_API_KEY",
         "GATEWAY_API_FORMAT",
         "GATEWAY_BASE_URL",
@@ -435,7 +486,48 @@ mod tests {
         "GATEWAY_PROMPT_CACHE_KEY",
         "GATEWAY_EXTRA_BODY",
         "GATEWAY_CONTEXT_WINDOW",
+        "GATEWAY_STREAM",
+        "GATEWAY_STREAM_IDLE_SECS",
     ];
+
+    #[test]
+    fn stream_defaults_on_and_parses_case_insensitively() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        let cfg = GatewayConfig::from_env().expect("default config");
+        assert!(cfg.stream);
+        assert_eq!(cfg.stream_idle_timeout, Duration::from_secs(30));
+        std::env::set_var("GATEWAY_STREAM", " OFF ");
+        assert!(!GatewayConfig::from_env().expect("off").stream);
+        std::env::set_var("GATEWAY_STREAM", "On");
+        assert!(GatewayConfig::from_env().expect("on").stream);
+    }
+
+    #[test]
+    fn invalid_stream_settings_error_naming_the_var() {
+        for (key, value) in [
+            ("GATEWAY_STREAM", "yes"),
+            ("GATEWAY_STREAM", "true"),
+            ("GATEWAY_STREAM_IDLE_SECS", "0"),
+            ("GATEWAY_STREAM_IDLE_SECS", "soon"),
+            ("GATEWAY_STREAM_IDLE_SECS", "-3"),
+        ] {
+            let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+            std::env::set_var("GATEWAY_API_KEY", "k");
+            std::env::set_var(key, value);
+            let err = GatewayConfig::from_env().expect_err(&format!("{key}={value} must fail"));
+            assert!(err.to_string().contains(key), "{err}");
+        }
+    }
+
+    #[test]
+    fn stream_idle_secs_overrides_the_default() {
+        let _guard = EnvGuard::lock(ALL_GATEWAY_KEYS.to_vec());
+        std::env::set_var("GATEWAY_API_KEY", "k");
+        std::env::set_var("GATEWAY_STREAM_IDLE_SECS", " 5 ");
+        let cfg = GatewayConfig::from_env().expect("valid idle");
+        assert_eq!(cfg.stream_idle_timeout, Duration::from_secs(5));
+    }
 
     #[test]
     fn api_format_defaults_to_openai_and_parses_case_insensitively() {

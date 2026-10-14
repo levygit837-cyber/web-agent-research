@@ -138,7 +138,8 @@ impl ThinkingParam {
     }
 }
 
-/// Non-streaming `/chat/completions` request body.
+/// `/chat/completions` request body. `stream` and `stream_options` follow
+/// `GATEWAY_STREAM` (see [`ChatRequest::with_stream`]).
 #[derive(Debug, Serialize)]
 pub(crate) struct ChatRequest {
     pub(crate) model: String,
@@ -155,9 +156,19 @@ pub(crate) struct ChatRequest {
     pub(crate) tools: Option<Vec<ToolDef>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_choice: Option<ToolChoice>,
-    /// Always `false`: the client reads one complete JSON body. Typed, so
-    /// it wins over `GATEWAY_EXTRA_BODY` and streaming cannot be enabled.
+    /// Typed, so it wins over `GATEWAY_EXTRA_BODY`: the client decides
+    /// whether the reply is an SSE stream or one JSON body (#152).
     pub(crate) stream: bool,
+    /// `{"include_usage": true}` when streaming, so the final chunk carries
+    /// token usage; omitted otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) stream_options: Option<StreamOptions>,
+}
+
+/// The `stream_options` object; only `include_usage` is ever sent.
+#[derive(Debug, Serialize)]
+pub(crate) struct StreamOptions {
+    pub(crate) include_usage: bool,
 }
 
 /// One callable function offered to the model. Serializes to the OpenAI
@@ -243,7 +254,18 @@ impl ChatRequest {
             tools,
             tool_choice,
             stream: false,
+            stream_options: None,
         }
+    }
+
+    /// Ask for an SSE reply (`stream: true` plus
+    /// `stream_options.include_usage`) or a single JSON body.
+    pub(crate) fn with_stream(mut self, stream: bool) -> Self {
+        self.stream = stream;
+        self.stream_options = stream.then_some(StreamOptions {
+            include_usage: true,
+        });
+        self
     }
 
     /// Final wire body: the typed shape merged over `extra` (see
