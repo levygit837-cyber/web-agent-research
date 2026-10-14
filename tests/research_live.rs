@@ -44,6 +44,7 @@ async fn live_research_terminates_within_budget() -> anyhow::Result<()> {
         session_id: None,
         session_out: None,
         events: None,
+        trace: false,
     };
     match run_research(req).await {
         Ok(response) => {

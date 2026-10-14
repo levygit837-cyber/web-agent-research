@@ -290,6 +290,7 @@ async fn prompt_cache_key_is_the_session_id_generated_before_the_loop_and_stable
         session_id: None,
         session_out: Some(temp_session_out("cache-key-stable")),
         events: None,
+        trace: false,
     };
     let session_out = req.session_out.clone().expect("session out set");
     let response = run_research_with(req, tools)

@@ -120,20 +120,23 @@ pub async fn run_loop_with_events(
         };
         events.turn_started(turn, turn_budget, final_turn, final_reason);
         let messages = context::assemble(&system_prompt, input, &history, budget);
-        let reply = if defs.is_empty() {
-            gateway.chat(&messages).await
-        } else {
-            // Same defs on the final turn, so the request prefix stays
-            // cacheable; only the choice changes.
-            let choice = if final_turn {
-                ToolChoice::None
-            } else {
-                ToolChoice::Auto
-            };
-            gateway
-                .chat_with_tools(&messages, &defs, Some(choice))
-                .await
+        // Same defs on the final turn, so the request prefix stays
+        // cacheable; only the choice changes.
+        let choice = match (defs.is_empty(), final_turn) {
+            (true, _) => None,
+            (false, true) => Some(ToolChoice::None),
+            (false, false) => Some(ToolChoice::Auto),
         };
+        let reply = match &choice {
+            None => gateway.chat(&messages).await,
+            Some(choice) => {
+                gateway
+                    .chat_with_tools(&messages, &defs, Some(choice.clone()))
+                    .await
+            }
+        };
+        // Before any early return below, so a failed call is traced too.
+        events.trace_model(turn, &messages, &defs, choice.as_ref(), reply.as_ref());
         let reply = match reply {
             Ok(reply) => reply,
             Err(GatewayError::MissingApiKey) if turn == 1 => {
@@ -236,6 +239,7 @@ pub async fn run_loop_with_events(
             let left = turns_left(budget.turn_budget(successful_searches));
             newest.content.push_str(&turns_left_note(left));
         }
+        events.trace_tool_results(turn, &outcome.results);
         history.push(HistoryEntry::ToolTurn {
             text: reply.output.clone(),
             calls: outcome.calls,

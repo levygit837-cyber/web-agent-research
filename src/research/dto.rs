@@ -138,6 +138,11 @@ pub struct ResearchRequest {
     /// `ResearchError::NotConfigured`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events: Option<EventsSink>,
+    /// Record every model exchange in the Session file as `trace` rows
+    /// (`--trace`, #151, ADR-0010 §5). Off by default: the rows hold page
+    /// text and the goal, and make the file several times larger.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trace: bool,
 }
 
 /// One inline `[title](url)` citation, in document order, with how well

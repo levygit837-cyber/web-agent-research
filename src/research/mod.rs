@@ -10,6 +10,7 @@ pub mod prompt;
 pub mod run;
 pub mod session;
 pub mod synthesis;
+pub(crate) mod trace;
 
 pub use dto::{
     CitationDTO, ResearchRequest, ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO,
