@@ -21,6 +21,7 @@ async fn empty_goal_is_not_configured_without_io() {
         session_out: Some(session_out.clone()),
         events: None,
         trace: false,
+        progress: crate::research::events::ProgressMode::Off,
     };
     let err = run_research(req).await.expect_err("empty goal must fail");
     assert!(
@@ -44,6 +45,7 @@ async fn zero_max_turns_is_not_configured() {
         session_out: Some(temp_session_out("zero-turns")),
         events: None,
         trace: false,
+        progress: crate::research::events::ProgressMode::Off,
     };
     let err = run_research(req).await.expect_err("max_turns=0 must fail");
     assert!(
@@ -75,6 +77,7 @@ async fn a_context_window_smaller_than_the_reply_reserve_is_not_configured() {
         session_out: Some(session_out.clone()),
         events: None,
         trace: false,
+        progress: crate::research::events::ProgressMode::Off,
     };
     let err = run_research(req)
         .await
@@ -108,6 +111,7 @@ async fn cap_below_max_turns_and_zero_deadline_are_not_configured() {
             session_out: Some(session_out.clone()),
             events: None,
             trace: false,
+            progress: crate::research::events::ProgressMode::Off,
         };
         match run_research(req).await {
             Err(ResearchError::NotConfigured(reason)) => {

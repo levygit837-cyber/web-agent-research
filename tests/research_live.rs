@@ -45,6 +45,7 @@ async fn live_research_terminates_within_budget() -> anyhow::Result<()> {
         session_out: None,
         events: None,
         trace: false,
+        progress: web_agent_research::ProgressMode::Off,
     };
     match run_research(req).await {
         Ok(response) => {

@@ -30,6 +30,7 @@ fn request(session_id: Option<&str>, session_out: Option<PathBuf>) -> ResearchRe
         session_out,
         events: None,
         trace: false,
+        progress: crate::research::events::ProgressMode::Off,
     }
 }
 

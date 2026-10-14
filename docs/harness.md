@@ -5,7 +5,7 @@ A Harness calls Web Search as one shell command and reads one JSON object from s
 ## Command
 
 ```sh
-web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N] [--events <path|->] [--trace]
+web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N] [--events <path|->] [--trace] [--progress auto|plain|off]
 ```
 
 - `--size` (default `medium`): answer length.
@@ -18,6 +18,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 - `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
 - `--events <path|->` (#147): write the Session's lifecycle Events as NDJSON. See "Session Events".
 - `--trace` (#151): also record every model exchange in the Session file as `trace` rows, for audit. Off by default. See "Trace rows".
+- `--progress auto|plain|off` (#149, default `auto`): human progress lines on stderr. See "Progress".
 
 ## Environment
 
@@ -399,9 +400,9 @@ Every one carries the Turn it belongs to in `turn`. `call_id` is the id in that 
 | `type` | When | `data` |
 |---|---|---|
 | `search.started` | a `search` call is about to run | `call_id`, `queries`, `recency` (as the model sent them; `null` when absent) |
-| `search.finished` | the call returned, failed or timed out | `call_id`, `ok`, `hits` (merged Hits), `engines`, `note`, `error` |
+| `search.finished` | the call returned, failed or timed out | `call_id`, `queries` (as sent, like `search.started`), `ok`, `hits` (merged Hits), `engines`, `note`, `error` |
 | `fetch.started` | a `fetch` call is about to run | `call_id`, `url`, `part` (as sent; `null` when absent) |
-| `fetch.finished` | the call returned, failed or timed out | `call_id`, `ok`, `final_url`, `fetch_path`, `part`, `parts`, `chars`, `served_from`, `error` |
+| `fetch.finished` | the call returned, failed or timed out | `call_id`, `url` (as sent, like `fetch.started`), `ok`, `final_url`, `fetch_path`, `part`, `parts`, `chars`, `served_from`, `error` |
 | `tool.failed` | every failed call, and an empty answer | `call_id`, `tool`, `kind`, `reason`, `consecutive_failures`, `max_repairs` |
 | `context.truncated` | before a gateway call whose transcript dropped the oldest Turns to fit | `dropped_turns`, `max_context_chars` |
 | `answer.verified` | once, after the answer is parsed and checked against the fetched pages | `bullets`, `cited`, `exact`, `partial`, `none` (the `--json` `verification`), `citations` (citations kept) |
@@ -409,7 +410,7 @@ Every one carries the Turn it belongs to in `turn`. `call_id` is the id in that 
 - `search.finished.engines` lists every engine the call consulted: `engine`, `status`, `rows` (Hits it returned), `cached` (every leg that answered came from the search cache), `problems`. `status` is `rows`, `no_results`, or, when no leg answered, the kind of its first problem. A `problems` entry is `{kind: "challenge", detail}`, `{kind: "timeout"}`, `{kind: "suspended", reason, remaining_secs}` (skipped, no request made), `{kind: "throttled", detail}` or `{kind: "error", detail, http_status}`. `engines` is empty when the call never searched (`note` says why, for example a query that is not crate-shaped) or failed as a whole (`error` names every engine).
 - `fetch.finished.served_from` is `network` (fetched now), `memory` (a page this Session already fetched: a later `part`, or a repeat of the URL) or `tape` (replayed). `fetch_path` is `static`, `browser` or `api`. `part` and `parts` are the delivered part and the page's part count; a repeat fetch without `part` delivers nothing (`part` `null`, `chars` `0`). `chars` is the size of the delivered part. A failure leaves `final_url`, `fetch_path`, `part`, `parts` and `served_from` `null` and carries its reason in `error`: egress refusal, HTTP status, timeout, or a `part` out of range.
 - `tool.failed.kind` is `dispatch` (unknown tool, bad arguments, `part` out of range), `execution` (the tool ran and failed, or timed out) or `empty_answer`, where the reply was neither a tool call nor a valid answer: `call_id` and `tool` are `null`. `consecutive_failures` is the repair counter after the Turn (a successful call in the same Turn resets it); the Session aborts when it exceeds `max_repairs`. A call dropped over the per-Turn tool cap is not a failure and has no Event.
-- `context.truncated` replaces nothing: the `tracing` line stays for the human log until Progress (#149) takes it over.
+- `context.truncated` is also what Progress prints; the `tracing` info line it used to duplicate is gone (#149).
 
 ### `session.finished`
 
@@ -431,6 +432,31 @@ It is the last line on success and on every error exit `2` to `9` and `130`, inc
 On failure `turns_used`, `turn_budget` and `usage` are what the Session had consumed when it stopped, `evidence_urls` is `[]` and `error` is the message printed after `error:` on stderr. On success `error` is `null`.
 
 An invalid `--session-id` exits `2` with no Events: there is no Session to name. Any later failure, a missing key included, still ends with `session.finished`.
+
+### Progress (`--progress`, #149)
+
+For a person at a terminal. Progress is rendered from the same Events as `--events` (no second source), one line per meaningful Event on stderr, prefixed `[turn N/B - 4.1s]` (Turn and budget from `turn.started`, time since the Session started):
+
+```text
+[turn 2/10 - 4.1s] search "tokio latest version" -> 14 hits (ddg 6, bing 5, yahoo 3; brave suspended 2m)
+[turn 2/10 - 5.2s] fetch https://crates.io/crates/tokio -> 12.3k chars [static, part 1/3]
+[turn 2/10 - 5.9s] fetch https://10.0.0.1/ -> failed: refused: private network
+[61.2s] finished: deadline_exceeded, 3/10 turns, 9.4k tokens: run deadline of 60s exceeded
+```
+
+It also shows `model.replied` (tokens and tool calls or `answer`), `tool.failed`, `context.truncated` and `answer.verified`. The last line comes from `session.finished`: outcome, Turns used, tokens, the grounding counts on success, and the reason on an error exit. `error: <message>` is still printed after it, exactly as before.
+
+| `--progress` | Behaviour |
+|---|---|
+| `auto` (default) | on a TTY stderr: the lines, coloured unless `NO_COLOR` is set and non-empty, plus one transient status line for the step in flight (redrawn on each Event, erased before every permanent line and at the end). Piped or redirected stderr: nothing, so a Harness sees the same stderr as without Progress |
+| `plain` | the lines with no ANSI codes and no status line, even when piped |
+| `off` | nothing |
+
+- `--events -` turns Progress off in every mode: stderr carries one format.
+- Colour never carries meaning alone: failures say `failed`, the final line names the outcome.
+- A write failure to stderr prints one `warning: progress not written: ...` and stops Progress; it never changes the exit code.
+- Progress text is for humans and may change between releases. It is not a contract: Harnesses use `--events`.
+- `RUST_LOG` still enables `tracing` diagnostics. On a TTY with Progress on, each log line is written after an erase of the status line.
 
 ### When the output fails
 

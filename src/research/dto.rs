@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::llm::TokenUsage;
 use crate::research::agent_loop::LoopBudget;
-use crate::research::events::EventsSink;
+use crate::research::events::{EventsSink, ProgressMode};
 use crate::research::session::SessionUsage;
 use crate::research::synthesis::{
     Citation, Support, Synthesis, SynthesisSize, ThemeSection, Verification,
@@ -143,6 +143,10 @@ pub struct ResearchRequest {
     /// text and the goal, and make the file several times larger.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub trace: bool,
+    /// The human Progress view on stderr (`--progress`, #149, ADR-0010 §6).
+    /// `--events -` turns it off whatever the mode.
+    #[serde(default, skip_serializing_if = "ProgressMode::is_auto")]
+    pub progress: ProgressMode,
 }
 
 /// One inline `[title](url)` citation, in document order, with how well

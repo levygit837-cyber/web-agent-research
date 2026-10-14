@@ -14,7 +14,7 @@ use super::helpers::{
 use crate::research::agent_loop::result::ToolResult;
 use crate::research::agent_loop::runner::run_loop_with_events;
 use crate::research::agent_loop::types::LoopBudget;
-use crate::research::events::{Events, EventsSink};
+use crate::research::events::{Events, EventsSink, ProgressMode};
 
 /// Run the loop against `double` with an NDJSON sink and return every
 /// Event emitted, in order.
@@ -32,7 +32,12 @@ async fn run_observed(
         std::process::id(),
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
-    let events = Events::open("loop-test", Some(&EventsSink::File(path.clone()))).expect("open");
+    let events = Events::open(
+        "loop-test",
+        Some(&EventsSink::File(path.clone())),
+        ProgressMode::Off,
+    )
+    .expect("open");
     run_loop_with_events(
         &gateway_at(double.base()),
         &stub_tools(tools),

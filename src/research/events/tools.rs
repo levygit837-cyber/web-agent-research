@@ -70,8 +70,15 @@ impl Events {
     /// timed out as) `result`.
     pub(crate) fn tool_finished(&self, turn: u32, call: &RequestedToolCall, result: &ToolResult) {
         match call.name.as_str() {
-            SEARCH_TOOL_NAME => self.search_finished(turn, &call.id, result),
-            FETCH_TOOL_NAME => self.fetch_finished(turn, &call.id, result),
+            SEARCH_TOOL_NAME | FETCH_TOOL_NAME if self.state.is_none() => {}
+            SEARCH_TOOL_NAME => {
+                let args = call.parsed_arguments().unwrap_or(Value::Null);
+                self.search_finished(turn, &call.id, &args, result);
+            }
+            FETCH_TOOL_NAME => {
+                let args = call.parsed_arguments().unwrap_or(Value::Null);
+                self.fetch_finished(turn, &call.id, &args, result);
+            }
             _ => {}
         }
     }
@@ -89,9 +96,10 @@ impl Events {
     }
 
     /// `search.finished`: the `search` call returned `result`. `hits` is the
-    /// merged Hit count; `engines` is empty when no leg ran (a `note`) or the
+    /// merged Hit count; `queries` repeats the request so a reader of the
+    /// finish alone (Progress) knows what it answers; `engines` is empty when no leg ran (a `note`) or the
     /// whole call failed (then `error` carries every engine's failure).
-    fn search_finished(&self, turn: u32, call_id: &str, result: &ToolResult) {
+    fn search_finished(&self, turn: u32, call_id: &str, args: &Value, result: &ToolResult) {
         let (hits, engines, note) = match result {
             ToolResult::Search { hits, engines, .. } => (
                 hits.len(),
@@ -106,6 +114,7 @@ impl Events {
             "search.finished",
             json!({
                 "call_id": call_id,
+                "queries": arg(args, "queries"),
                 "ok": result.is_success(),
                 "hits": hits,
                 "engines": engines,
@@ -131,9 +140,10 @@ impl Events {
     /// `fetch.finished`: the `fetch` call returned `result`. `chars` is the
     /// size of the delivered part; a repeat fetch without `part` delivers
     /// nothing (`chars` 0, `part` null) and is served from memory.
-    fn fetch_finished(&self, turn: u32, call_id: &str, result: &ToolResult) {
+    fn fetch_finished(&self, turn: u32, call_id: &str, args: &Value, result: &ToolResult) {
         let mut data = json!({
             "call_id": call_id,
+            "url": arg(args, "url"),
             "ok": result.is_success(),
             "final_url": Value::Null,
             "fetch_path": Value::Null,

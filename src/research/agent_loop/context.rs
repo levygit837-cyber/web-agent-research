@@ -153,8 +153,7 @@ pub(crate) fn truncate_history(
 /// when empty; a tool turn always emits its assistant `tool_calls` message
 /// (empty commentary serializes as wire `content: null`) followed by its
 /// `tool` messages. Also returns how many turns truncation dropped (0 when
-/// none), for the `context.truncated` Event (#148); the `tracing` line stays
-/// for humans until Progress replaces it (#149).
+/// none), for the `context.truncated` Event (#148), which Progress renders.
 pub(crate) fn assemble(
     system_prompt: &str,
     input: &LoopInput,
@@ -165,11 +164,6 @@ pub(crate) fn assemble(
     let system_chars = system_prompt.chars().count();
     let goal_chars = goal.chars().count();
     let (surviving, dropped_turns) = truncate_history(system_chars, goal_chars, history, budget);
-    if dropped_turns > 0 {
-        tracing::info!(
-            "agent loop history truncated: {dropped_turns} oldest turn(s) dropped to fit context budget"
-        );
-    }
     let mut messages = Vec::with_capacity(3 + surviving.len() * 2);
     messages.push(ChatMessage::system(system_prompt));
     messages.push(ChatMessage::user(goal));

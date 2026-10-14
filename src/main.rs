@@ -1,10 +1,12 @@
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
-use web_agent_research::{render, run_research, EventsSink, ResearchRequest};
+use web_agent_research::{
+    render, run_research, EventsSink, ProgressMode, ResearchRequest, CLEAR_LINE,
+};
 #[derive(Debug, Parser)]
 #[command(name = "web-agent-research", version, arg_required_else_help = true)]
 struct Cli {
@@ -42,6 +44,9 @@ enum Command {
         /// Also record every model exchange (messages sent, reply, tool results) in the Session file. Off by default: rows hold page text and the goal.
         #[arg(long, default_value_t = false)]
         trace: bool,
+        /// Human progress on stderr: `auto` (lines and a live status on a terminal, nothing when piped), `plain` (lines, no ANSI), `off`. `--events -` turns it off.
+        #[arg(long, value_enum, default_value_t = ProgressArg::Auto)]
+        progress: ProgressArg,
         /// Print the `ResearchResponse` verbatim as JSON.
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -66,6 +71,41 @@ impl SizeArg {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum ProgressArg {
+    Auto,
+    Plain,
+    Off,
+}
+
+impl ProgressArg {
+    fn as_mode(self) -> ProgressMode {
+        match self {
+            Self::Auto => ProgressMode::Auto,
+            Self::Plain => ProgressMode::Plain,
+            Self::Off => ProgressMode::Off,
+        }
+    }
+}
+
+/// Stderr for `tracing` lines while Progress keeps a transient status line
+/// there: each event is written after an erase-line, so the log line starts
+/// on a clean row. Progress redraws its status on its next Event.
+struct StatusAwareStderr;
+
+impl Write for StatusAwareStderr {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut stderr = std::io::stderr().lock();
+        stderr.write_all(CLEAR_LINE.as_bytes())?;
+        stderr.write_all(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::stderr().flush()
+    }
+}
+
 /// `--events -` is stderr; any other value is a file path.
 fn events_sink(arg: Option<PathBuf>) -> Option<EventsSink> {
     arg.map(|path| {
@@ -81,13 +121,24 @@ fn events_sink(arg: Option<PathBuf>) -> Option<EventsSink> {
 async fn main() -> Result<()> {
     // stdout carries only the response (`--json` must parse as one JSON
     // object); logs go to stderr, with ANSI colour only on a terminal.
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_writer(std::io::stderr)
-        .with_ansi(std::io::stderr().is_terminal())
-        .init();
-
     let cli = Cli::parse();
+    let stderr_is_tty = std::io::stderr().is_terminal();
+    let status_line = match &cli.command {
+        Command::Research {
+            progress, events, ..
+        } => progress
+            .as_mode()
+            .draws_status_line(events_sink(events.clone()).as_ref(), stderr_is_tty),
+    };
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_ansi(stderr_is_tty);
+    if status_line {
+        subscriber.with_writer(|| StatusAwareStderr).init();
+    } else {
+        subscriber.with_writer(std::io::stderr).init();
+    }
+
     let Command::Research {
         goal,
         size,
@@ -98,6 +149,7 @@ async fn main() -> Result<()> {
         session_out,
         events,
         trace,
+        progress,
         json,
     } = cli.command;
     let req = ResearchRequest {
@@ -110,6 +162,7 @@ async fn main() -> Result<()> {
         session_out,
         events: events_sink(events),
         trace,
+        progress: progress.as_mode(),
     };
     match run_research(req).await {
         Ok(response) => {
@@ -253,6 +306,26 @@ mod tests {
             events(&["war", "research", "g", "--events", "out.ndjson"]),
             Some(EventsSink::File(PathBuf::from("out.ndjson")))
         );
+    }
+
+    #[test]
+    fn progress_defaults_to_auto_and_accepts_the_three_modes() {
+        let progress = |args: &[&str]| {
+            let Command::Research { progress, .. } = parse(args).command;
+            progress.as_mode()
+        };
+        assert_eq!(progress(&["war", "research", "g"]), ProgressMode::Auto);
+        for (value, mode) in [
+            ("auto", ProgressMode::Auto),
+            ("plain", ProgressMode::Plain),
+            ("off", ProgressMode::Off),
+        ] {
+            assert_eq!(
+                progress(&["war", "research", "g", "--progress", value]),
+                mode
+            );
+        }
+        assert!(Cli::try_parse_from(["war", "research", "g", "--progress", "fancy"]).is_err());
     }
 
     #[test]
