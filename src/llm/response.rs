@@ -170,23 +170,7 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
             parts.push(text);
         }
     }
-    let usage = resp.usage.map_or_else(TokenUsage::default, |u| {
-        let openai_cached = u
-            .prompt_tokens_details
-            .as_ref()
-            .map_or(0, |d| d.cached_tokens);
-        let anthropic_cached = u.cache_read_input_tokens.unwrap_or(0);
-        TokenUsage {
-            prompt_tokens: u.prompt_tokens,
-            completion_tokens: u.completion_tokens,
-            total_tokens: u.total_tokens,
-            reasoning_tokens: u
-                .completion_tokens_details
-                .map_or(0, |d| d.reasoning_tokens),
-            cached_prompt_tokens: openai_cached.max(anthropic_cached),
-            cache_creation_prompt_tokens: 0,
-        }
-    });
+    let usage = resp.usage.map_or_else(TokenUsage::default, token_usage);
     Ok(LlmReply {
         thinking: parts.join("\n"),
         output: msg.content.unwrap_or_default(),
@@ -195,6 +179,27 @@ pub(crate) fn parse_reply(resp: ChatResponse) -> Result<LlmReply, GatewayError> 
         usage,
         replay: ReplayBlocks::default(),
     })
+}
+
+/// The wire `usage` object as the format-neutral [`TokenUsage`]; shared by
+/// the single-body parser and the SSE assembler so both read the cached and
+/// reasoning details the same way.
+pub(crate) fn token_usage(u: ResponseUsage) -> TokenUsage {
+    let openai_cached = u
+        .prompt_tokens_details
+        .as_ref()
+        .map_or(0, |d| d.cached_tokens);
+    let anthropic_cached = u.cache_read_input_tokens.unwrap_or(0);
+    TokenUsage {
+        prompt_tokens: u.prompt_tokens,
+        completion_tokens: u.completion_tokens,
+        total_tokens: u.total_tokens,
+        reasoning_tokens: u
+            .completion_tokens_details
+            .map_or(0, |d| d.reasoning_tokens),
+        cached_prompt_tokens: openai_cached.max(anthropic_cached),
+        cache_creation_prompt_tokens: 0,
+    }
 }
 
 #[cfg(test)]
