@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--trace` records every model exchange in the Session file as `trace` rows (messages sent, reply with thinking and raw tool arguments, tool results as the model received them), enough to rebuild the transcript from the file; off by default, never writes the API key (#151).
 - `--events <path|->` streams Session lifecycle Events (`session.started`, `turn.started`, `model.replied`, `session.finished`) as NDJSON; `session.finished` ends every exit `0` to `9` (#147).
 - `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats (OpenAI Chat Completions, Anthropic Messages) and are assembled into the same reply, Anthropic `thinking` signatures and cache counts included; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152, #153).
 

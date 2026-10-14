@@ -213,6 +213,9 @@ pub(crate) async fn run_research_until(
     // raised before any gateway call.
     let events =
         Events::open(&session_id, req.events.as_ref()).map_err(ResearchError::NotConfigured)?;
+    if req.trace {
+        events.enable_trace();
+    }
     let session = run_session(&req, session_id, tools, &events);
     // Work first: an answer that is ready wins over a late interrupt.
     let result = tokio::select! {
@@ -398,5 +401,6 @@ mod tests {
     mod helpers;
     mod session_log;
     mod session_path;
+    mod trace;
     mod validation;
 }

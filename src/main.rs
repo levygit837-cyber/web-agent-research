@@ -39,6 +39,9 @@ enum Command {
         /// Write the Session's lifecycle Events as NDJSON, one per line, to a file (created 0600) or `-` for stderr.
         #[arg(long, value_name = "PATH|-")]
         events: Option<PathBuf>,
+        /// Also record every model exchange (messages sent, reply, tool results) in the Session file. Off by default: rows hold page text and the goal.
+        #[arg(long, default_value_t = false)]
+        trace: bool,
         /// Print the `ResearchResponse` verbatim as JSON.
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -94,6 +97,7 @@ async fn main() -> Result<()> {
         session_id,
         session_out,
         events,
+        trace,
         json,
     } = cli.command;
     let req = ResearchRequest {
@@ -105,6 +109,7 @@ async fn main() -> Result<()> {
         session_id,
         session_out,
         events: events_sink(events),
+        trace,
     };
     match run_research(req).await {
         Ok(response) => {

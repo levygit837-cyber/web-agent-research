@@ -16,6 +16,11 @@
 //! `turn` rows, in the order they happened. A `turn` row is written when its
 //! Turn ends; the final one carries the Synthesis and the run usage. Format 1
 //! files (header + `turn` rows, written after the answer) still read.
+//!
+//! With `--trace` (#151) the log also holds `trace` rows: per Turn, the
+//! messages sent and the reply, then the tool results the model will see.
+//! They are not Events (no `seq`, never in `--events`), and a Session
+//! without `--trace` writes none. `research::trace` builds them.
 
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
@@ -105,6 +110,75 @@ impl TurnRow {
     }
 }
 
+/// A `trace` row (`--trace`, #151, ADR-0010 §5): what the model saw and said
+/// on one Turn. Two rows per tool Turn, told apart by `phase`:
+///
+/// - `model`: written right after the gateway call, before tool dispatch.
+///   Carries the request (`messages_delta`, or `messages` + `full: true`
+///   after context truncation; `system` and `tools` on the first row only;
+///   `tool_choice`) and the `reply` (or `{"error": ...}`).
+/// - `tool_results`: written after dispatch, with each call's `id` and the
+///   exact `content` string the model receives.
+///
+/// `docs/harness.md` ("Trace rows") has the rebuild rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraceRow {
+    /// Always `"trace"`.
+    pub kind: String,
+    pub format_version: u32,
+    pub session_id: String,
+    pub turn: u32,
+    /// `"model"` or `"tool_results"`.
+    pub phase: String,
+    /// System prompt, first `model` row only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
+    /// Tool definitions offered (OpenAI shape), first `model` row only and
+    /// only when any were offered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<serde_json::Value>,
+    /// Messages appended to the request since the previous `model` row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub messages_delta: Option<Vec<serde_json::Value>>,
+    /// The whole request (system prompt apart) on a `full: true` row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub messages: Option<Vec<serde_json::Value>>,
+    /// `true` when `messages` replaces the transcript instead of extending it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub full: bool,
+    /// `"auto"`/`"none"`; absent when the Turn offered no tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply: Option<serde_json::Value>,
+    /// `tool_results` rows: `{id, content}` per call, in call order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub results: Option<Vec<serde_json::Value>>,
+    pub recorded_at: String,
+}
+
+impl TraceRow {
+    /// An empty row of `phase`; the caller fills the fields that phase has.
+    pub(crate) fn new(session_id: &str, turn: u32, phase: &str) -> Self {
+        Self {
+            kind: "trace".to_owned(),
+            format_version: crate::SESSION_FORMAT_VERSION,
+            session_id: session_id.to_owned(),
+            turn,
+            phase: phase.to_owned(),
+            system: None,
+            tools: None,
+            messages_delta: None,
+            messages: None,
+            full: false,
+            tool_choice: None,
+            reply: None,
+            results: None,
+            recorded_at: utc_now_rfc3339(),
+        }
+    }
+}
+
 /// An `event` row (format 2): one Event envelope of `--events` (ADR-0010 §2)
 /// next to `kind` and `format_version`. `v` is the envelope version.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,6 +225,7 @@ pub enum SessionRow {
     Header(SessionHeader),
     Event(EventRow),
     Turn(TurnRow),
+    Trace(TraceRow),
 }
 
 impl SessionRow {
@@ -159,6 +234,7 @@ impl SessionRow {
             Self::Header(_) => "header",
             Self::Event(_) => "event",
             Self::Turn(_) => "turn",
+            Self::Trace(_) => "trace",
         }
     }
 
@@ -167,6 +243,7 @@ impl SessionRow {
             Self::Header(header) => header.format_version,
             Self::Event(row) => row.format_version,
             Self::Turn(row) => row.format_version,
+            Self::Trace(row) => row.format_version,
         }
     }
 
@@ -175,11 +252,12 @@ impl SessionRow {
             Self::Header(header) => &header.session_id,
             Self::Event(row) => &row.session_id,
             Self::Turn(row) => &row.session_id,
+            Self::Trace(row) => &row.session_id,
         }
     }
 }
 
-/// Append one row (a header, event or turn) as a line, creating the file
+/// Append one row (a header, event, turn or trace) as a line, creating the file
 /// `0600` on unix.
 pub fn append_row<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     if let Some(parent) = path.parent() {
@@ -374,6 +452,15 @@ pub fn read_session_rows(path: &Path) -> io::Result<Vec<SessionRow>> {
                     )
                 })?;
                 rows.push(SessionRow::Turn(row));
+            }
+            "trace" => {
+                let row: TraceRow = serde_json::from_value(value).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("invalid session trace on line {line_no}: {err}"),
+                    )
+                })?;
+                rows.push(SessionRow::Trace(row));
             }
             other => {
                 return Err(io::Error::new(

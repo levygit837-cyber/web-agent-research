@@ -29,6 +29,7 @@ fn request(session_id: Option<&str>, session_out: Option<PathBuf>) -> ResearchRe
         session_id: session_id.map(str::to_owned),
         session_out,
         events: None,
+        trace: false,
     }
 }
 

@@ -5,7 +5,7 @@ A Harness calls Web Search as one shell command and reads one JSON object from s
 ## Command
 
 ```sh
-web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N] [--events <path|->]
+web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N] [--events <path|->] [--trace]
 ```
 
 - `--size` (default `medium`): answer length.
@@ -17,6 +17,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 - `ctrl_c` (`SIGINT`) ends the Session: it writes `session.finished` with `outcome: interrupted` to every output, prints `error: interrupted` and exits `130` (#150).
 - `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
 - `--events <path|->` (#147): write the Session's lifecycle Events as NDJSON. See "Session Events".
+- `--trace` (#151): also record every model exchange in the Session file as `trace` rows, for audit. Off by default. See "Trace rows".
 
 ## Environment
 
@@ -100,13 +101,32 @@ The Session file is an append-only log, written as the Session happens, so it ex
 |---|---|---|
 | `header` | line 0, once the configuration is valid, before `session.started` | `session_id`, `goal`, `size`, `started_at` |
 | `event` | with every Event, before the emitting call returns | the `--events` envelope next to `kind`/`format_version`: `v`, `seq`, `ts`, `elapsed_ms`, `session_id`, `turn` (absent on Session-level Events), `type`, `data` |
+| `trace` | with `--trace` only, see "Trace rows" | `session_id`, `turn`, `phase`, the request and reply of the Turn, `recorded_at` |
 | `turn` | when the Turn ends | `session_id`, `turn`, `evidence` (whole pages fetched by that Turn, once per URL), `synthesis`, `usage`, `recorded_at` |
 
 - `header` and `turn` rows keep their format 1 fields. The final Turn's row carries the Synthesis and the run `usage`, as before. A `turn` row is not an Event: it has no `seq`.
 - `event` rows carry every catalogue type except `model.delta`, which is never stored. They are exactly the lines `--events` prints, so `seq` has no gaps in a Session file.
 - Failure guarantee: a Session that ends with exit `3`, `4`, `5`, `7`, `8`, `9` or `130` leaves the header, its Events, the `turn` rows of the Turns that completed, and `session.finished` with the `outcome` and `exit_code`. A configuration failure (exit `2`) after the Session id is known leaves no file: the header is written only once the configuration is valid. A crash or `SIGKILL` leaves the rows written so far and no `session.finished`.
+- A `trace` row is not an Event either: no `seq`, and it never goes to `--events`.
 - `jq -c '{kind, type, turn}' <file>` shows the shape of a Session.
 - Format 1 files (header and `turn` rows written after the answer, no `event` rows) still read. A reader gates on `format_version` and rejects a version above its own.
+
+#### Trace rows (`--trace`, #151)
+
+`--trace` lets an auditor replay what the model saw and said on every Turn from the Session file alone. Without it the file has no `trace` row and is exactly what format 2 writes otherwise. Each Turn writes up to two rows, `kind: "trace"`, with `format_version`, `session_id`, `turn` and `recorded_at`:
+
+| `phase` | Written | Fields |
+|---|---|---|
+| `model` | right after the gateway reply (or error), before tool dispatch | request: `system` and `tools` (Turn 1 only), `messages_delta` or `messages` + `full: true`, `tool_choice` (absent when no tools were offered); outcome: `reply` |
+| `tool_results` | after dispatch, only on a Turn that ran tools | `results`: `[{id, content}]` per call, in call order |
+
+- `reply` is `{output, thinking, tool_calls: [{id, name, arguments}], finish_reason, usage}`, plus `replay` (provider blocks such as Anthropic `thinking` with their `signature`) when the reply has any. `arguments` is the raw JSON string the model sent. When the gateway call failed, `reply` is `{"error": "<gateway error text>"}` and the Session then ends as usual, with `session.finished` last.
+- `results[].content` is the exact string the model receives in the next request, including the framed `<page>`/`<hit>` containers and the turns-left note.
+- Messages are the format-neutral transcript: `{role, content, tool_calls?, tool_call_id?, replay?}`, `tool_calls` in the OpenAI shape.
+- Rebuild the request of a Turn: take the `system` of the first `model` row, then walk the `model` rows in file order. A row with `full: true` replaces the running message list with its `messages`; any other row appends its `messages_delta`. The request of that Turn is the system message followed by the running list. `full` appears when context truncation (the loop drops its oldest Turns to fit the window) changed earlier messages, so the delta rule cannot hold; the rows then show what was actually sent, never the untruncated history.
+- Cost: rows hold fetched page text and the goal, so a traced file is several times larger than an untraced one (each page is written once as a `tool_results` row and, while it stays in context, not again, but `full` rows rewrite the transcript). Files stay `0600` and the `SESSION_MAX_BYTES` retention cap applies unchanged. Do not share a traced file without reading it first.
+- Secrets: the API key and auth headers are never written. Rows are built from the messages, tool definitions, reply and error text only; a test sends a recognizable key through a traced Session and checks the file does not contain it. Page text and the goal are not scrubbed.
+- `jq -c 'select(.kind=="trace") | {turn, phase, n: (.messages_delta // .messages // .results | length)}' <file>` shows the shape of a trace.
 
 ### Search cache
 

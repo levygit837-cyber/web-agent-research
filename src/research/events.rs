@@ -22,6 +22,10 @@
 //! [`SessionSink`] warns (defaulted path) or records the failure (explicit
 //! path) and the Session turns it into exit 6 when it ends.
 //!
+//! With `--trace` (#151) [`Events::trace_model`] and
+//! [`Events::trace_tool_results`] append `trace` rows to the Session log
+//! only, like `turn` rows: a trace is a record, not an Event.
+//!
 //! The emitter also keeps the running totals `session.finished` needs
 //! (`turns_used`, `turn_budget`, `usage`), so a Session that fails after
 //! paying for model calls still reports them.
@@ -35,11 +39,15 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::llm::{ApiFormat, GatewayConfig, LlmReply, TokenUsage};
+use crate::llm::{
+    ApiFormat, ChatMessage, GatewayConfig, GatewayError, LlmReply, TokenUsage, ToolChoice, ToolDef,
+};
+use crate::research::agent_loop::context::ToolMessage;
 use crate::research::agent_loop::ToolEvidence;
 use crate::research::dto::{ResearchRequest, ResearchResponse, UsageDTO};
 use crate::research::run::ResearchError;
 use crate::research::session::{EventLine, SessionHeader, SessionSink, SessionUsage, TurnRow};
+use crate::research::trace::{self, TraceState};
 use crate::web::fetch::evidence::format_timestamp;
 
 /// Envelope version, independent of `SESSION_FORMAT_VERSION`: adding a field
@@ -74,6 +82,8 @@ struct State {
     ndjson: Option<Box<dyn Write + Send>>,
     /// The Session file (format 2), attached once the Session starts.
     session: Option<SessionSink>,
+    /// `Some` when `--trace` is on (#151).
+    trace: Option<TraceState>,
 }
 
 #[derive(Serialize)]
@@ -140,6 +150,7 @@ impl Events {
                 usage: TokenUsage::default(),
                 ndjson,
                 session: None,
+                trace: None,
             })),
         }
     }
@@ -253,6 +264,53 @@ impl Events {
         };
         let row = TurnRow::new(state.session_id.clone(), turn, pages, synthesis, usage);
         let _ = sink.append(&row);
+    }
+
+    /// Turn `--trace` on: from now on the trace methods write `trace` rows.
+    pub(crate) fn enable_trace(&self) {
+        if let Some(state) = &self.state {
+            Self::lock(state).trace = Some(TraceState::default());
+        }
+    }
+
+    /// `--trace`: the `model` row of `turn`, written right after the gateway
+    /// call and before tool dispatch. `messages` is the request just sent
+    /// (system prompt first); `outcome` is the reply or the gateway error.
+    /// A no-op without `--trace`.
+    pub(crate) fn trace_model(
+        &self,
+        turn: u32,
+        messages: &[ChatMessage],
+        tools: &[ToolDef],
+        choice: Option<&ToolChoice>,
+        outcome: Result<&LlmReply, &GatewayError>,
+    ) {
+        let Some(state) = &self.state else {
+            return;
+        };
+        let mut state = Self::lock(state);
+        let state = &mut *state;
+        let (Some(tracer), Some(sink)) = (state.trace.as_mut(), state.session.as_mut()) else {
+            return;
+        };
+        let row = tracer.model_row(&state.session_id, turn, messages, tools, choice, outcome);
+        let _ = sink.append(&row);
+    }
+
+    /// `--trace`: the `tool_results` row of `turn`, written after dispatch,
+    /// with the content the model receives next. A no-op without `--trace`.
+    pub(crate) fn trace_tool_results(&self, turn: u32, results: &[ToolMessage]) {
+        let Some(state) = &self.state else {
+            return;
+        };
+        let mut state = Self::lock(state);
+        let state = &mut *state;
+        if state.trace.is_none() {
+            return;
+        }
+        if let Some(sink) = state.session.as_mut() {
+            let _ = sink.append(&trace::tool_results_row(&state.session_id, turn, results));
+        }
     }
 
     /// `session.started`: configuration is valid, the first Turn is next.
