@@ -3,15 +3,18 @@
 //! path returns.
 //!
 //! `sse` frames bytes into `data` payloads; `openai` assembles OpenAI
-//! Chat Completions chunks. The reader lives here so `client` only decides
-//! *whether* to stream (response `Content-Type`), not how.
+//! Chat Completions chunks and `anthropic` assembles Anthropic Messages
+//! events. The reader lives here so `client` only decides *whether* to
+//! stream (response `Content-Type`) and which wire format it is, not how.
 
+mod anthropic;
 mod openai;
 mod sse;
 
 use std::time::Duration;
 
 use super::client::{map_reqwest_error, GatewayError};
+use super::config::ApiFormat;
 use super::reply::LlmReply;
 
 /// One observable step of a gateway call, handed to the caller's closure as
@@ -52,17 +55,59 @@ pub(super) fn is_event_stream(content_type: Option<&str>) -> bool {
         .is_some_and(|essence| essence.trim().eq_ignore_ascii_case("text/event-stream"))
 }
 
-/// Read an OpenAI SSE body to its end and assemble the reply. Each wait for
-/// the next chunk is bounded by `idle`; a longer silence is a
-/// [`GatewayError::Timeout`]. The per-attempt and run timeouts bound the
-/// whole body through the `reqwest` request itself.
-pub(super) async fn read_openai(
+/// Whether the stream is over after a payload.
+#[derive(Debug, PartialEq, Eq)]
+enum Flow {
+    More,
+    Done,
+}
+
+/// The per-format assembler of one attempt. An enum, not a `trait`
+/// (ADR-0006, ADR-0007): the format is a branch inside `llm`.
+enum Assembler {
+    Openai(openai::Assembler),
+    Anthropic(anthropic::Assembler),
+}
+
+impl Assembler {
+    fn new(format: ApiFormat) -> Self {
+        match format {
+            ApiFormat::Openai => Self::Openai(openai::Assembler::default()),
+            ApiFormat::Anthropic => Self::Anthropic(anthropic::Assembler::default()),
+        }
+    }
+
+    fn feed(
+        &mut self,
+        payload: &str,
+        on_event: &mut (dyn FnMut(LlmEvent) + Send),
+    ) -> Result<Flow, GatewayError> {
+        match self {
+            Self::Openai(assembler) => assembler.feed(payload, on_event),
+            Self::Anthropic(assembler) => assembler.feed(payload, on_event),
+        }
+    }
+
+    fn finish(self) -> Result<LlmReply, GatewayError> {
+        match self {
+            Self::Openai(assembler) => assembler.finish(),
+            Self::Anthropic(assembler) => assembler.finish(),
+        }
+    }
+}
+
+/// Read an SSE body of the given wire `format` to its end and assemble the
+/// reply. Each wait for the next chunk is bounded by `idle`; a longer
+/// silence is a [`GatewayError::Timeout`]. The per-attempt and run timeouts
+/// bound the whole body through the `reqwest` request itself.
+pub(super) async fn read_sse(
     mut resp: reqwest::Response,
+    format: ApiFormat,
     idle: Duration,
     on_event: &mut (dyn FnMut(LlmEvent) + Send),
 ) -> Result<LlmReply, GatewayError> {
     let mut parser = sse::SseParser::default();
-    let mut assembler = openai::Assembler::default();
+    let mut assembler = Assembler::new(format);
     let mut payloads = Vec::new();
     loop {
         let chunk = match tokio::time::timeout(idle, resp.chunk()).await {
@@ -74,7 +119,7 @@ pub(super) async fn read_openai(
         };
         parser.push(&chunk, &mut payloads);
         for payload in payloads.drain(..) {
-            if matches!(assembler.feed(&payload, on_event)?, openai::Flow::Done) {
+            if assembler.feed(&payload, on_event)? == Flow::Done {
                 return assembler.finish();
             }
         }
