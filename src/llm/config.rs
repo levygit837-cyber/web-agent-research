@@ -134,9 +134,8 @@ pub struct GatewayConfig {
     /// `extra_body` semantics). Always a JSON object; typed fields and
     /// `model`/`messages`/`tools`/`tool_choice` win on key collision.
     pub extra_body: Option<serde_json::Value>,
-    /// `GATEWAY_STREAM`: ask for an SSE reply (`stream: true`) in the OpenAI
-    /// format (#152). Default on. Anthropic stays single-body until #153,
-    /// whatever this says.
+    /// `GATEWAY_STREAM`: ask for an SSE reply (`stream: true`) in both wire
+    /// formats (#152, #153). Default on.
     pub stream: bool,
     /// `GATEWAY_STREAM_IDLE_SECS`: longest silence between two body chunks
     /// of a streamed reply before the attempt is a `Timeout`. Default 30 s.

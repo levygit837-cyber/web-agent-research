@@ -10,11 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `--events <path|->` streams Session lifecycle Events (`session.started`, `turn.started`, `model.replied`, `session.finished`) as NDJSON; `session.finished` ends every exit `0` to `9` (#147).
-- `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: OpenAI-format replies stream as SSE and are assembled into the same reply; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152).
+- `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats (OpenAI Chat Completions, Anthropic Messages) and are assembled into the same reply, Anthropic `thinking` signatures and cache counts included; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152, #153).
 
 ### Changed
 
-- OpenAI-format requests now send `stream: true` by default; `GATEWAY_STREAM=off` restores the single JSON body. The Anthropic format is unchanged (#152).
+- Requests now send `stream: true` by default in both formats; `GATEWAY_STREAM=off` restores the single JSON body (#152, #153).
 
 ## [0.4.0] - 2026-10-14
 

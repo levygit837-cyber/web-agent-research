@@ -154,12 +154,15 @@ fn mark_last_block(message: Option<&mut serde_json::Value>) {
 }
 
 /// Full Messages request body, `extra_body` merged under the typed keys.
+/// `stream` follows `GATEWAY_STREAM` and is typed, so `GATEWAY_EXTRA_BODY`
+/// cannot flip it against what the client is prepared to read.
 pub(crate) fn request_body(
     params: &ResolvedParams,
     messages: &[ChatMessage],
     tools: Option<&[ToolDef]>,
     tool_choice: Option<&ToolChoice>,
     extra: Option<&serde_json::Value>,
+    stream: bool,
 ) -> serde_json::Value {
     let (mut system, mut wire) = map_messages(messages);
     if let Some(block) = system.last_mut().and_then(serde_json::Value::as_object_mut) {
@@ -183,9 +186,7 @@ pub(crate) fn request_body(
         body.insert("system".to_owned(), system.into());
     }
     body.insert("messages".to_owned(), wire.into());
-    // Typed, so `GATEWAY_EXTRA_BODY` cannot turn on streaming: the client
-    // reads one complete JSON body.
-    body.insert("stream".to_owned(), false.into());
+    body.insert("stream".to_owned(), stream.into());
     if let Some(tools) = tools.filter(|t| !t.is_empty()) {
         let mut defs: Vec<serde_json::Value> = tools
             .iter()
@@ -426,7 +427,7 @@ mod tests {
             ChatMessage::tool("c1", "hits"),
             ChatMessage::tool("c2", "page"),
         ];
-        let body = request_body(&params(), &transcript, None, None, None);
+        let body = request_body(&params(), &transcript, None, None, None, false);
         let messages = body["messages"].as_array().expect("messages array");
         assert_eq!(
             messages.len(),
@@ -458,6 +459,7 @@ mod tests {
             Some(&tools()),
             Some(&ToolChoice::Auto),
             None,
+            false,
         );
         assert_eq!(
             body["system"],
@@ -484,13 +486,13 @@ mod tests {
     #[test]
     fn max_tokens_defaults_and_grows_by_the_thinking_budget() {
         let transcript = [ChatMessage::user("goal")];
-        let body = request_body(&params(), &transcript, None, None, None);
+        let body = request_body(&params(), &transcript, None, None, None, false);
         assert_eq!(body["max_tokens"], DEFAULT_MAX_TOKENS);
         assert!(body.get("thinking").is_none());
 
         let mut with_budget = params();
         with_budget.thinking_budget = Some(2048);
-        let body = request_body(&with_budget, &transcript, None, None, None);
+        let body = request_body(&with_budget, &transcript, None, None, None, false);
         assert_eq!(body["max_tokens"], DEFAULT_MAX_TOKENS + 2048);
         assert_eq!(
             body["thinking"],
@@ -500,7 +502,7 @@ mod tests {
         let mut explicit = with_budget.clone();
         explicit.max_tokens = Some(4096);
         explicit.reasoning_effort = Some(ReasoningEffort::Low);
-        let body = request_body(&explicit, &transcript, None, None, None);
+        let body = request_body(&explicit, &transcript, None, None, None, false);
         assert_eq!(body["max_tokens"], 4096);
         assert_eq!(body["output_config"], serde_json::json!({"effort": "low"}));
     }
@@ -514,9 +516,22 @@ mod tests {
             None,
             None,
             Some(&extra),
+            false,
         );
         assert_eq!(body["model"], "claude-haiku-4-5");
         assert_eq!(body["service_tier"], "auto");
+    }
+
+    #[test]
+    fn stream_flag_follows_the_setting_and_beats_extra_body() {
+        let extra = serde_json::json!({"stream": false});
+        let messages = [ChatMessage::user("goal")];
+        let on = request_body(&params(), &messages, None, None, Some(&extra), true);
+        assert_eq!(on["stream"], serde_json::json!(true));
+        let extra = serde_json::json!({"stream": true});
+        let off = request_body(&params(), &messages, None, None, Some(&extra), false);
+        assert_eq!(off["stream"], serde_json::json!(false));
+        assert!(on.get("stream_options").is_none());
     }
 
     #[test]
@@ -572,7 +587,7 @@ mod tests {
             ChatMessage::assistant_tool_calls(&reply.output, &reply.tool_calls, &reply.replay),
             ChatMessage::tool("toolu_1", "hits"),
         ];
-        let body = request_body(&params(), &transcript, None, None, None);
+        let body = request_body(&params(), &transcript, None, None, None, false);
         let assistant = &body["messages"][1]["content"];
         assert_eq!(
             assistant[0],
@@ -621,7 +636,7 @@ mod tests {
             ChatMessage::tool("c1", "hits"),
             ChatMessage::user(" \t"),
         ];
-        let body = request_body(&params(), &transcript, None, None, None);
+        let body = request_body(&params(), &transcript, None, None, None, false);
         let messages = body["messages"].as_array().expect("messages");
         let roles: Vec<&str> = messages
             .iter()

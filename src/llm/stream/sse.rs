@@ -1,12 +1,13 @@
-//! Server-Sent Events framing (WHATWG HTML §9.2), reduced to what a chat
-//! completions stream needs: `data:` lines and blank-line dispatch.
+//! Server-Sent Events framing (WHATWG HTML §9.2), reduced to what the
+//! two chat streams need: `data:` lines and blank-line dispatch.
 //!
 //! The parser works on bytes, not on decoded chunks: a UTF-8 sequence or an
 //! event split across two network chunks is buffered until its line ends,
 //! so the split point never corrupts a character or an event.
 //!
-//! Deliberate limits: `event:`, `id:` and `retry:` fields are ignored (the
-//! OpenAI wire sends none that matter), a lone `\r` is not a line break
+//! Deliberate limits: `event:`, `id:` and `retry:` fields are ignored (OpenAI
+//! sends none that matter; Anthropic repeats the event name as the JSON
+//! `type`, which is what its assembler dispatches on), a lone `\r` is not a line break
 //! (only `\n` and `\r\n` are), and an event still open at end of body is
 //! dropped, as the spec says, so a body cut mid-event never yields a
 //! half-parsed payload.

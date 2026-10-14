@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::LlmEvent;
+use super::{Flow, LlmEvent};
 use crate::llm::client::{error_object, GatewayError};
 use crate::llm::reply::{LlmReply, RequestedToolCall};
 use crate::llm::request::ReplayBlocks;
@@ -74,13 +74,6 @@ struct PartialCall {
     id: Option<String>,
     name: Option<String>,
     arguments: Option<String>,
-}
-
-/// Whether the stream is over after a payload.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum Flow {
-    More,
-    Done,
 }
 
 /// Accumulates one attempt's chunks. Built fresh for every attempt: a retry

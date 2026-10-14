@@ -222,7 +222,6 @@ impl Gateway {
                 .with_stream(self.config.stream)
                 .to_wire_value(extra),
             ),
-            // Anthropic keeps the single-body path until #153.
             ApiFormat::Anthropic => (
                 format!("{}/messages", self.config.base_url),
                 anthropic::request_body(
@@ -231,6 +230,7 @@ impl Gateway {
                     tools.as_deref(),
                     tool_choice.as_ref(),
                     extra,
+                    self.config.stream,
                 ),
             ),
         };
@@ -329,14 +329,18 @@ impl Gateway {
 
         // An SSE body is read incrementally; anything else (a gateway that
         // ignored `stream: true`, or `GATEWAY_STREAM=off`) is one JSON body.
-        if self.config.api_format == ApiFormat::Openai {
-            let content_type = resp
-                .headers()
-                .get(reqwest::header::CONTENT_TYPE)
-                .and_then(|value| value.to_str().ok());
-            if stream::is_event_stream(content_type) {
-                return stream::read_openai(resp, self.config.stream_idle_timeout, on_event).await;
-            }
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok());
+        if stream::is_event_stream(content_type) {
+            return stream::read_sse(
+                resp,
+                self.config.api_format,
+                self.config.stream_idle_timeout,
+                on_event,
+            )
+            .await;
         }
         // Bytes first: a timeout or reset while the body streams in is a
         // transport failure (retryable), not a parse failure.
@@ -476,6 +480,7 @@ pub(crate) fn backoff_delay(attempt: u32, retry_after_secs: Option<u64>) -> Dura
 
 #[cfg(test)]
 mod tests {
+    mod anthropic_streaming;
     mod anthropic_wire;
     mod error_bodies;
     mod helpers;

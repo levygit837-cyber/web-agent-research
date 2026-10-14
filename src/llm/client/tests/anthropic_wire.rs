@@ -68,22 +68,3 @@ async fn anthropic_format_posts_messages_with_api_key_headers_and_parses_reply()
     assert_eq!(reply.usage.cached_prompt_tokens, 4096);
     assert_eq!(reply.usage.prompt_tokens, 4099);
 }
-
-/// Anthropic keeps the single-body path until #153, whatever
-/// `GATEWAY_STREAM` says and whatever `GATEWAY_EXTRA_BODY` asks for.
-#[tokio::test]
-async fn anthropic_stream_stays_false_even_with_streaming_on_and_extra_body() {
-    let (base_url, requests) = spawn_server(vec![CannedResponse::text(200, ANTHROPIC_OK)]);
-    let mut cfg = GatewayConfig::new(base_url, "k".to_owned(), "m".to_owned())
-        .with_max_attempts(1)
-        .with_stream(true);
-    cfg.api_format = ApiFormat::Anthropic;
-    cfg.extra_body = Some(serde_json::json!({"stream": true}));
-    Gateway::with_client(cfg, reqwest::Client::new())
-        .chat(&[ChatMessage::user("hi")])
-        .await
-        .expect("anthropic call must succeed");
-    let body = wire_body_of(&requests.requests()[0]);
-    assert_eq!(body["stream"], serde_json::json!(false), "{body}");
-    assert!(body.get("stream_options").is_none(), "{body}");
-}
