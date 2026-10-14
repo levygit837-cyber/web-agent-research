@@ -114,15 +114,14 @@ fn defaulted_sink_failure_sets_one_warning_and_disables_itself() {
     std::env::set_var("WEB_AGENT_RESEARCH_HOME", blocker.join("home"));
     let mut sink = SessionSink::new(None, "abc");
     let header = SessionHeader::new("abc".to_owned(), "goal".to_owned(), "small".to_owned());
-    sink.append_header(&header)
+    sink.append(&header)
         .expect("defaulted failure is swallowed");
     let warning = sink.warning().expect("a warning was recorded").to_owned();
     assert!(
         warning.starts_with("warning: Session not saved:"),
         "{warning}"
     );
-    sink.append_header(&header)
-        .expect("disabled sink is a no-op");
+    sink.append(&header).expect("disabled sink is a no-op");
     assert_eq!(sink.warning(), Some(warning.as_str()), "warned once");
     let _ = std::fs::remove_dir_all(&base);
 }
@@ -137,8 +136,7 @@ fn missing_data_root_warns_instead_of_failing() {
         std::env::set_var("HOME", home);
     }
     let header = SessionHeader::new("abc".to_owned(), "goal".to_owned(), "small".to_owned());
-    sink.append_header(&header)
-        .expect("no root is not an error");
+    sink.append(&header).expect("no root is not an error");
     assert!(sink
         .warning()
         .expect("warned")

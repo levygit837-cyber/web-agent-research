@@ -14,7 +14,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Run one research session to final synthesis.
+    /// Run one research session to final synthesis. `ctrl_c` ends it with exit 130.
     Research {
         /// Research goal to execute.
         goal: String,

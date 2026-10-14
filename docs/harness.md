@@ -14,6 +14,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 - The last turn of the current budget is the final turn: it sends the same tool definitions with `tool_choice: none` (`{"type": "none"}` in the Anthropic format), so the reply must be the answer. Tool calls returned on it anyway are not run; they count as an empty-answer repair and the run ends (exit `5`, or `9` if the deadline made it final).
 - `--deadline-secs` (default `300`): wall-clock bound on the whole run (#100); `0` exits `2`. See "Run deadline and timeouts".
 - `--session-id`: optional, default `<unix-secs>-<pid>`. It becomes the file name and the `prompt_cache_key`, so it MUST match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` before any LLM call.
+- `ctrl_c` (`SIGINT`) ends the Session: it writes `session.finished` with `outcome: interrupted` to every output, prints `error: interrupted` and exits `130` (#150).
 - `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
 - `--events <path|->` (#147): write the Session's lifecycle Events as NDJSON. See "Session Events".
 
@@ -85,11 +86,27 @@ The tool keeps two per-user roots, resolved separately. Neither is ever the curr
 | `WEB_AGENT_RESEARCH_HOME` | no | unset (falls back to `XDG_DATA_HOME`/`HOME`) | n/a (any non-empty path accepted) |
 | `SESSION_MAX_BYTES` | no | `268435456` (256 MiB) of `sessions/*.jsonl`, oldest-first eviction by modification time | not a valid `u64` is ignored, default cap applies |
 
-- Defaulted path is best-effort. If the data root cannot be resolved or written (read-only checkout, sandbox, full disk), the run prints `warning: Session not saved: <reason>` to stderr, skips the rest of the Session, and still exits `0` with the Synthesis. Read `session_id` from the JSON to know the Session name; it exists on disk only if there was no warning.
-- An explicit `--session-out` is never best-effort: a write failure exits `6` after the run finished, and nothing is written under the data root.
+- Defaulted path is best-effort. If the data root cannot be resolved or written (read-only checkout, sandbox, full disk), the run prints `warning: Session not saved: <reason>` to stderr once, stops writing the file, and still exits `0` with the Synthesis. Read `session_id` from the JSON to know the Session name; the file holds the rows written before the warning.
+- An explicit `--session-out` is never best-effort: a path that cannot be opened exits `6` before any gateway call, a write that fails mid-Session makes the Session exit `6` once it finished (a Session that already failed keeps its own exit code), and nothing is written under the data root.
 - The sessions directory is created with mode `0700` and Session files with `0600` on unix (they hold the goal and fetched page bodies).
 - Retention: after a defaulted write, the oldest `*.jsonl` files in `sessions/` are deleted until the directory fits `SESSION_MAX_BYTES`. The Session just written is never evicted; explicit `--session-out` files are never counted or deleted.
 - To clear Sessions, delete `<data_root>/sessions/`.
+
+#### Session file format 2 (#150)
+
+The Session file is an append-only log, written as the Session happens, so it exists and is readable whichever way the Session ends. One JSON object per line, each with `kind` and `format_version: 2`:
+
+| `kind` | When it is written | Fields |
+|---|---|---|
+| `header` | line 0, once the configuration is valid, before `session.started` | `session_id`, `goal`, `size`, `started_at` |
+| `event` | with every Event, before the emitting call returns | the `--events` envelope next to `kind`/`format_version`: `v`, `seq`, `ts`, `elapsed_ms`, `session_id`, `turn` (absent on Session-level Events), `type`, `data` |
+| `turn` | when the Turn ends | `session_id`, `turn`, `evidence` (whole pages fetched by that Turn, once per URL), `synthesis`, `usage`, `recorded_at` |
+
+- `header` and `turn` rows keep their format 1 fields. The final Turn's row carries the Synthesis and the run `usage`, as before. A `turn` row is not an Event: it has no `seq`.
+- `event` rows carry every catalogue type except `model.delta`, which is never stored. They are exactly the lines `--events` prints, so `seq` has no gaps in a Session file.
+- Failure guarantee: a Session that ends with exit `3`, `4`, `5`, `7`, `8`, `9` or `130` leaves the header, its Events, the `turn` rows of the Turns that completed, and `session.finished` with the `outcome` and `exit_code`. A configuration failure (exit `2`) after the Session id is known leaves no file: the header is written only once the configuration is valid. A crash or `SIGKILL` leaves the rows written so far and no `session.finished`.
+- `jq -c '{kind, type, turn}' <file>` shows the shape of a Session.
+- Format 1 files (header and `turn` rows written after the answer, no `event` rows) still read. A reader gates on `format_version` and rejects a version above its own.
 
 ### Search cache
 
@@ -357,7 +374,7 @@ Design: `docs/adr/0010-session-events-and-token-streaming.md`.
 
 ### `session.finished`
 
-It is the last line on success and on every error exit `2` to `9`, including exit `7` (decided after the loop) and exit `6` (an explicit `--session-out` that could not be written). `outcome` and `exit_code` match the "Exit codes" table:
+It is the last line on success and on every error exit `2` to `9` and `130`, including exit `7` (decided after the loop) and exit `6` (an explicit `--session-out` that could not be written). `outcome` and `exit_code` match the "Exit codes" table:
 
 | `outcome` | `exit_code` |
 |---|---|
@@ -370,6 +387,7 @@ It is the last line on success and on every error exit `2` to `9`, including exi
 | `search_blocked` | 7 |
 | `gateway_rejected` | 8 |
 | `deadline_exceeded` | 9 |
+| `interrupted` | 130 |
 
 On failure `turns_used`, `turn_budget` and `usage` are what the Session had consumed when it stopped, `evidence_urls` is `[]` and `error` is the message printed after `error:` on stderr. On success `error` is `null`.
 
@@ -394,8 +412,9 @@ An invalid `--session-id` exits `2` with no Events: there is no Session to name.
 | 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page, Startpage Anubis proof-of-work/CAPTCHA, Brave or Bing HTTP `429`, Bing `challenge/verify` gate, Yahoo consent redirect) or a skip of an engine already suspended *from* such a Challenge (#62). A `search` call narrowed by `recency` never counts, since the same search without `recency` could still reach the skipped engines (#81) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 | 8 | Gateway rejected the request: `401` (`bad API key`), `403` (`refused access (HTTP 403): <upstream message>`, the model/tier is gated upstream), other `4xx`, an error object in a `2xx` body, an unparsable `2xx` body, empty choices, a refusal | fix key/model/env; do not retry |
 | 9 | Run deadline exceeded with no usable answer | raise `--deadline-secs` or narrow the goal |
+| 130 | Interrupted by `ctrl_c` (`SIGINT`); the Session file and `--events` end with `session.finished` `outcome: interrupted` (#150) | do not retry; the Session was cancelled on purpose |
 
-With `--events`, each exit also ends the Event stream with `session.finished` carrying the same code (see "Session Events").
+With `--events`, each exit also ends the Event stream with `session.finished` carrying the same code (see "Session Events"); the Session file ends the same way (see "Session file format 2").
 
 stdout carries only the response: the JSON object with `--json`, the markdown otherwise. Logs (`RUST_LOG`) go to stderr, with ANSI colour only when stderr is a terminal. Errors are printed to stderr as `error: <message>`; stdout stays empty.
 

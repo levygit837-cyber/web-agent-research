@@ -8,12 +8,19 @@
 //! the envelope (`v`, `seq`, `ts`, `elapsed_ms`, `session_id`, `turn`,
 //! `type`) and writes every enabled output before returning. Outputs are
 //! concrete fields of the state, not implementations of a shared interface:
-//! today the NDJSON writer (`--events`), with the Progress renderer and the
-//! Session log joining as more fields.
+//! the NDJSON writer (`--events`) and the Session log (#150), with the
+//! Progress renderer joining as one more field.
 //!
 //! The handle is shared by `&` across the loop; the mutable state sits behind
 //! a `Mutex` held only for one stamp-and-write. [`Events::disabled`] has no
 //! state at all, so every method returns on its first line.
+//!
+//! The Session log is the Session file in format 2: `emit` appends every
+//! Event (except `model.delta`) as an `event` row in the same call that
+//! writes the NDJSON line, and [`Events::turn_ended`] appends the `turn` rows,
+//! which are not Events. A write failure never reaches the loop: the
+//! [`SessionSink`] warns (defaulted path) or records the failure (explicit
+//! path) and the Session turns it into exit 6 when it ends.
 //!
 //! The emitter also keeps the running totals `session.finished` needs
 //! (`turns_used`, `turn_budget`, `usage`), so a Session that fails after
@@ -29,8 +36,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::llm::{ApiFormat, GatewayConfig, LlmReply, TokenUsage};
+use crate::research::agent_loop::ToolEvidence;
 use crate::research::dto::{ResearchRequest, ResearchResponse, UsageDTO};
 use crate::research::run::ResearchError;
+use crate::research::session::{EventLine, SessionHeader, SessionSink, SessionUsage, TurnRow};
 use crate::web::fetch::evidence::format_timestamp;
 
 /// Envelope version, independent of `SESSION_FORMAT_VERSION`: adding a field
@@ -63,6 +72,8 @@ struct State {
     /// `None` once a write failed: the output is disabled for the rest of
     /// the Session, `seq` keeps counting.
     ndjson: Option<Box<dyn Write + Send>>,
+    /// The Session file (format 2), attached once the Session starts.
+    session: Option<SessionSink>,
 }
 
 #[derive(Serialize)]
@@ -80,20 +91,21 @@ struct Envelope<'a> {
 }
 
 impl Events {
-    /// An emitter with no output: every method is a no-op. Used when the
-    /// caller asked for no Events, and by tests of the loop.
+    /// An emitter with no output at all, not even a Session log: every
+    /// method is a no-op. Used by `run_loop` and the tests of the loop.
     pub fn disabled() -> Self {
         Self { state: None }
     }
 
-    /// Open the requested output for `session_id`. `None` is
-    /// [`Events::disabled`]. The `Err` carries the reason an output could
-    /// not be opened; the caller maps it to `NotConfigured` before any
-    /// gateway call.
+    /// Open the emitter of `session_id` with the requested `--events`
+    /// output; `None` leaves only the Session log (attached later), which
+    /// every Session has. The `Err` carries the reason an output could not
+    /// be opened; the caller maps it to `NotConfigured` before any gateway
+    /// call.
     pub fn open(session_id: &str, sink: Option<&EventsSink>) -> Result<Self, String> {
-        let writer: Box<dyn Write + Send> = match sink {
-            None => return Ok(Self::disabled()),
-            Some(EventsSink::Stderr) => Box::new(std::io::stderr()),
+        let writer: Option<Box<dyn Write + Send>> = match sink {
+            None => None,
+            Some(EventsSink::Stderr) => Some(Box::new(std::io::stderr())),
             Some(EventsSink::File(path)) => {
                 let mut options = OpenOptions::new();
                 options.append(true).create(true);
@@ -106,13 +118,18 @@ impl Events {
                 let file = options.open(path).map_err(|err| {
                     format!("cannot open the events file {}: {err}", path.display())
                 })?;
-                Box::new(file)
+                Some(Box::new(file))
             }
         };
-        Ok(Self::with_writer(session_id, writer))
+        Ok(Self::new(session_id, writer))
     }
 
+    #[cfg(test)]
     pub(crate) fn with_writer(session_id: &str, writer: Box<dyn Write + Send>) -> Self {
+        Self::new(session_id, Some(writer))
+    }
+
+    fn new(session_id: &str, ndjson: Option<Box<dyn Write + Send>>) -> Self {
         Self {
             state: Some(Mutex::new(State {
                 session_id: session_id.to_owned(),
@@ -121,7 +138,8 @@ impl Events {
                 turns_used: 0,
                 turn_budget: 0,
                 usage: TokenUsage::default(),
-                ndjson: Some(writer),
+                ndjson,
+                session: None,
             })),
         }
     }
@@ -137,7 +155,8 @@ impl Events {
         let Some(state) = &self.state else {
             return;
         };
-        let mut state = Self::lock(state);
+        let mut guard = Self::lock(state);
+        let state = &mut *guard;
         state.seq += 1;
         let envelope = Envelope {
             v: ENVELOPE_VERSION,
@@ -162,6 +181,78 @@ impl Events {
                 state.ndjson = None;
             }
         }
+        // Deltas are fragments of a reply the `turn`/`trace` rows keep whole.
+        if kind != "model.delta" {
+            if let Some(sink) = state.session.as_mut() {
+                // A failure is kept by the sink; the loop never sees it.
+                let _ = sink.append(&EventLine::new(&envelope));
+            }
+        }
+    }
+
+    /// Start the Session file with its `header` row (line 0). `Err` is an
+    /// explicit `--session-out` that cannot be written: the caller ends the
+    /// Session as `Io` before any gateway call. A defaulted path never
+    /// fails: the sink warns once and stays disabled.
+    pub(crate) fn attach_session_log(
+        &self,
+        sink: SessionSink,
+        header: &SessionHeader,
+    ) -> Result<(), String> {
+        let Some(state) = &self.state else {
+            return Ok(());
+        };
+        let mut state = Self::lock(state);
+        let sink = state.session.insert(sink);
+        sink.append(header).map_err(|err| err.to_string())
+    }
+
+    /// The first write failure of an explicit Session path, if any. A
+    /// Session that otherwise succeeded ends with it as exit 6.
+    pub(crate) fn session_log_failure(&self) -> Option<String> {
+        let state = Self::lock(self.state.as_ref()?);
+        state.session.as_ref()?.failure().map(str::to_owned)
+    }
+
+    /// After the Session: enforce the retention cap on a defaulted path.
+    pub(crate) fn finish_session_log(&self) {
+        let Some(state) = &self.state else {
+            return;
+        };
+        if let Some(sink) = Self::lock(state).session.as_ref() {
+            sink.finish();
+        }
+    }
+
+    /// Append the `turn` row of `turn`, which just ended. It goes to the
+    /// Session log only: a `turn` row is a record of Evidence, not an Event.
+    /// The Evidence is the whole pages `turn` fetched (#80). `finish` is the
+    /// final Turn's Synthesis and run usage.
+    pub(crate) fn turn_ended(
+        &self,
+        turn: u32,
+        evidence: &[ToolEvidence],
+        finish: Option<(&Value, SessionUsage)>,
+    ) {
+        let Some(state) = &self.state else {
+            return;
+        };
+        let mut state = Self::lock(state);
+        let state = &mut *state;
+        let Some(sink) = state.session.as_mut() else {
+            return;
+        };
+        let pages = evidence
+            .iter()
+            .filter(|item| item.turn == turn)
+            .filter_map(|item| item.page.as_deref().cloned())
+            .collect();
+        let (synthesis, usage) = match finish {
+            Some((synthesis, usage)) => (Some(synthesis.clone()), usage),
+            None => (None, SessionUsage::default()),
+        };
+        let row = TurnRow::new(state.session_id.clone(), turn, pages, synthesis, usage);
+        let _ = sink.append(&row);
     }
 
     /// `session.started`: configuration is valid, the first Turn is next.

@@ -315,15 +315,17 @@ async fn a_search_blocked_session_ends_with_exit_7_after_the_loop() {
     cleanup(&[&events_path, &session_out]);
 }
 
-/// An explicit `--session-out` that cannot be written fails after the answer
-/// (exit 6); the Session still closes with `session.finished`.
+/// An explicit `--session-out` that cannot be opened fails the Session before
+/// any gateway call (exit 6), and the Session still closes with
+/// `session.finished`.
 #[tokio::test]
-async fn an_explicit_session_out_failure_ends_with_exit_6() {
+async fn an_explicit_session_out_failure_ends_with_exit_6_before_any_gateway_call() {
     let _guard = EnvGuard::lock(ENV.to_vec());
     let (tools, _) = local_web().await;
-    point_env_at(&spawn_server(vec![text_body(
+    let (base, server) = spawn_capturing_server(vec![text_body(
         "Obscura is a Rust headless browser.\n\n## Findings\n\n- Written in Rust.\n",
-    )]));
+    )]);
+    point_env_at(&base);
     let (mut req, events_path, session_out) = request_with_events("events-io");
     let blocker = temp_session_out("events-io-blocker");
     std::fs::write(&blocker, b"not a directory").expect("blocker writes");
@@ -338,7 +340,9 @@ async fn an_explicit_session_out_failure_ends_with_exit_6() {
         (end["outcome"].as_str(), end["exit_code"].as_u64()),
         (Some("session_io"), Some(6))
     );
-    assert_eq!(end["turns_used"], 1);
+    assert_eq!(end["turns_used"], 0);
+    assert!(server.requests().is_empty(), "no gateway call was made");
+    assert_eq!(types(&events), ["session.finished"]);
     cleanup(&[&events_path, &session_out, &blocker]);
 }
 
