@@ -5,7 +5,7 @@ A Harness calls Web Search as one shell command and reads one JSON object from s
 ## Command
 
 ```sh
-web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N]
+web-agent-research research "<goal>" --json [--size small|medium|large] [--max-turns N] [--max-turns-cap N] [--deadline-secs N] [--events <path|->]
 ```
 
 - `--size` (default `medium`): answer length.
@@ -15,6 +15,7 @@ web-agent-research research "<goal>" --json [--size small|medium|large] [--max-t
 - `--deadline-secs` (default `300`): wall-clock bound on the whole run (#100); `0` exits `2`. See "Run deadline and timeouts".
 - `--session-id`: optional, default `<unix-secs>-<pid>`. It becomes the file name and the `prompt_cache_key`, so it MUST match `[A-Za-z0-9._-]{1,64}` with no leading dot; anything else exits `2` before any LLM call.
 - `--session-out`: optional. By default the Session is written to `<data_root>/sessions/<session-id>.jsonl` (see "Data root and Sessions"), never into the current directory. An explicit path is your contract: if it cannot be written the run exits `6`.
+- `--events <path|->` (#147): write the Session's lifecycle Events as NDJSON. See "Session Events".
 
 ## Environment
 
@@ -324,6 +325,62 @@ Citations are checked against the pages, without a model. The agent ends each bu
 
 `exact` means the quoted words and the checked tokens are on the cited page; it does not prove the bullet's reading of them is right. `none` usually means a paraphrased or invented quote, or a claim the page does not make: check those claims before relying on them.
 
+## Session Events (`--events`, #147)
+
+A Session is opaque until it ends unless you ask for Events. `--events <path|->` writes one JSON envelope per line as the Session works, each line flushed before the next step starts, so a reader sees a Turn begin before its gateway call returns. `-` writes to stderr; any other value is a file, created with mode `0600` and appended to. Without `--events`, stdout and stderr are unchanged. With `--json`, stdout is still exactly one JSON object.
+
+Design: `docs/adr/0010-session-events-and-token-streaming.md`.
+
+### Envelope
+
+```json
+{"v":1,"seq":2,"ts":"2026-10-14T19:40:02.118Z","elapsed_ms":112,"session_id":"1790000000-4242","turn":1,"type":"turn.started","data":{"turn_budget":10,"turns_left":9,"final_turn":false,"final_reason":null}}
+```
+
+- `v`: envelope version (`1`). Adding a field or a type keeps it; renaming or removing one bumps it. Ignore fields and types you do not know.
+- `seq`: starts at `1`, strictly increasing per Session.
+- `ts`: UTC RFC 3339 with milliseconds. `elapsed_ms`: since the Session id was resolved (the emitter was created).
+- `session_id`: the Session the Event belongs to.
+- `turn`: the Turn number; absent on Session-level Events.
+- `type`, `data`: the lifecycle types below.
+
+### Lifecycle types
+
+| `type` | When | `data` |
+|---|---|---|
+| `session.started` | once, configuration valid, before the first Turn | `goal`, `size`, `max_turns`, `max_turns_cap`, `deadline_secs`, `model`, `api_format`, `stream` |
+| `turn.started` | before each gateway call | `turn_budget`, `turns_left` (Turns after this one; `0` on the final Turn), `final_turn`, `final_reason` (`budget`, `deadline` or `null`) |
+| `model.replied` | after each gateway call returns | `finish_reason`, `tool_calls` (`[{id, name}]`), `output_chars`, `thinking_chars`, `usage` |
+| `session.finished` | last Event of every Session that has an id | `outcome`, `exit_code`, `turns_used`, `turn_budget`, `usage`, `evidence_urls`, `error` |
+
+`usage` has the same fields as the `--json` `usage`. A Turn whose gateway call failed has a `turn.started` and no `model.replied`.
+
+### `session.finished`
+
+It is the last line on success and on every error exit `2` to `9`, including exit `7` (decided after the loop) and exit `6` (an explicit `--session-out` that could not be written). `outcome` and `exit_code` match the "Exit codes" table:
+
+| `outcome` | `exit_code` |
+|---|---|
+| `ok` | 0 |
+| `not_configured` | 2 |
+| `gateway_exhausted` | 3 |
+| `tool_failure` | 4 |
+| `budget_exhausted` | 5 |
+| `session_io` | 6 |
+| `search_blocked` | 7 |
+| `gateway_rejected` | 8 |
+| `deadline_exceeded` | 9 |
+
+On failure `turns_used`, `turn_budget` and `usage` are what the Session had consumed when it stopped, `evidence_urls` is `[]` and `error` is the message printed after `error:` on stderr. On success `error` is `null`.
+
+An invalid `--session-id` exits `2` with no Events: there is no Session to name. Any later failure, a missing key included, still ends with `session.finished`.
+
+### When the output fails
+
+- An `--events` path that cannot be opened exits `2` before any gateway call.
+- A write that fails mid-Session never fails the Session: one `warning: events not written: <reason>` goes to stderr and the output stops. A reader sees a stream without `session.finished`.
+- With `--events -`, stderr also carries `error: ...`, `warning: ...` and `RUST_LOG` lines. Skip lines that do not start with `{`.
+
 ## Exit codes
 
 | Code | Meaning | Harness action |
@@ -337,6 +394,8 @@ Citations are checked against the pages, without a model. The agent ends each bu
 | 7 | Search blocked: the run finalized with no fetched Evidence, no `search` call ever returned a Hit, and every leg of at least one `search` call was either a bot-detection Challenge (DuckDuckGo anomaly page, Startpage Anubis proof-of-work/CAPTCHA, Brave or Bing HTTP `429`, Bing `challenge/verify` gate, Yahoo consent redirect) or a skip of an engine already suspended *from* such a Challenge (#62). A `search` call narrowed by `recency` never counts, since the same search without `recency` could still reach the skipped engines (#81) — the search engines are walled from this network, not that nothing exists | retry later or from a different network/IP; do not treat as "no results" |
 | 8 | Gateway rejected the request: `401` (`bad API key`), `403` (`refused access (HTTP 403): <upstream message>`, the model/tier is gated upstream), other `4xx`, an error object in a `2xx` body, an unparsable `2xx` body, empty choices, a refusal | fix key/model/env; do not retry |
 | 9 | Run deadline exceeded with no usable answer | raise `--deadline-secs` or narrow the goal |
+
+With `--events`, each exit also ends the Event stream with `session.finished` carrying the same code (see "Session Events").
 
 stdout carries only the response: the JSON object with `--json`, the markdown otherwise. Logs (`RUST_LOG`) go to stderr, with ANSI colour only when stderr is a terminal. Errors are printed to stderr as `error: <message>`; stdout stays empty.
 

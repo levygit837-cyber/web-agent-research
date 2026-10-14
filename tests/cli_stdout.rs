@@ -164,3 +164,75 @@ fn a_hanging_gateway_ends_by_the_deadline_with_exit_9() {
     assert!(elapsed < Duration::from_secs(8), "{elapsed:?}");
     assert!(output.stdout.is_empty(), "{output:?}");
 }
+
+/// Event lines on stderr: the ones that start with `{`, the rest being
+/// `error:`/`warning:`/log lines a reader of `--events -` skips.
+fn event_lines(stderr: &str) -> Vec<serde_json::Value> {
+    stderr
+        .lines()
+        .filter(|line| line.starts_with('{'))
+        .map(|line| serde_json::from_str(line).expect("event line is one JSON envelope"))
+        .collect()
+}
+
+/// `--events -` puts the lifecycle on stderr while `--json` keeps stdout to
+/// one object, and the stream closes with `session.finished` `ok`/0 (#147).
+#[test]
+fn events_to_stderr_leave_stdout_one_json_object() {
+    let base = canned_gateway(vec![(200, text_body(ANSWER))]);
+    let output = run(&base, "events-ok", &["--json", "--events", "-"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{output:?}");
+    let value: serde_json::Value =
+        serde_json::from_str(stdout.trim_end()).expect("stdout is exactly one JSON object");
+    assert!(value.is_object(), "{stdout}");
+
+    let events = event_lines(&stderr);
+    let types: Vec<&str> = events.iter().map(|e| e["type"].as_str().unwrap()).collect();
+    assert_eq!(
+        types,
+        [
+            "session.started",
+            "turn.started",
+            "model.replied",
+            "session.finished"
+        ]
+    );
+    let end = &events[3]["data"];
+    assert_eq!(
+        (end["outcome"].as_str(), end["exit_code"].as_u64()),
+        (Some("ok"), Some(0))
+    );
+    assert!(events
+        .iter()
+        .all(|e| e["session_id"] == value["session_id"]));
+}
+
+/// A failing Session exits with the code `session.finished` carries.
+#[test]
+fn a_rejected_request_ends_the_event_stream_with_its_exit_code() {
+    let base = canned_gateway(vec![(
+        400,
+        r#"{"error":{"message":"unknown model m"}}"#.to_owned(),
+    )]);
+    let output = run(&base, "events-rejected", &["--json", "--events", "-"]);
+    assert_eq!(output.status.code(), Some(8), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let events = event_lines(&stderr);
+    let end = &events.last().expect("events")["data"];
+    assert_eq!(
+        (end["outcome"].as_str(), end["exit_code"].as_u64()),
+        (Some("gateway_rejected"), Some(8))
+    );
+    assert!(stderr.contains("error: gateway rejected"), "{stderr}");
+}
+
+/// Without `--events` nothing resembling an Event reaches stderr.
+#[test]
+fn without_events_stderr_carries_no_envelopes() {
+    let base = canned_gateway(vec![(200, text_body(ANSWER))]);
+    let output = run(&base, "no-events", &["--json"]);
+    assert!(output.status.success(), "{output:?}");
+    assert!(event_lines(&String::from_utf8_lossy(&output.stderr)).is_empty());
+}

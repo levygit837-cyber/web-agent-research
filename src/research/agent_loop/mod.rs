@@ -19,5 +19,5 @@ mod verify;
 
 pub use registry::ToolRegistry;
 pub use result::ToolResult;
-pub use runner::run_loop;
+pub use runner::{run_loop, run_loop_with_events};
 pub use types::{LoopBudget, LoopError, LoopInput, RunReport, ToolEvidence};

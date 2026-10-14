@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing_subscriber::EnvFilter;
-use web_agent_research::{render, run_research, ResearchError, ResearchRequest};
+use web_agent_research::{render, run_research, EventsSink, ResearchRequest};
 #[derive(Debug, Parser)]
 #[command(name = "web-agent-research", version, arg_required_else_help = true)]
 struct Cli {
@@ -36,6 +36,9 @@ enum Command {
         /// Session file; defaults to `<data root>/sessions/<id>.jsonl` (best-effort). An explicit path must be writable.
         #[arg(long)]
         session_out: Option<PathBuf>,
+        /// Write the Session's lifecycle Events as NDJSON, one per line, to a file (created 0600) or `-` for stderr.
+        #[arg(long, value_name = "PATH|-")]
+        events: Option<PathBuf>,
         /// Print the `ResearchResponse` verbatim as JSON.
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -60,17 +63,15 @@ impl SizeArg {
     }
 }
 
-fn exit_for(err: &ResearchError) -> i32 {
-    match err {
-        ResearchError::NotConfigured(_) => 2,
-        ResearchError::GatewayExhausted(_) => 3,
-        ResearchError::ToolFailure(_) => 4,
-        ResearchError::BudgetExhausted { .. } => 5,
-        ResearchError::Io(_) => 6,
-        ResearchError::SearchBlocked(_) => 7,
-        ResearchError::GatewayRejected(_) => 8,
-        ResearchError::DeadlineExceeded { .. } => 9,
-    }
+/// `--events -` is stderr; any other value is a file path.
+fn events_sink(arg: Option<PathBuf>) -> Option<EventsSink> {
+    arg.map(|path| {
+        if path.as_os_str() == "-" {
+            EventsSink::Stderr
+        } else {
+            EventsSink::File(path)
+        }
+    })
 }
 
 #[tokio::main]
@@ -92,6 +93,7 @@ async fn main() -> Result<()> {
         deadline_secs,
         session_id,
         session_out,
+        events,
         json,
     } = cli.command;
     let req = ResearchRequest {
@@ -102,6 +104,7 @@ async fn main() -> Result<()> {
         deadline_secs,
         session_id,
         session_out,
+        events: events_sink(events),
     };
     match run_research(req).await {
         Ok(response) => {
@@ -117,7 +120,7 @@ async fn main() -> Result<()> {
         }
         Err(err) => {
             eprintln!("error: {err}");
-            std::process::exit(exit_for(&err));
+            std::process::exit(err.exit_code());
         }
     }
 }
@@ -231,18 +234,20 @@ mod tests {
     }
 
     #[test]
-    fn error_mapping_covers_every_variant() {
-        assert_eq!(exit_for(&ResearchError::NotConfigured("x".to_owned())), 2);
+    fn events_flag_maps_dash_to_stderr_and_anything_else_to_a_file() {
+        let events = |args: &[&str]| {
+            let Command::Research { events, .. } = parse(args).command;
+            events_sink(events)
+        };
+        assert_eq!(events(&["war", "research", "g"]), None);
         assert_eq!(
-            exit_for(&ResearchError::GatewayExhausted("x".to_owned())),
-            3
+            events(&["war", "research", "g", "--events", "-"]),
+            Some(EventsSink::Stderr)
         );
-        assert_eq!(exit_for(&ResearchError::ToolFailure("x".to_owned())), 4);
-        assert_eq!(exit_for(&ResearchError::BudgetExhausted { turns: 8 }), 5);
-        assert_eq!(exit_for(&ResearchError::Io("x".to_owned())), 6);
-        assert_eq!(exit_for(&ResearchError::SearchBlocked("x".to_owned())), 7);
-        assert_eq!(exit_for(&ResearchError::GatewayRejected("x".to_owned())), 8);
-        assert_eq!(exit_for(&ResearchError::DeadlineExceeded { turns: 2 }), 9);
+        assert_eq!(
+            events(&["war", "research", "g", "--events", "out.ndjson"]),
+            Some(EventsSink::File(PathBuf::from("out.ndjson")))
+        );
     }
 
     #[test]
