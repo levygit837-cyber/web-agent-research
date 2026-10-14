@@ -32,6 +32,14 @@ _Avoid_: step, iteration, cycle
 Web-extracted content with source URL and collection time, used in synthesis.
 _Avoid_: source, document, snippet, chunk
 
+**Event**:
+One observable step of a Session (Turn started, tool call finished, Session finished), one JSON envelope per step. Feeds the NDJSON stream, Progress and the Session log (ADR-0010).
+_Avoid_: log line, message, notification
+
+**Progress**:
+The human view of a Session's Events, rendered live on stderr.
+_Avoid_: status bar, spinner, log
+
 **Mode**:
 Execution shape of a Research. Only `search` exists (agent loop over search → fetch → synthesize); `deep` (page interaction, re-planning) is not built.
 _Avoid_: workflow, strategy
