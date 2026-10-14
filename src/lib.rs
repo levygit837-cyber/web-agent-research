@@ -14,7 +14,7 @@ pub(crate) mod test_support;
 pub mod web;
 
 pub use research::{
-    render, run_research, CitationDTO, EventsSink, ResearchError, ResearchRequest,
-    ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO,
+    render, run_research, CitationDTO, EventsSink, ProgressMode, ResearchError, ResearchRequest,
+    ResearchResponse, SynthesisDTO, ThemeDTO, UsageDTO, VerificationDTO, CLEAR_LINE,
     CONTENT_TRUST_UNTRUSTED_WEB,
 };

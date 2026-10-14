@@ -8,12 +8,17 @@
 //! the envelope (`v`, `seq`, `ts`, `elapsed_ms`, `session_id`, `turn`,
 //! `type`) and writes every enabled output before returning. Outputs are
 //! concrete fields of the state, not implementations of a shared interface:
-//! the NDJSON writer (`--events`) and the Session log (#150), with the
-//! Progress renderer joining as one more field.
+//! the NDJSON writer (`--events`), the Session log (#150) and the Progress
+//! renderer (#149).
 //!
 //! The handle is shared by `&` across the loop; the mutable state sits behind
 //! a `Mutex` held only for one stamp-and-write. [`Events::disabled`] has no
 //! state at all, so every method returns on its first line.
+//!
+//! Progress (#149), the human view on stderr, is the third output: `emit`
+//! hands it the same envelope fields, so it renders from the documented Event
+//! `data` and has no instrumentation of its own. It clears its transient line
+//! before any other output writes to stderr and renders last.
 //!
 //! The Session log is the Session file in format 2: `emit` appends every
 //! Event (except `model.delta`) as an `event` row in the same call that
@@ -50,7 +55,11 @@ use crate::research::session::{EventLine, SessionHeader, SessionSink, SessionUsa
 use crate::research::trace::{self, TraceState};
 use crate::web::fetch::evidence::format_timestamp;
 
+mod progress;
 mod tools;
+use progress::Progress;
+pub use progress::ProgressMode;
+pub use progress::CLEAR_LINE;
 pub(crate) use tools::ToolFailure;
 
 /// Envelope version, independent of `SESSION_FORMAT_VERSION`: adding a field
@@ -85,6 +94,8 @@ struct State {
     ndjson: Option<Box<dyn Write + Send>>,
     /// The Session file (format 2), attached once the Session starts.
     session: Option<SessionSink>,
+    /// The human view on stderr (`--progress`, #149); `None` when off.
+    progress: Option<Progress>,
     /// `Some` when `--trace` is on (#151).
     trace: Option<TraceState>,
 }
@@ -112,10 +123,15 @@ impl Events {
 
     /// Open the emitter of `session_id` with the requested `--events`
     /// output; `None` leaves only the Session log (attached later), which
-    /// every Session has. The `Err` carries the reason an output could not
+    /// every Session has. `progress` is `--progress`: stderr is shared, so
+    /// `--events -` turns it off. The `Err` carries the reason an output could not
     /// be opened; the caller maps it to `NotConfigured` before any gateway
     /// call.
-    pub fn open(session_id: &str, sink: Option<&EventsSink>) -> Result<Self, String> {
+    pub fn open(
+        session_id: &str,
+        sink: Option<&EventsSink>,
+        progress: ProgressMode,
+    ) -> Result<Self, String> {
         let writer: Option<Box<dyn Write + Send>> = match sink {
             None => None,
             Some(EventsSink::Stderr) => Some(Box::new(std::io::stderr())),
@@ -134,12 +150,30 @@ impl Events {
                 Some(Box::new(file))
             }
         };
-        Ok(Self::new(session_id, writer))
+        let mut events = Self::new(session_id, writer);
+        if let Some(state) = events.state.as_mut() {
+            state.get_mut().unwrap_or_else(|p| p.into_inner()).progress =
+                Progress::for_stderr(progress, sink);
+        }
+        Ok(events)
     }
 
     #[cfg(test)]
     pub(crate) fn with_writer(session_id: &str, writer: Box<dyn Write + Send>) -> Self {
         Self::new(session_id, Some(writer))
+    }
+
+    /// An emitter whose only output is a Progress renderer over `out`.
+    #[cfg(test)]
+    pub(crate) fn with_progress(
+        session_id: &str,
+        style: progress::Style,
+        out: Box<dyn Write + Send>,
+    ) -> Self {
+        let events = Self::new(session_id, None);
+        Self::lock(events.state.as_ref().expect("enabled")).progress =
+            Some(Progress::new(style, out));
+        events
     }
 
     fn new(session_id: &str, ndjson: Option<Box<dyn Write + Send>>) -> Self {
@@ -153,6 +187,7 @@ impl Events {
                 usage: TokenUsage::default(),
                 ndjson,
                 session: None,
+                progress: None,
                 trace: None,
             })),
         }
@@ -182,6 +217,10 @@ impl Events {
             kind,
             data,
         };
+        // The other outputs may warn on stderr: erase the transient line first.
+        if let Some(progress) = state.progress.as_mut() {
+            progress.clear();
+        }
         let mut line = serde_json::to_string(&envelope).expect("an envelope serializes");
         line.push('\n');
         if let Some(writer) = state.ndjson.as_mut() {
@@ -201,6 +240,9 @@ impl Events {
                 // A failure is kept by the sink; the loop never sees it.
                 let _ = sink.append(&EventLine::new(&envelope));
             }
+        }
+        if let Some(progress) = state.progress.as_mut() {
+            progress.render(envelope.turn, kind, envelope.elapsed_ms, &envelope.data);
         }
     }
 
@@ -253,6 +295,9 @@ impl Events {
         };
         let mut state = Self::lock(state);
         let state = &mut *state;
+        if let Some(progress) = state.progress.as_mut() {
+            progress.clear();
+        }
         let Some(sink) = state.session.as_mut() else {
             return;
         };

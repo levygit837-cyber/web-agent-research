@@ -15,12 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--progress auto|plain|off` prints one human line per Session step on stderr (search with per-engine hits and suspensions, fetch, tool failures, model replies, verification) and a final line with outcome, Turns, tokens and the error reason; `auto` renders on a TTY only, `--events -` turns it off, `NO_COLOR` is honoured (#149).
 - `--trace` records every model exchange in the Session file as `trace` rows (messages sent, reply with thinking and raw tool arguments, tool results as the model received them), enough to rebuild the transcript from the file; off by default, never writes the API key (#151).
 - `--events <path|->` streams Session Events as NDJSON: the lifecycle (`session.started`, `turn.started`, `model.replied`, `session.finished`, which ends every exit `0` to `9`) and, per tool call, `search.started`/`search.finished` (hits, per-engine status, cache, suspensions), `fetch.started`/`fetch.finished` (final URL, fetch path, part, chars, `served_from`, failure reason), `tool.failed` (repair counter), `context.truncated` and `answer.verified` (#147, #148).
 - `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats (OpenAI Chat Completions, Anthropic Messages) and are assembled into the same reply, Anthropic `thinking` signatures and cache counts included; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152, #153).
 
 ### Changed
 
+- The `agent loop history truncated` `tracing` info line is gone: `context.truncated` carries it, and Progress prints it (#149).
+- `search.finished` now carries `queries` and `fetch.finished` carries `url`, as sent, so one Event is readable alone (#149).
 - Requests now send `stream: true` by default in both formats; `GATEWAY_STREAM=off` restores the single JSON body (#152, #153).
 
 ## [0.4.0] - 2026-10-14
