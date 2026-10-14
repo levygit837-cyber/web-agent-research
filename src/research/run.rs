@@ -401,6 +401,7 @@ mod tests {
     mod helpers;
     mod session_log;
     mod session_path;
+    mod tool_events;
     mod trace;
     mod validation;
 }

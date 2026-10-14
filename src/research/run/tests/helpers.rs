@@ -81,6 +81,14 @@ pub(super) fn point_env_at(base_url: &str) {
 
 /// Local web: a page server plus a search stub whose Hits point at it.
 pub(super) async fn local_web() -> (ToolRegistry, String) {
+    local_web_governed(None).await
+}
+
+/// [`local_web`] whose search runs under `governor` (a test-built one with
+/// a suspended engine, say) instead of the hermetic default.
+pub(super) async fn local_web_governed(
+    governor: Option<crate::web::search::governor::Governor>,
+) -> (ToolRegistry, String) {
     use crate::web::search::test_support::{
         ddg_rows, sp_home_form, sp_rows, FanoutStub, StubReply, StubServer,
     };
@@ -111,6 +119,10 @@ pub(super) async fn local_web() -> (ToolRegistry, String) {
         &format!("{search_base}/search"),
         &format!("{search_base}/search"),
     );
+    let searcher = match governor {
+        Some(governor) => searcher.with_governor(governor),
+        None => searcher,
+    };
     let fetcher = Fetcher::with_policy(
         crate::web::fetch::Obscura::new(
             "/nonexistent/obscura".into(),
@@ -215,4 +227,21 @@ pub(super) fn turn_rows(content: &str) -> Vec<serde_json::Value> {
         .into_iter()
         .filter(|row| row["kind"] == "turn")
         .collect()
+}
+
+/// A registry whose fetcher keeps the production egress policy
+/// (`PublicOnly`), so any local page URL is refused before a request is
+/// made. Search is unreachable: the model is scripted to fetch directly.
+pub(super) fn refusing_web() -> ToolRegistry {
+    let dead = "http://127.0.0.1:9/";
+    ToolRegistry::new(
+        Searcher::with_bases(dead, dead, dead, dead, dead, dead, dead),
+        Fetcher::with_policy(
+            crate::web::fetch::Obscura::new(
+                "/nonexistent/obscura".into(),
+                std::time::Duration::from_secs(1),
+            ),
+            crate::web::fetch::EgressPolicy::PublicOnly,
+        ),
+    )
 }

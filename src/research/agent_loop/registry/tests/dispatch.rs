@@ -22,6 +22,7 @@ async fn stub_pops_in_order_then_exhausts() {
     let registry = ToolRegistry::stub(VecDeque::from([ToolResult::Search {
         hits: vec![],
         engine_status: vec![],
+        engines: vec![],
     }]));
     assert!(matches!(
         registry

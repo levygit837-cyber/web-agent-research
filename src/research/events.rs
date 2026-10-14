@@ -50,6 +50,9 @@ use crate::research::session::{EventLine, SessionHeader, SessionSink, SessionUsa
 use crate::research::trace::{self, TraceState};
 use crate::web::fetch::evidence::format_timestamp;
 
+mod tools;
+pub(crate) use tools::ToolFailure;
+
 /// Envelope version, independent of `SESSION_FORMAT_VERSION`: adding a field
 /// or a type keeps it, renaming or removing one bumps it (ADR-0010 §2).
 pub const ENVELOPE_VERSION: u32 = 1;

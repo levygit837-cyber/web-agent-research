@@ -58,7 +58,7 @@ async fn context_grows_across_turns() {
     let mut history: Vec<crate::research::agent_loop::context::HistoryEntry> = Vec::new();
     let mut lengths = Vec::new();
     for _ in 1..=3 {
-        let messages = crate::research::agent_loop::context::assemble(
+        let (messages, _) = crate::research::agent_loop::context::assemble(
             &system_prompt,
             &input,
             &history,

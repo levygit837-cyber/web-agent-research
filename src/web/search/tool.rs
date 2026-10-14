@@ -194,6 +194,14 @@ impl Searcher {
         }
     }
 
+    /// Test seam: swap the hermetic `Governor` for one the test pre-loaded
+    /// (e.g. with a suspended engine, #148).
+    #[cfg(test)]
+    pub(crate) fn with_governor(mut self, governor: super::governor::Governor) -> Self {
+        self.governor = governor;
+        self
+    }
+
     /// Parallel multi-query fan-out; see `fanout::search_multi_with_bases`.
     pub async fn search(&self, input: SearchInput) -> Result<SearchOutput, SearchProviderError> {
         super::fanout::search_multi_with_bases(

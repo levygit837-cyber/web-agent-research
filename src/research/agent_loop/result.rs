@@ -16,7 +16,28 @@ use std::sync::Arc;
 
 use crate::web::fetch::tool::FETCH_TOOL_NAME;
 use crate::web::fetch::{Evidence, FetchPath};
-use crate::web::search::types::MergedResult;
+use crate::web::search::types::{EngineReport, MergedResult};
+
+/// Where a `fetch` result's page came from (#148): the network (this call
+/// fetched it), memory (an earlier call of this run did, #80), or an eval
+/// fixture (#107).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Served {
+    Network,
+    Memory,
+    Tape,
+}
+
+impl Served {
+    /// The `served_from` value of a `fetch.finished` Event.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Network => "network",
+            Self::Memory => "memory",
+            Self::Tape => "tape",
+        }
+    }
+}
 
 /// Whether a [`ToolResult::Failed`] came from validating the call itself
 /// (bad name/JSON/args, never reaching the executor) or from the executor
@@ -29,6 +50,16 @@ pub enum FailureKind {
     Execution,
 }
 
+impl FailureKind {
+    /// The `kind` of a `tool.failed` Event.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Dispatch => "dispatch",
+            Self::Execution => "execution",
+        }
+    }
+}
+
 /// One executed tool call, rendered into the tool-role transcript.
 #[derive(Debug, Clone)]
 pub enum ToolResult {
@@ -37,9 +68,12 @@ pub enum ToolResult {
     /// when `hits` is empty so the model can tell "nothing exists" from
     /// "the engines were walled or unreadable". Empty when unknown (a
     /// replayed recording that predates it).
+    /// `engines` is the structured twin of `engine_status` (#148), read by
+    /// the `search.finished` Event; empty when unknown.
     Search {
         hits: Vec<MergedResult>,
         engine_status: Vec<String>,
+        engines: Vec<EngineReport>,
     },
     /// The `search` call ran no leg on purpose (#81: `recency` set, no
     /// enabled engine applies it). Success, not Hits and not a failure:
@@ -48,13 +82,15 @@ pub enum ToolResult {
     /// One part of a fetched page (#80). `evidence` is the whole stored
     /// page; `span` is the byte range of `evidence.markdown` this result
     /// delivers, `part` of `parts` (1-based). `first_delivery` is true only
-    /// when this call fetched the page over the network.
+    /// when this call fetched the page over the network. `served` says
+    /// where the page came from (#148).
     Fetch {
         evidence: Arc<Evidence>,
         span: Range<usize>,
         part: u32,
         parts: u32,
         first_delivery: bool,
+        served: Served,
     },
     /// A repeat `fetch` of a URL already fetched in this Research (#43)
     /// with no `part`: no network I/O ran. `url` is the requested URL for
@@ -134,6 +170,7 @@ impl ToolResult {
             Self::Search {
                 hits,
                 engine_status,
+                ..
             } => {
                 if hits.is_empty() {
                     let mut text = "No Hits for these queries. Rephrase once with different words; if that still finds nothing, answer from the pages you already fetched and say what is missing.".to_owned();
@@ -260,6 +297,16 @@ impl ToolResult {
         !matches!(self, Self::Failed { .. } | Self::SearchBlocked { .. })
     }
 
+    /// Why the call failed, for the Events: the reason of a `Failed`, the
+    /// engines' failures of a `SearchBlocked`; `None` for a success.
+    pub fn error_text(&self) -> Option<String> {
+        match self {
+            Self::Failed { reason, .. } => Some(reason.clone()),
+            Self::SearchBlocked { detail } => Some(format!("search blocked: {detail}")),
+            _ => None,
+        }
+    }
+
     /// `Some` naming which kind of failure this is; `None` for a success.
     /// `SearchBlocked` executed and failed at the provider, same as any
     /// other search execution error.
@@ -292,6 +339,7 @@ mod tests {
         let search = ToolResult::Search {
             hits: vec![test_hit("T", "https://example.com/t")],
             engine_status: Vec::new(),
+            engines: Vec::new(),
         };
         assert_eq!(search.url(), None);
         let fetch = ToolResult::Fetch {
@@ -303,6 +351,7 @@ mod tests {
             part: 1,
             parts: 1,
             first_delivery: true,
+            served: Served::Network,
         };
         assert_eq!(fetch.url().as_deref(), Some("https://example.com/p"));
     }
@@ -315,6 +364,7 @@ mod tests {
         let rendered = ToolResult::Search {
             hits: vec![test_hit("T", "https://example.com/t")],
             engine_status: vec!["brave: 1 row".to_owned()],
+            engines: Vec::new(),
         }
         .render(NONCE);
         assert!(rendered.contains("https://example.com/t"), "{rendered}");
@@ -334,6 +384,7 @@ mod tests {
                 "duckduckgo: no results".to_owned(),
                 "bing: suspended (challenge), 3412s left".to_owned(),
             ],
+            engines: Vec::new(),
         }
         .render(NONCE);
         assert!(
@@ -364,6 +415,7 @@ mod tests {
                 part,
                 parts: 3,
                 first_delivery: true,
+                served: Served::Network,
             }
             .render(NONCE)
         };
@@ -392,6 +444,7 @@ mod tests {
             part: 1,
             parts: 1,
             first_delivery: true,
+            served: Served::Network,
         }
         .render(NONCE);
         assert!(rendered.starts_with("Source: https://example.com/p\n"));
@@ -419,6 +472,7 @@ mod tests {
             part: 1,
             parts: 1,
             first_delivery: true,
+            served: Served::Network,
         }
         .render(NONCE);
         assert!(
@@ -447,6 +501,7 @@ mod tests {
         let rendered = ToolResult::Search {
             hits: vec![test_hit("T", "https://example.com/t"), hostile],
             engine_status: Vec::new(),
+            engines: Vec::new(),
         }
         .render(NONCE);
         assert!(

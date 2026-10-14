@@ -20,9 +20,9 @@ use crate::web::search::types::{Recency, SearchProvider, SearchProviderError, Se
 /// What one leg settled with.
 pub(super) type LegOutcome = Result<Vec<SearchResult>, SearchProviderError>;
 
-/// A leg's spawn index (its position in the fan-out's slot list) and its
-/// outcome.
-pub(super) type LegReport = (usize, LegOutcome);
+/// A leg's spawn index (its position in the fan-out's slot list), its
+/// outcome, and whether the rows came from the disk cache (#148).
+pub(super) type LegReport = (usize, LegOutcome, bool);
 
 /// Pause before the single retry of a transport failure (#103).
 const TRANSPORT_RETRY_BACKOFF: Duration = Duration::from_millis(500);
@@ -100,7 +100,7 @@ pub(super) async fn run(
         for row in &mut rows {
             row.query = query.clone();
         }
-        return (index, Ok(rows));
+        return (index, Ok(rows), true);
     }
     let outcome = settle(&env, index, ordinal, provider, &query).await;
     // Store only a settled `Ok` leg with rows (#104): an `Err` never
@@ -119,7 +119,7 @@ pub(super) async fn run(
             );
         }
     }
-    (index, outcome)
+    (index, outcome, false)
 }
 
 /// Gate, pace and run one live leg, recording its outcome with the

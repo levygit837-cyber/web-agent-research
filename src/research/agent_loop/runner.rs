@@ -25,7 +25,7 @@ use crate::llm::{Gateway, GatewayError, TokenUsage, ToolChoice};
 use crate::research::agent_loop::answer::{parse_answer, retain_fetched_citations};
 use crate::research::agent_loop::context::{self, HistoryEntry};
 use crate::research::agent_loop::dispatch::{
-    allowed_roster, dispatch_turn, empty_answer_observation, turns_left_note,
+    allowed_roster, dispatch_turn, empty_answer_observation, resolve_call_ids, turns_left_note,
 };
 use crate::research::agent_loop::registry::ToolRegistry;
 use crate::research::agent_loop::result::{new_nonce, FailureKind};
@@ -33,7 +33,7 @@ use crate::research::agent_loop::types::{
     LoopBudget, LoopError, LoopInput, RunReport, ToolEvidence,
 };
 use crate::research::agent_loop::verify::verify_synthesis;
-use crate::research::events::Events;
+use crate::research::events::{Events, ToolFailure};
 use crate::research::prompt::build_system_prompt;
 use crate::web::search::dedup_key;
 
@@ -119,7 +119,10 @@ pub async fn run_loop_with_events(
             None
         };
         events.turn_started(turn, turn_budget, final_turn, final_reason);
-        let messages = context::assemble(&system_prompt, input, &history, budget);
+        let (messages, dropped_turns) = context::assemble(&system_prompt, input, &history, budget);
+        if dropped_turns > 0 {
+            events.context_truncated(turn, dropped_turns, budget.max_context_chars);
+        }
         // Same defs on the final turn, so the request prefix stays
         // cacheable; only the choice changes.
         let choice = match (defs.is_empty(), final_turn) {
@@ -138,7 +141,10 @@ pub async fn run_loop_with_events(
         // Before any early return below, so a failed call is traced too.
         events.trace_model(turn, &messages, &defs, choice.as_ref(), reply.as_ref());
         let reply = match reply {
-            Ok(reply) => reply,
+            Ok(mut reply) => {
+                reply.tool_calls = resolve_call_ids(turn, &reply.tool_calls);
+                reply
+            }
             Err(GatewayError::MissingApiKey) if turn == 1 => {
                 return Err(LoopError::NoStart("GATEWAY_API_KEY is not set".to_owned()));
             }
@@ -171,9 +177,11 @@ pub async fn run_loop_with_events(
         };
 
         if reply.tool_calls.is_empty() || final_turn {
+            let mut empty_reason = "the reply was not a valid answer";
             let answer = if reply.tool_calls.is_empty() {
                 parse_answer(&reply.output, input.size).ok()
             } else {
+                empty_reason = "tool calls on the final turn were not dispatched";
                 tracing::warn!(
                     "agent loop turn {turn} called tools on the final turn; not dispatched"
                 );
@@ -187,6 +195,7 @@ pub async fn run_loop_with_events(
                     .collect();
                 retain_fetched_citations(&mut synthesis, &fetched);
                 verify_synthesis(&mut synthesis, &evidence);
+                events.answer_verified(turn, &synthesis);
                 return Ok(RunReport {
                     synthesis,
                     turns_used: turn,
@@ -200,6 +209,17 @@ pub async fn run_loop_with_events(
             }
             consecutive_failures += 1;
             failures_used += 1;
+            events.tool_failed(
+                turn,
+                &ToolFailure {
+                    call_id: None,
+                    tool: None,
+                    kind: "empty_answer",
+                    reason: empty_reason,
+                },
+                consecutive_failures,
+                budget.max_repairs,
+            );
             events.turn_ended(turn, &evidence, None);
             if consecutive_failures > budget.max_repairs {
                 return Err(LoopError::InvalidToolCall {
@@ -224,11 +244,35 @@ pub async fn run_loop_with_events(
             tools,
             &input.allowed_tools,
             budget,
-            budget.work_cutoff(),
             &nonce,
+            events,
         )
         .await;
         evidence.extend(outcome.evidence);
+        // The repair counter settles before the Events, so each `tool.failed`
+        // reports it as the loop will judge it (success resets it).
+        if outcome.had_success {
+            consecutive_failures = 0;
+        }
+        if outcome.failure.is_some() {
+            if !outcome.had_success {
+                consecutive_failures += 1;
+            }
+            failures_used += 1;
+        }
+        for failed in &outcome.failures {
+            events.tool_failed(
+                turn,
+                &ToolFailure {
+                    call_id: Some(&failed.call_id),
+                    tool: Some(&failed.tool),
+                    kind: failed.kind.as_str(),
+                    reason: &failed.reason,
+                },
+                consecutive_failures,
+                budget.max_repairs,
+            );
+        }
         events.turn_ended(turn, &evidence, None);
         if outcome.search_blocked.is_some() {
             search_blocked = outcome.search_blocked;
@@ -246,14 +290,7 @@ pub async fn run_loop_with_events(
             results: outcome.results,
             replay: reply.replay.clone(),
         });
-        if outcome.had_success {
-            consecutive_failures = 0;
-        }
         if let Some(kind) = outcome.failure {
-            if !outcome.had_success {
-                consecutive_failures += 1;
-            }
-            failures_used += 1;
             let reason = outcome.failure_reason.clone();
             if consecutive_failures > budget.max_repairs {
                 return match kind {
@@ -273,6 +310,7 @@ mod tests {
     mod no_start;
     mod repairs;
     mod search_blocked;
+    mod tool_events;
     mod turn_budget;
     mod wire_shape;
 }

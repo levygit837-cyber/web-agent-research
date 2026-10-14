@@ -13,6 +13,7 @@ use crate::research::agent_loop::context::{self, ToolMessage};
 use crate::research::agent_loop::registry::ToolRegistry;
 use crate::research::agent_loop::result::{FailureKind, ToolResult};
 use crate::research::agent_loop::types::{LoopBudget, ToolEvidence};
+use crate::research::events::Events;
 
 pub(super) fn allowed_roster(
     tools: &ToolRegistry,
@@ -81,8 +82,9 @@ fn synthesize_id(turn: u32, index: usize) -> String {
 
 /// Resolve every call's wire id up front so the assistant `tool_calls`
 /// message and each call's `tool` message agree, even when the model sent
-/// no id at all.
-fn resolve_call_ids(turn: u32, calls: &[RequestedToolCall]) -> Vec<RequestedToolCall> {
+/// no id at all. The runner applies it before `model.replied`, so that Event,
+/// the tool Events and the transcript all name a call by the same id (#148).
+pub(super) fn resolve_call_ids(turn: u32, calls: &[RequestedToolCall]) -> Vec<RequestedToolCall> {
     calls
         .iter()
         .enumerate()
@@ -96,6 +98,15 @@ fn resolve_call_ids(turn: u32, calls: &[RequestedToolCall]) -> Vec<RequestedTool
             arguments: call.arguments.clone(),
         })
         .collect()
+}
+
+/// One failed call of a turn, kept for the `tool.failed` Event: the runner
+/// emits them once it knows the turn's repair counter.
+pub(super) struct CallFailure {
+    pub(super) call_id: String,
+    pub(super) tool: String,
+    pub(super) kind: FailureKind,
+    pub(super) reason: String,
 }
 
 pub(super) struct TurnOutcome {
@@ -117,6 +128,9 @@ pub(super) struct TurnOutcome {
     /// `search` calls this turn that succeeded; each one after the run's
     /// first extends the turn budget (#101).
     pub(super) successful_searches: u32,
+    /// Every failed call this turn, in wire order. A call dropped over the
+    /// per-turn cap is not a failure and is not listed.
+    pub(super) failures: Vec<CallFailure>,
 }
 
 /// Execute one turn's calls (up to `max_tools_per_turn`) and pair every one
@@ -124,19 +138,22 @@ pub(super) struct TurnOutcome {
 /// `tool` message. Execution failures never stop sibling calls; the last
 /// failure in the turn wins for `failure`/`failure_reason` (a turn mixing
 /// failure kinds is exceptional and untested — either kind aborts the run
-/// the same way once repairs are exhausted). `cutoff` is the latest instant
+/// the same way once repairs are exhausted). The cutoff (`budget.work_cutoff()`) is the latest instant
 /// a call may run to (the run deadline minus the final-answer reserve,
 /// #100); each call's timeout is `tool_timeout` clamped to it. `nonce` tags
-/// the containers that frame page and Hit text (#98).
+/// the containers that frame page and Hit text (#98). `search` and `fetch`
+/// calls report `*.started`/`*.finished` to `events` (#148); the failures
+/// come back in [`TurnOutcome::failures`].
 pub(super) async fn dispatch_turn(
     turn: u32,
     calls: &[RequestedToolCall],
     tools: &ToolRegistry,
     allowed: &[String],
     budget: &LoopBudget,
-    cutoff: Option<Instant>,
     nonce: &str,
+    events: &Events,
 ) -> TurnOutcome {
+    let cutoff = budget.work_cutoff();
     let cap = budget.max_tools_per_turn.max(1);
     let resolved = resolve_call_ids(turn, calls);
 
@@ -148,6 +165,7 @@ pub(super) async fn dispatch_turn(
     let mut search_blocked: Option<String> = None;
     let mut had_search_hits = false;
     let mut successful_searches: u32 = 0;
+    let mut failures: Vec<CallFailure> = Vec::new();
 
     for (index, call) in resolved.iter().enumerate() {
         if index >= cap {
@@ -171,10 +189,17 @@ pub(super) async fn dispatch_turn(
                 id: call.id.clone(),
                 content: cap_excerpt(&format!("FAILED: {reason}"), budget),
             });
+            failures.push(CallFailure {
+                call_id: call.id.clone(),
+                tool: call.name.clone(),
+                kind: FailureKind::Dispatch,
+                reason: reason.clone(),
+            });
             failure = Some(FailureKind::Dispatch);
             failure_reason = reason;
             continue;
         }
+        events.tool_started(turn, call);
         let timeout = cutoff.map_or(budget.tool_timeout, |cutoff| {
             budget
                 .tool_timeout
@@ -194,12 +219,13 @@ pub(super) async fn dispatch_turn(
                 };
                 // Same text as an executor failure, so a timed-out fetch
                 // carries the failed-fetch next step (#72).
-                let rendered = ToolResult::Failed {
+                let timed_out = ToolResult::Failed {
                     tool: call.name.clone(),
                     reason: reason.clone(),
                     kind: FailureKind::Execution,
-                }
-                .render(nonce);
+                };
+                events.tool_finished(turn, call, &timed_out);
+                let rendered = timed_out.render(nonce);
                 let content = cap_excerpt(&rendered, budget);
                 results.push(ToolMessage {
                     id: call.id.clone(),
@@ -214,10 +240,17 @@ pub(super) async fn dispatch_turn(
                     fetch_path: None,
                     page: None,
                 });
+                failures.push(CallFailure {
+                    call_id: call.id.clone(),
+                    tool: call.name.clone(),
+                    kind: FailureKind::Execution,
+                    reason: reason.clone(),
+                });
                 failure = Some(FailureKind::Execution);
                 failure_reason = reason;
             }
             Ok(result) => {
+                events.tool_finished(turn, call, &result);
                 let rendered = result.render(nonce);
                 // A Fetch part is already sized by the registry; capping it
                 // again would cut the part's continuation line.
@@ -269,6 +302,12 @@ pub(super) async fn dispatch_turn(
                         fetch_path: None,
                         page: None,
                     });
+                    failures.push(CallFailure {
+                        call_id: call.id.clone(),
+                        tool: call.name.clone(),
+                        kind,
+                        reason: result.error_text().unwrap_or_else(|| reason.clone()),
+                    });
                     failure = Some(kind);
                     failure_reason = reason;
                 }
@@ -286,5 +325,6 @@ pub(super) async fn dispatch_turn(
         search_blocked,
         had_search_hits,
         successful_searches,
+        failures,
     }
 }

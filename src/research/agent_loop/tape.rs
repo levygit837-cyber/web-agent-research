@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize};
 use crate::research::agent_loop::result::FailureKind;
 use crate::web::fetch::Evidence;
 use crate::web::search::dedup_key;
-use crate::web::search::types::{MergedResult, SearchInput};
+use crate::web::search::types::{EngineReport, MergedResult, SearchInput};
 
 /// Env var naming the fixture dir to record into.
 pub const RECORD_ENV: &str = "WAR_EVAL_RECORD";
@@ -63,6 +63,8 @@ pub(crate) enum SearchOutcome {
         hits: Vec<MergedResult>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         engine_status: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        engines: Vec<EngineReport>,
     },
     Note {
         note: String,
@@ -383,6 +385,7 @@ impl Fixture {
         SearchOutcome::Hits {
             hits,
             engine_status: Vec::new(),
+            engines: Vec::new(),
         }
     }
 
@@ -477,6 +480,7 @@ mod tests {
                     hit("https://docs.rs/tokio", "Tokio  Runtime"),
                 ],
                 engine_status: Vec::new(),
+                engines: Vec::new(),
             },
         );
         recorder.search(
@@ -487,6 +491,7 @@ mod tests {
                     hit("https://docs.rs/tokio", "serde derive"),
                 ],
                 engine_status: Vec::new(),
+                engines: Vec::new(),
             },
         );
         recorder.search(

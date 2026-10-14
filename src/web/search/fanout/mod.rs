@@ -27,7 +27,7 @@ use crate::web::search::types::{
 };
 use leg::{LegEnv, LegOutcome};
 pub use report::all_failed_message;
-use report::{engine_status, error_detail};
+use report::{engine_reports, engine_status, error_detail};
 
 /// One scheduled leg: which Query, which engine, and how many earlier
 /// Queries this call already sent to that engine (`ordinal`, what the
@@ -154,6 +154,7 @@ pub async fn search_multi_with_bases(
                     window.name()
                 )),
                 engine_status: Vec::new(),
+                engines: Vec::new(),
             });
         }
     }
@@ -198,6 +199,7 @@ pub async fn search_multi_with_bases(
                     .to_string(),
             ),
             engine_status: Vec::new(),
+            engines: Vec::new(),
         });
     }
     let started_at = tokio::time::Instant::now();
@@ -248,6 +250,7 @@ pub async fn search_multi_with_bases(
         }
     };
     let mut by_leg: Vec<Option<LegOutcome>> = (0..leg_count).map(|_| None).collect();
+    let mut cache_hit: Vec<bool> = vec![false; leg_count];
     let mut successes: usize = 0;
     let mut soft_fired = false;
     loop {
@@ -269,7 +272,7 @@ pub async fn search_multi_with_bases(
             }
         };
         match next {
-            Some(Ok((index, outcome))) => {
+            Some(Ok((index, outcome, cached))) => {
                 if outcome.is_ok() {
                     successes += 1;
                     if soft_fired {
@@ -277,6 +280,7 @@ pub async fn search_multi_with_bases(
                     }
                 }
                 by_leg[index] = Some(outcome);
+                cache_hit[index] = cached;
             }
             // Cancelled by the soft deadline: its slot reports `Timeout`.
             Some(Err(join)) if join.is_cancelled() => {}
@@ -312,6 +316,7 @@ pub async fn search_multi_with_bases(
         })
         .collect();
     let status = engine_status(&enabled, &legs);
+    let engines = engine_reports(&enabled, &legs, &cache_hit);
     let mut raw_hits: Vec<SearchResult> = Vec::new();
     let mut errors: Vec<SearchProviderError> = Vec::new();
     for (_, outcome) in legs {
@@ -364,6 +369,7 @@ pub async fn search_multi_with_bases(
         },
         note: None,
         engine_status: status,
+        engines,
     })
 }
 
