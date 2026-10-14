@@ -5,7 +5,7 @@
 use super::super::*;
 use super::helpers::{
     hermetic_request, local_web, long_page_web, point_env_at, spawn_capturing_server, spawn_server,
-    temp_session_out, text_body, tool_call, tools_body, walled_web, wire_body_of,
+    temp_session_out, text_body, tool_call, tools_body, turn_rows, walled_web, wire_body_of,
 };
 use crate::research::synthesis::SynthesisSize;
 use crate::test_support::EnvGuard;
@@ -49,13 +49,9 @@ async fn session_holds_the_whole_long_page_once_not_its_parts() {
     assert_eq!(pages.hits("/"), 1, "parts 2 and 3 come from memory");
 
     let content = std::fs::read_to_string(&session_out).expect("session file must exist");
-    let pages_persisted: Vec<String> = content
-        .lines()
-        .skip(1)
-        .flat_map(|line| {
-            let row: serde_json::Value = serde_json::from_str(line).expect("row is JSON");
-            row["evidence"].as_array().cloned().unwrap_or_default()
-        })
+    let pages_persisted: Vec<String> = turn_rows(&content)
+        .iter()
+        .flat_map(|row| row["evidence"].as_array().cloned().unwrap_or_default())
         .map(|evidence| {
             assert_eq!(evidence["source_url"], page_url.as_str());
             evidence["markdown"].as_str().unwrap_or_default().to_owned()
@@ -114,20 +110,22 @@ async fn hermetic_run_uses_real_tools_and_persists_fetched_evidence() {
     assert!(render(&response).contains(&page_url));
 
     let content = std::fs::read_to_string(&session_out).expect("session file must exist");
-    let lines: Vec<&str> = content.lines().collect();
-    assert_eq!(lines.len(), 4, "header + 3 turn rows, got {content}");
+    let turns = turn_rows(&content);
+    assert_eq!(turns.len(), 3, "one turn row per Turn, got {content}");
+    let fetched = turns[1]["evidence"][0].clone();
     assert!(
-        lines[2].contains("headless browser written in Rust"),
-        "turn 2 must persist fetched markdown: {}",
-        lines[2]
+        fetched["markdown"]
+            .as_str()
+            .is_some_and(|md| md.contains("headless browser written in Rust")),
+        "turn 2 must persist fetched markdown: {fetched}"
     );
-    assert!(
-        lines[2].contains("\"fetch_path\":\"static\""),
-        "fetched Evidence must record which engine produced it: {}",
-        lines[2]
+    assert_eq!(
+        fetched["fetch_path"], "static",
+        "fetched Evidence must record which engine produced it"
     );
-    assert!(
-        !lines[1].contains("\"source_url\""),
+    assert_eq!(
+        turns[0]["evidence"],
+        serde_json::json!([]),
         "search turn has no Evidence"
     );
     let _ = std::fs::remove_file(&session_out);
@@ -249,10 +247,11 @@ async fn cached_prompt_tokens_sum_across_turns_from_both_wire_shapes() {
     assert_eq!(response.usage.cached_prompt_tokens, 160);
     assert_eq!(response.usage.prompt_tokens, 300);
     let content = std::fs::read_to_string(&session_out).expect("session file must exist");
-    let last = content.lines().last().expect("final turn row");
-    assert!(
-        last.contains("\"cached_prompt_tokens\":160"),
-        "final Session row must carry the run total: {last}"
+    let turns = turn_rows(&content);
+    let last = turns.last().expect("final turn row");
+    assert_eq!(
+        last["usage"]["cached_prompt_tokens"], 160,
+        "final turn row must carry the run total: {last}"
     );
     let _ = std::fs::remove_file(&session_out);
 }

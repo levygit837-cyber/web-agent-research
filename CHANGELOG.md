@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- Session file format 2: the file is an append-only log (`header`, then `event` rows with the `--events` envelope and `turn` rows, as they happen), so a Session that ends with exit `3` to `9` leaves its Events, the `turn` rows of the Turns that completed and `session.finished`; readers accept format 1 and 2 (#150).
+- Exit `130`: `ctrl_c` ends the Session with `session.finished` `outcome: interrupted` in the Session file and in `--events` (#150).
+
 ### Added
 
 - `--events <path|->` streams Session lifecycle Events (`session.started`, `turn.started`, `model.replied`, `session.finished`) as NDJSON; `session.finished` ends every exit `0` to `9` (#147).

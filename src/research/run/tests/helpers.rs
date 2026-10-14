@@ -199,3 +199,19 @@ pub(super) async fn walled_web() -> ToolRegistry {
     );
     ToolRegistry::new(searcher, fetcher)
 }
+
+/// Every row of a Session file as JSON, in file order.
+pub(super) fn session_rows(content: &str) -> Vec<serde_json::Value> {
+    content
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("each Session row is JSON"))
+        .collect()
+}
+
+/// The `turn` rows of a Session file, in file order.
+pub(super) fn turn_rows(content: &str) -> Vec<serde_json::Value> {
+    session_rows(content)
+        .into_iter()
+        .filter(|row| row["kind"] == "turn")
+        .collect()
+}

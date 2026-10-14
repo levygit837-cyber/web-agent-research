@@ -4,7 +4,8 @@
 //! shell over it; module layout and dependency rule live in ADR-0006.
 
 /// Session JSONL format version. Breaking compat requires bump + migration.
-pub const SESSION_FORMAT_VERSION: u32 = 1;
+/// 2 (#150, ADR-0010): an incremental log of `header`, `event` and `turn` rows.
+pub const SESSION_FORMAT_VERSION: u32 = 2;
 
 pub mod llm;
 pub mod research;

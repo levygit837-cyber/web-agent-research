@@ -7,6 +7,7 @@
 //! `ResearchError::exit_code`. The wire DTOs (`ResearchRequest`, `ResearchResponse`, ...)
 //! are in `dto.rs`.
 
+use std::future::Future;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::llm::{Gateway, GatewayConfig};
@@ -19,15 +20,15 @@ use crate::research::dto::{
     ResearchRequest, ResearchResponse, SynthesisDTO, UsageDTO, CONTENT_TRUST_UNTRUSTED_WEB,
 };
 use crate::research::events::Events;
-use crate::research::session::{SessionHeader, SessionSink, SessionUsage, TurnRow};
+use crate::research::session::{SessionHeader, SessionSink, SessionUsage};
 use crate::research::synthesis::Support;
-use crate::web::fetch::{Evidence, Fetcher};
+use crate::web::fetch::Fetcher;
 use crate::web::search::tool::Searcher;
 
 /// Failures of one research run; each maps to a CLI exit code via
 /// [`ResearchError::exit_code`] (`NotConfigured→2`, `GatewayExhausted→3`,
 /// `ToolFailure→4`, `BudgetExhausted→5`, `Io→6`, `SearchBlocked→7`,
-/// `GatewayRejected→8`, `DeadlineExceeded→9`).
+/// `GatewayRejected→8`, `DeadlineExceeded→9`, `Interrupted→130`).
 #[derive(Debug)]
 pub enum ResearchError {
     /// Empty goal, `max_turns == 0`, `max_turns_cap < max_turns`,
@@ -59,6 +60,9 @@ pub enum ResearchError {
     /// legally answer "no results" without exhausting any repair budget.
     /// Carries the per-engine challenge detail from the last walled call.
     SearchBlocked(String),
+    /// `ctrl_c` ended the Session (#150). Only the CLI entry point raises it;
+    /// the Session file ends with `session.finished` `outcome: interrupted`.
+    Interrupted,
 }
 
 impl std::fmt::Display for ResearchError {
@@ -81,6 +85,7 @@ impl std::fmt::Display for ResearchError {
             Self::SearchBlocked(detail) => {
                 write!(f, "search blocked by a bot-detection challenge: {detail}")
             }
+            Self::Interrupted => write!(f, "interrupted"),
         }
     }
 }
@@ -101,6 +106,7 @@ impl ResearchError {
             Self::SearchBlocked(_) => 7,
             Self::GatewayRejected(_) => 8,
             Self::DeadlineExceeded { .. } => 9,
+            Self::Interrupted => 130,
         }
     }
 
@@ -115,6 +121,7 @@ impl ResearchError {
             Self::SearchBlocked(_) => "search_blocked",
             Self::GatewayRejected(_) => "gateway_rejected",
             Self::DeadlineExceeded { .. } => "deadline_exceeded",
+            Self::Interrupted => "interrupted",
         }
     }
 }
@@ -157,17 +164,41 @@ fn generate_session_id() -> String {
 /// The eval-only `WAR_EVAL_RECORD` / `WAR_EVAL_REPLAY` /
 /// `WAR_EVAL_REPLAY_THROUGH` env vars (#107, #129, `docs/eval.md`) record,
 /// replay, or replay-and-extend the tools; a bad value, or more than one
-/// set, is `NotConfigured`.
+/// set, is `NotConfigured`. `ctrl_c` ends the Session with
+/// [`ResearchError::Interrupted`] (#150).
 pub async fn run_research(req: ResearchRequest) -> Result<ResearchResponse, ResearchError> {
     let tape = Tape::from_env().map_err(ResearchError::NotConfigured)?;
     let tools = ToolRegistry::new(Searcher::new(), Fetcher::new()).with_tape(tape);
-    run_research_with(req, tools).await
+    run_research_until(req, tools, ctrl_c()).await
 }
 
-/// [`run_research`] over an injected registry (test seam for hermetic runs).
+/// Resolves when the process receives `ctrl_c`. If the handler cannot be
+/// installed it never resolves: a Session must not report an interrupt that
+/// did not happen.
+async fn ctrl_c() {
+    if tokio::signal::ctrl_c().await.is_err() {
+        std::future::pending::<()>().await;
+    }
+}
+
+/// [`run_research`] over an injected registry (test seam for hermetic runs),
+/// with no interrupt.
+#[cfg(test)]
 pub(crate) async fn run_research_with(
     req: ResearchRequest,
     tools: ToolRegistry,
+) -> Result<ResearchResponse, ResearchError> {
+    run_research_until(req, tools, std::future::pending()).await
+}
+
+/// The Session behind [`run_research`]: `interrupt` resolving ends it as
+/// [`ResearchError::Interrupted`]. The race sits here, around the whole
+/// Session body, so `session.finished` is still emitted once, from the one
+/// place every exit passes through.
+pub(crate) async fn run_research_until(
+    req: ResearchRequest,
+    tools: ToolRegistry,
+    interrupt: impl Future<Output = ()>,
 ) -> Result<ResearchResponse, ResearchError> {
     // The Session id is the first thing resolved: Events name their Session,
     // so an invalid `--session-id` exits 2 with no Events (ADR-0010 §3).
@@ -182,15 +213,28 @@ pub(crate) async fn run_research_with(
     // raised before any gateway call.
     let events =
         Events::open(&session_id, req.events.as_ref()).map_err(ResearchError::NotConfigured)?;
+    let session = run_session(&req, session_id, tools, &events);
+    // Work first: an answer that is ready wins over a late interrupt.
+    let result = tokio::select! {
+        biased;
+        result = session => result,
+        () = interrupt => Err(ResearchError::Interrupted),
+    };
+    // A mid-Session write failure on an explicit path surfaces now, after
+    // the Session finished (a Session that already failed keeps its error).
+    let result = match (result, events.session_log_failure()) {
+        (Ok(_), Some(reason)) => Err(ResearchError::Io(reason)),
+        (result, _) => result,
+    };
     // Every exit of the Session body, present or future, passes through this
     // one emit: `session.finished` is the last Event of the Session.
-    let result = run_session(&req, session_id, tools, &events).await;
     events.session_finished(&result);
+    events.finish_session_log();
     result
 }
 
-/// The Session body behind [`run_research_with`]: validation, the loop, the
-/// Session file. Returns early freely; the caller emits `session.finished`.
+/// The Session body behind [`run_research_until`]: validation and the loop.
+/// Returns early freely; the caller emits `session.finished`.
 async fn run_session(
     req: &ResearchRequest,
     session_id: String,
@@ -237,7 +281,21 @@ async fn run_session(
     let deadline = budget
         .deadline
         .expect("with_deadline always sets the run deadline");
-    // Configuration is valid: the Session starts.
+    // Configuration is valid: the Session starts, and its file with it
+    // (#150). The header is line 0, so it goes before `session.started`; a
+    // configuration failure above leaves no file and an unwritable explicit
+    // `--session-out` is exit 6 here, before any gateway call.
+    let header = SessionHeader::new(
+        session_id.clone(),
+        req.goal.clone(),
+        req.size.as_str().to_owned(),
+    );
+    events
+        .attach_session_log(
+            SessionSink::new(req.session_out.clone(), &session_id),
+            &header,
+        )
+        .map_err(ResearchError::Io)?;
     events.session_started(req, &config);
     let gateway = Gateway::new(config).with_deadline(deadline);
     let input = LoopInput {
@@ -249,8 +307,19 @@ async fn run_session(
         .await
         .map_err(map_loop_error)?;
 
-    let mut sink = SessionSink::new(req.session_out.clone(), &session_id);
     let synthesis_dto = SynthesisDTO::from(report.synthesis);
+    let usage_dto = UsageDTO::from(report.usage);
+    // The final Turn's row: the loop wrote the others as their Turns ended.
+    // It carries the Synthesis and run usage as in format 1, also when the
+    // Session then fails with exit 7 (the audit trail keeps what the model
+    // answered; `session.finished` says it was not delivered).
+    let synthesis_value =
+        serde_json::to_value(&synthesis_dto).map_err(|err| ResearchError::Io(err.to_string()))?;
+    events.turn_ended(
+        report.turns_used,
+        &report.evidence,
+        Some((&synthesis_value, SessionUsage::from(usage_dto.clone()))),
+    );
     // Continuation parts (#80) each carry the page URL; the response lists
     // every fetched source once, in first-fetched order.
     let mut evidence_urls: Vec<String> = Vec::new();
@@ -270,43 +339,6 @@ async fn run_session(
             return Err(ResearchError::SearchBlocked(detail));
         }
     }
-    let usage_dto = UsageDTO::from(report.usage);
-
-    let header = SessionHeader::new(
-        session_id.clone(),
-        req.goal.clone(),
-        req.size.as_str().to_owned(),
-    );
-    sink.append_header(&header)
-        .map_err(|err| ResearchError::Io(err.to_string()))?;
-    let synthesis_value =
-        serde_json::to_value(&synthesis_dto).map_err(|err| ResearchError::Io(err.to_string()))?;
-    for turn in 1..=report.turns_used {
-        // The Session is the record: it holds the whole page, once per URL,
-        // from the call that fetched it. Continuation parts and repeats
-        // carry no `page` and add no row (#80).
-        let evidence: Vec<Evidence> = report
-            .evidence
-            .iter()
-            .filter(|item| item.turn == turn)
-            .filter_map(|item| item.page.as_deref().cloned())
-            .collect();
-        let is_final = turn == report.turns_used;
-        let row = TurnRow::new(
-            session_id.clone(),
-            turn,
-            evidence,
-            is_final.then(|| synthesis_value.clone()),
-            if is_final {
-                SessionUsage::from(usage_dto.clone())
-            } else {
-                SessionUsage::default()
-            },
-        );
-        sink.append_turn(&row)
-            .map_err(|err| ResearchError::Io(err.to_string()))?;
-    }
-    sink.finish();
 
     Ok(ResearchResponse {
         session_id,
@@ -364,6 +396,7 @@ mod tests {
     mod events;
     mod gateway_integration;
     mod helpers;
+    mod session_log;
     mod session_path;
     mod validation;
 }

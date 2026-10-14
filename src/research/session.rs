@@ -1,13 +1,21 @@
-//! Session persistence: Session header and Turn rows as JSONL.
+//! Session persistence: Session header, Event and Turn rows as JSONL.
 //!
 //! Evidence itself is owned by `web::fetch`; this module only records it.
 //!
-//! Record schema (ADR-0002): one JSON object per line in
-//! `<data_root>/sessions/<id>.jsonl` (or the explicit `--session-out`), UTF-8,
-//! `\n`-terminated, append-only, created with mode 0600 on unix.
+//! Record schema (ADR-0002, amended by ADR-0010 §5): one JSON object per line
+//! in `<data_root>/sessions/<id>.jsonl` (or the explicit `--session-out`),
+//! UTF-8, `\n`-terminated, append-only, created with mode 0600 on unix.
 //! `format_version` rides on EVERY row so a single row stays self-describing
 //! and 1:1 migratable to the future `turns` table (`turn→id`,
 //! `session_id→session_id`, `evidence[].source_url/collected_at→url/fetched_at`).
+//!
+//! Format 2 is an incremental log, written by the Event emitter as the
+//! Session happens: the `header` row first, then `event` rows (the Event
+//! envelope of `--events` flattened next to `kind` and `format_version`, so
+//! each maps 1:1 to a future `events` table, `model.delta` never stored) and
+//! `turn` rows, in the order they happened. A `turn` row is written when its
+//! Turn ends; the final one carries the Synthesis and the run usage. Format 1
+//! files (header + `turn` rows, written after the answer) still read.
 
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
@@ -97,10 +105,51 @@ impl TurnRow {
     }
 }
 
+/// An `event` row (format 2): one Event envelope of `--events` (ADR-0010 §2)
+/// next to `kind` and `format_version`. `v` is the envelope version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventRow {
+    /// Always `"event"`.
+    pub kind: String,
+    pub format_version: u32,
+    pub v: u32,
+    pub seq: u64,
+    pub ts: String,
+    pub elapsed_ms: u64,
+    pub session_id: String,
+    /// Absent on Session-level Events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn: Option<u32>,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub data: serde_json::Value,
+}
+
+/// The write side of [`EventRow`]: borrows the emitter's envelope and
+/// flattens it, so the file holds exactly the fields `--events` prints.
+#[derive(Serialize)]
+pub(crate) struct EventLine<'a, E: Serialize> {
+    kind: &'static str,
+    format_version: u32,
+    #[serde(flatten)]
+    envelope: &'a E,
+}
+
+impl<'a, E: Serialize> EventLine<'a, E> {
+    pub(crate) fn new(envelope: &'a E) -> Self {
+        Self {
+            kind: "event",
+            format_version: crate::SESSION_FORMAT_VERSION,
+            envelope,
+        }
+    }
+}
+
 /// One decoded JSONL line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionRow {
     Header(SessionHeader),
+    Event(EventRow),
     Turn(TurnRow),
 }
 
@@ -108,6 +157,7 @@ impl SessionRow {
     pub fn kind(&self) -> &str {
         match self {
             Self::Header(_) => "header",
+            Self::Event(_) => "event",
             Self::Turn(_) => "turn",
         }
     }
@@ -115,6 +165,7 @@ impl SessionRow {
     pub fn format_version(&self) -> u32 {
         match self {
             Self::Header(header) => header.format_version,
+            Self::Event(row) => row.format_version,
             Self::Turn(row) => row.format_version,
         }
     }
@@ -122,12 +173,15 @@ impl SessionRow {
     pub fn session_id(&self) -> &str {
         match self {
             Self::Header(header) => &header.session_id,
+            Self::Event(row) => &row.session_id,
             Self::Turn(row) => &row.session_id,
         }
     }
 }
 
-fn append_line<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+/// Append one row (a header, event or turn) as a line, creating the file
+/// `0600` on unix.
+pub fn append_row<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -148,28 +202,21 @@ fn append_line<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     file.write_all(line.as_bytes())
 }
 
-/// Append the session header (line 0).
-pub fn append_header(path: &Path, header: &SessionHeader) -> io::Result<()> {
-    append_line(path, header)
-}
-
-/// Append one turn row.
-pub fn append_turn(path: &Path, row: &TurnRow) -> io::Result<()> {
-    append_line(path, row)
-}
-
 /// Where one run writes its Session, and what a write failure means.
 ///
-/// An explicit `--session-out` is the caller's contract: any failure is
-/// returned (exit 6). The defaulted path under the data root is a courtesy
-/// copy: the first failure (or no resolvable data root) prints one warning
-/// to stderr, disables the sink, and the run still exits 0. Only the
-/// defaulted path creates private (0700) directories and is pruned.
+/// An explicit `--session-out` is the caller's contract: the first failure
+/// is returned and kept in [`SessionSink::failure`] (the Session ends with
+/// exit 6 once it finished), and the sink stops writing. The defaulted path
+/// under the data root is a courtesy copy: the first failure (or no
+/// resolvable data root) prints one warning to stderr, disables the sink,
+/// and the run still exits 0. Only the defaulted path creates private (0700)
+/// directories and is pruned.
 #[derive(Debug)]
 pub(crate) struct SessionSink {
     path: Option<PathBuf>,
     explicit: bool,
     warning: Option<String>,
+    failure: Option<String>,
 }
 
 impl SessionSink {
@@ -183,6 +230,7 @@ impl SessionSink {
             path: explicit.or(default),
             explicit: is_explicit,
             warning: None,
+            failure: None,
         };
         if sink.path.is_none() {
             sink.warn(
@@ -204,16 +252,25 @@ impl SessionSink {
         self.warning.as_deref()
     }
 
-    fn write(&mut self, write: impl FnOnce(&Path) -> io::Result<()>) -> io::Result<()> {
+    /// The first write failure of an explicit path, which the Session turns
+    /// into exit 6 when it ends.
+    pub(crate) fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    /// Append one row. After a failure the sink is disabled and later calls
+    /// are no-ops: a defaulted path warned once, an explicit one kept the
+    /// error in [`SessionSink::failure`].
+    pub(crate) fn append<T: Serialize>(&mut self, row: &T) -> io::Result<()> {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
         let result = if self.explicit {
-            write(&path)
+            append_row(&path, row)
         } else {
             path.parent()
                 .map_or(Ok(()), data_dir::create_private_dir_all)
-                .and_then(|()| write(&path))
+                .and_then(|()| append_row(&path, row))
         };
         match result {
             Err(err) if !self.explicit => {
@@ -221,16 +278,13 @@ impl SessionSink {
                 self.warn(format!("{}: {err}", path.display()));
                 Ok(())
             }
-            other => other,
+            Err(err) => {
+                self.path = None;
+                self.failure = Some(err.to_string());
+                Err(err)
+            }
+            ok => ok,
         }
-    }
-
-    pub(crate) fn append_header(&mut self, header: &SessionHeader) -> io::Result<()> {
-        self.write(|path| append_header(path, header))
-    }
-
-    pub(crate) fn append_turn(&mut self, row: &TurnRow) -> io::Result<()> {
-        self.write(|path| append_turn(path, row))
     }
 
     /// Enforce the retention cap on the data-root sessions directory. No-op
@@ -249,8 +303,9 @@ impl SessionSink {
 
 /// Read every row back, gating on `format_version`.
 ///
-/// Accepts `version <= SESSION_FORMAT_VERSION`; rejects `>` with a migration
-/// error naming the offending version.
+/// Accepts `version <= SESSION_FORMAT_VERSION` (format 1 files hold no
+/// `event` rows); rejects `>` with a migration error naming the offending
+/// version.
 pub fn read_session_rows(path: &Path) -> io::Result<Vec<SessionRow>> {
     let content = std::fs::read_to_string(path)?;
     let mut rows = Vec::new();
@@ -301,6 +356,15 @@ pub fn read_session_rows(path: &Path) -> io::Result<Vec<SessionRow>> {
                     )
                 })?;
                 rows.push(SessionRow::Header(header));
+            }
+            "event" => {
+                let row: EventRow = serde_json::from_value(value).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("invalid session event on line {line_no}: {err}"),
+                    )
+                })?;
+                rows.push(SessionRow::Event(row));
             }
             "turn" => {
                 let row: TurnRow = serde_json::from_value(value).map_err(|err| {
@@ -379,9 +443,9 @@ mod tests {
             usage.clone(),
         );
 
-        append_header(&path, &header).expect("header appends");
-        append_turn(&path, &first).expect("first turn appends");
-        append_turn(&path, &second).expect("second turn appends");
+        append_row(&path, &header).expect("header appends");
+        append_row(&path, &first).expect("first turn appends");
+        append_row(&path, &second).expect("second turn appends");
 
         let rows = read_session_rows(&path).expect("rows read back");
         assert_eq!(rows.len(), 3);
@@ -435,13 +499,10 @@ mod tests {
         // in `usage` at all. `#[serde(default)]` on the new field must let
         // this row keep parsing without a `SESSION_FORMAT_VERSION` bump.
         let path = temp_path("pre-41-usage");
-        let line = format!(
-            "{{\"kind\":\"turn\",\"format_version\":{},\"session_id\":\"s\",\"turn\":1,\
+        let line = "{\"kind\":\"turn\",\"format_version\":1,\"session_id\":\"s\",\"turn\":1,\
              \"evidence\":[],\"synthesis\":null,\
-             \"usage\":{{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"reasoning_tokens\":1}},\
-             \"recorded_at\":\"2026-09-08T00:00:01Z\"}}\n",
-            crate::SESSION_FORMAT_VERSION
-        );
+             \"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5,\"reasoning_tokens\":1},\
+             \"recorded_at\":\"2026-09-08T00:00:01Z\"}\n";
         std::fs::write(&path, line).expect("fixture writes");
         let rows = read_session_rows(&path).expect("pre-#41 row must still parse");
         let [SessionRow::Turn(row)] = rows.as_slice() else {
@@ -454,5 +515,25 @@ mod tests {
             "missing cached_prompt_tokens must default to 0, not fail to parse"
         );
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// An explicit path that fails mid-Session keeps the first error for the
+    /// Session to report as exit 6, and stops writing instead of retrying.
+    #[test]
+    fn explicit_sink_keeps_its_first_failure_and_stops_writing() {
+        let path = temp_path("explicit-fail");
+        let mut sink = SessionSink::at(Some(path.clone()), None);
+        let header = SessionHeader::new("s".to_owned(), "goal".to_owned(), "small".to_owned());
+        sink.append(&header).expect("the first row writes");
+        // The file is replaced by a directory: the next open fails.
+        std::fs::remove_file(&path).expect("file removes");
+        std::fs::create_dir(&path).expect("directory takes its place");
+        sink.append(&header)
+            .expect_err("an explicit failure is returned");
+        let failure = sink.failure().expect("the failure is kept").to_owned();
+        sink.append(&header).expect("a failed sink is a no-op");
+        assert_eq!(sink.failure(), Some(failure.as_str()));
+        assert_eq!(sink.warning(), None, "an explicit path never only warns");
+        let _ = std::fs::remove_dir(&path);
     }
 }

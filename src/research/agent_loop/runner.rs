@@ -197,6 +197,7 @@ pub async fn run_loop_with_events(
             }
             consecutive_failures += 1;
             failures_used += 1;
+            events.turn_ended(turn, &evidence, None);
             if consecutive_failures > budget.max_repairs {
                 return Err(LoopError::InvalidToolCall {
                     reason: "empty answer".to_owned(),
@@ -225,6 +226,7 @@ pub async fn run_loop_with_events(
         )
         .await;
         evidence.extend(outcome.evidence);
+        events.turn_ended(turn, &evidence, None);
         if outcome.search_blocked.is_some() {
             search_blocked = outcome.search_blocked;
         }
