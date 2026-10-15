@@ -9,25 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- Session file format 2: the file is an append-only log (`header`, then `event` rows with the `--events` envelope and `turn` rows, as they happen), so a Session that ends with exit `3` to `9` leaves its Events, the `turn` rows of the Turns that completed and `session.finished`; readers accept format 1 and 2 (#150).
-- Exit `130`: `ctrl_c` ends the Session with `session.finished` `outcome: interrupted` in the Session file and in `--events` (#150).
-- Rust API: `ToolResult::Search` gains `engines`, `ToolResult::Fetch` gains `served`, and `SearchOutput` gains `engines` (`EngineReport`, `EngineProblem`); `context::assemble` also returns the dropped-turn count (#148).
+- Session file format 2: an append-only log (`header`, `event` rows, `turn` rows), so exit `3` to `9` keeps its Events; readers accept formats 1 and 2 (#150).
+- Exit `130`: `ctrl_c` ends the Session with `session.finished` `outcome: interrupted` in the file and in `--events` (#150).
+- Rust API: `ToolResult::Search` gains `engines`, `ToolResult::Fetch` gains `served`, `SearchOutput` gains `engines`; `context::assemble` returns the dropped-turn count (#148).
 - Rust API: `ResearchRequest` gains `events_detail: EventsDetail` (`Normal` by default when deserialized; struct literals must set it) (#154).
 
 ### Added
 
-- `--progress auto|plain|off` prints one human line per Session step on stderr (search with per-engine hits and suspensions, fetch, tool failures, model replies, verification) and a final line with outcome, Turns, tokens and the error reason; `auto` renders on a TTY only, `--events -` turns it off, `NO_COLOR` is honoured (#149).
-- `--trace` records every model exchange in the Session file as `trace` rows (messages sent, reply with thinking and raw tool arguments, tool results as the model received them), enough to rebuild the transcript from the file; off by default, never writes the API key (#151).
-- `--events <path|->` streams Session Events as NDJSON: the lifecycle (`session.started`, `turn.started`, `model.replied`, `session.finished`, which ends every exit `0` to `9`) and, per tool call, `search.started`/`search.finished` (hits, per-engine status, cache, suspensions), `fetch.started`/`fetch.finished` (final URL, fetch path, part, chars, `served_from`, failure reason), `tool.failed` (repair counter), `context.truncated` and `answer.verified` (#147, #148).
-- `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats (OpenAI Chat Completions, Anthropic Messages) and are assembled into the same reply, Anthropic `thinking` signatures and cache counts included; `Gateway::chat_observed` hands each `LlmEvent` to a closure (#152, #153).
-- `--events-detail normal|tokens`: with `tokens`, `--events` also carries `model.delta` (answer text, thinking and tool-call argument fragments, tagged with the gateway `attempt`); `model.retry` is always emitted and tells consumers to discard the failed attempt's deltas. Progress on a terminal shows the answer forming on its status line (the tail of the text, or a character count for tool arguments and thinking) and prints a `model retry N in Xs: reason` line; the Session file never stores deltas (#154).
+- `--progress auto|plain|off`: one human line per Session step on stderr and a final line with outcome, Turns, tokens and error reason; `auto` renders on a TTY only (#149).
+- `--trace` records every model exchange as `trace` rows in the Session file, enough to rebuild the transcript; off by default, never writes the API key (#151).
+- `--events <path|->` streams Session Events as NDJSON: lifecycle, `search.*`, `fetch.*`, `tool.failed`, `context.truncated` and `answer.verified`; every exit `0` to `9` ends with `session.finished` (#147, #148).
+- `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats and assemble into the same reply (#152, #153).
+- `--events-detail normal|tokens`: `tokens` adds `model.delta` fragments to `--events`; `model.retry` is always emitted; Progress shows the answer forming and the retry line (#154).
 
 ### Changed
 
-- The `agent loop history truncated` `tracing` info line is gone: `context.truncated` carries it, and Progress prints it (#149).
-- The `gateway attempt N failed (...); retrying in ...` `tracing` info line is gone: `model.retry` carries it, and Progress prints it (#154).
-- `search.finished` now carries `queries` and `fetch.finished` carries `url`, as sent, so one Event is readable alone (#149).
-- Requests now send `stream: true` by default in both formats; `GATEWAY_STREAM=off` restores the single JSON body (#152, #153).
+- The `agent loop history truncated` `tracing` line is gone: `context.truncated` carries it and Progress prints it (#149).
+- The `gateway attempt N failed (...); retrying in ...` `tracing` line is gone: `model.retry` carries it (#154).
+- `search.finished` carries `queries` and `fetch.finished` carries `url`, as sent, so one Event reads alone (#149).
+- Requests send `stream: true` by default in both formats; `GATEWAY_STREAM=off` restores the single JSON body (#152, #153).
 
 ## [0.4.0] - 2026-10-14
 

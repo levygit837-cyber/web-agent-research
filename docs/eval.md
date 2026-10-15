@@ -167,3 +167,7 @@ A change to the agent loop, prompts or tool rendering can make a committed trans
 To judge an older record against a newer golden set, copy its results file, set `format` to the current version, drop every row's `judge` and `claims`, and run `eval judge <copy> --fixtures <the tapes it was recorded into>`.
 
 Results judged against different golden revisions are not comparable (the #142 audit moved `correct` by +0.042 on the K=3 control with no change in the answers), so re-judge both sides of a `compare` against the same golden files.
+
+## Streaming parity (2026-10-14)
+
+`GATEWAY_STREAM=on` vs `off`, `replay` on the 2026-10-07 tape (56 goals), K=3, `claude-haiku-4.5`, judged by `gpt-5.6-sol`, at `2196d38`, both wire formats (the two arms of a format ran side by side, the formats one after the other). No metric regressed: every interval for `core_recall`, `nugget_recall`, `correct`, `claim_precision`, `exact_share`, `turns` and `total_tokens` contains 0 or favours `on`; mean `wall_ms` moved +8 ms (Anthropic) and +213 ms (OpenAI), inside the noise. `GATEWAY_STREAM` is part of the run env: hold it fixed in an A/B, like `GATEWAY_API_FORMAT` and `GATEWAY_MODEL`. Numbers: the comment on issue #155.
