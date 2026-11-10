@@ -17,7 +17,11 @@ fn fixture_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
-        .join("obscura-fake.sh")
+        .join(if cfg!(windows) {
+            "obscura-fake.cmd"
+        } else {
+            "obscura-fake.sh"
+        })
 }
 
 /// Extract the `url` field from a `Blocked` / `EmptyBody` / `Timeout` /

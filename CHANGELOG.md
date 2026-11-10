@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats and assemble into the same reply (#152, #153).
 - `--events-detail normal|tokens`: `tokens` adds `model.delta` fragments to `--events`; `model.retry` is always emitted; Progress shows the answer forming and the retry line (#154).
 
+### Fixed
+
+- Windows support: the data and cache roots fall back to `%USERPROFILE%` when `HOME` is unset; the Obscura test double runs through `tests/fixtures/obscura-fake.cmd` (a shim over `sh`), and the CLI tests pass `SYSTEMROOT` to the cleared child environment so Winsock initializes. `ci.yml` now runs `test` on Linux, macOS and Windows.
+
 ### Changed
 
 - The `agent loop history truncated` `tracing` line is gone: `context.truncated` carries it and Progress prints it (#149).

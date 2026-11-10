@@ -27,6 +27,10 @@ cargo fmt --all -- --check
 
 CI on push/PR to `main`: `ci.yml` (`lint`: fmt + clippy; `test`: test + build; `msrv`: `cargo check` on the `rust-version` toolchain) and `protect-main.yml` (fails if any commit landed without a PR). Every change goes through a PR — see [ADR-0005](docs/adr/0005-main-via-pr-no-paid-plan.md). After cloning, enable the local direct-push block: `git config core.hooksPath .githooks`.
 
+## Windows
+
+Supported next to macOS and Linux. Install the Rust toolchain with `rustup` plus the Visual Studio Build Tools (C++ workload) for the MSVC linker, and run commands from Git Bash (the test double `tests/fixtures/obscura-fake.cmd` calls `sh`). For the Obscura fallback, download `obscura-x86_64-windows.zip` from the [Obscura releases](https://github.com/h4ckf0r0day/obscura/releases), extract `obscura.exe` and `obscura-worker.exe` into a directory on `PATH`. Sessions and the cache go under `%USERPROFILE%\.local\share` and `%USERPROFILE%\.cache` unless `WEB_AGENT_RESEARCH_HOME` or `SEARCH_CACHE_DIR` is set.
+
 ## Structure
 
 - `src/main.rs` — thin CLI shell over the lib

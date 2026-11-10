@@ -21,7 +21,8 @@ const DEFAULT_MAX_BYTES: u64 = 256 * 1_024 * 1_024;
 
 /// Pure resolution order, so tests need no process env:
 /// `WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else
-/// `$HOME/.local/share/web-agent-research`. Empty values count as unset.
+/// `$HOME/.local/share/web-agent-research` (`%USERPROFILE%` where `HOME` is
+/// unset, i.e. Windows). Empty values count as unset.
 pub(crate) fn resolve_root(
     home_override: Option<OsString>,
     xdg_data_home: Option<OsString>,
@@ -48,7 +49,7 @@ pub(crate) fn data_root() -> Option<PathBuf> {
     resolve_root(
         std::env::var_os("WEB_AGENT_RESEARCH_HOME"),
         std::env::var_os("XDG_DATA_HOME"),
-        std::env::var_os("HOME"),
+        std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")),
     )
 }
 

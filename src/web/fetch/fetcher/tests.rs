@@ -138,22 +138,30 @@ mod egress {
         assert_eq!(page.url, format!("{}/landing", stub.base()));
     }
 
+    /// The shell double; Windows cannot spawn a `.sh`, so it goes through a
+    /// `.cmd` shim that calls `sh` (Git for Windows).
+    fn fixture_binary() -> std::path::PathBuf {
+        let name = if cfg!(windows) {
+            "obscura-fake.cmd"
+        } else {
+            "obscura-fake.sh"
+        };
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+    }
+
     #[tokio::test]
     async fn obscura_fallback_is_checked_before_spawning() {
         // The fixture double would succeed; the check must stop it first.
-        let fixture =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/obscura-fake.sh");
-        let engine =
-            Obscura::new(fixture, Duration::from_secs(5)).with_egress(EgressPolicy::PublicOnly);
+        let engine = Obscura::new(fixture_binary(), Duration::from_secs(5))
+            .with_egress(EgressPolicy::PublicOnly);
         for url in ["http://127.0.0.1:9/page", "http://localhost:9/page"] {
             let err = engine.fetch_markdown(url).await.unwrap_err();
             assert!(matches!(err, FetchError::Egress { .. }), "{url}: {err:?}");
         }
-        let allowed = Obscura::new(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/obscura-fake.sh"),
-            Duration::from_secs(5),
-        )
-        .with_egress(EgressPolicy::AllowPrivate);
+        let allowed = Obscura::new(fixture_binary(), Duration::from_secs(5))
+            .with_egress(EgressPolicy::AllowPrivate);
         assert!(allowed
             .fetch_markdown("http://127.0.0.1:9/page")
             .await

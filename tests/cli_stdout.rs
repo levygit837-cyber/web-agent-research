@@ -72,6 +72,7 @@ fn run(base_url: &str, tag: &str, args: &[&str]) -> Output {
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("RUST_LOG", "info")
+        .envs(std::env::var_os("SYSTEMROOT").map(|v| ("SYSTEMROOT", v)))
         .env("GATEWAY_BASE_URL", base_url)
         .env("GATEWAY_API_KEY", "test-key")
         .env("GATEWAY_MODEL", "m")
