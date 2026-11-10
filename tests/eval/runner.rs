@@ -13,7 +13,8 @@
 //!   is appended to `<fixtures>/<goal id>/pages.jsonl`
 //!   (`WAR_EVAL_REPLAY_THROUGH`), so a run that reads more is not
 //!   penalized by the tape. Appends to the fixtures: give each A/B arm its
-//!   own copy.
+//!   own copy. The gateway is recorded as in `record`, over the copy's
+//!   `gateway.r<k>.jsonl`.
 //! - `live`: no tape at all.
 
 use std::path::{Path, PathBuf};
@@ -191,6 +192,16 @@ pub async fn run_one(plan: &RunPlan, goal: &GoldenGoal, repeat: u32) -> Result<R
                 "WAR_EVAL_REPLAY_THROUGH".to_owned(),
                 dir.display().to_string(),
             ));
+            // The gateway goes through the recording proxy too, so an arm
+            // that runs on a copied tape keeps its own transcript (and its
+            // request sizes, the input cost the gateway does not report).
+            let started = RecordingProxy::start(
+                &env_value("GATEWAY_BASE_URL"),
+                dir.join(transcript::file_name(repeat)),
+            )
+            .await?;
+            env.push(("GATEWAY_BASE_URL".to_owned(), started.base_url.clone()));
+            proxy = Some(started);
         }
         Mode::Live => {}
     }

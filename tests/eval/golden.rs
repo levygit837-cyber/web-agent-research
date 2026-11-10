@@ -16,6 +16,21 @@ pub const CATEGORIES: [&str; 7] = [
     "comparison",
 ];
 
+/// Categories sampled from public benchmarks (`tests/golden_public/`): one
+/// `core` nugget, the dataset's reference answer, not re-verified here and
+/// exempt from the atomic-claim rules. The claim pass skips them.
+pub const PUBLIC_CATEGORIES: [&str; 2] = ["simpleqa", "frames"];
+
+/// Every category a results file may hold, in report order.
+pub fn all_categories() -> impl Iterator<Item = &'static str> {
+    CATEGORIES.into_iter().chain(PUBLIC_CATEGORIES)
+}
+
+/// `true` for a category from [`PUBLIC_CATEGORIES`].
+pub fn is_public(category: &str) -> bool {
+    PUBLIC_CATEGORIES.contains(&category)
+}
+
 /// How soon a nugget can go stale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -86,27 +101,64 @@ pub fn default_dir() -> PathBuf {
 pub fn load(dir: &Path) -> Result<Vec<GoldenGoal>, String> {
     let mut goals = Vec::new();
     for category in CATEGORIES {
-        let path = dir.join(format!("{category}.json"));
-        let text =
-            std::fs::read_to_string(&path).map_err(|err| format!("{}: {err}", path.display()))?;
-        let file: CategoryFile =
-            serde_json::from_str(&text).map_err(|err| format!("{}: {err}", path.display()))?;
-        if file.category != category {
-            return Err(format!(
-                "{}: category {:?}, expected {category:?}",
-                path.display(),
-                file.category
-            ));
-        }
-        for goal in &file.goals {
-            validate(goal).map_err(|err| format!("{}: {err}", path.display()))?;
-        }
-        goals.extend(file.goals.into_iter().map(|goal| GoldenGoal {
-            category: category.to_owned(),
-            goal,
-        }));
+        goals.extend(load_category(dir, category)?);
     }
     Ok(goals)
+}
+
+/// Every goal of `tests/golden_public/` style dirs: each
+/// [`PUBLIC_CATEGORIES`] file that exists in `dir`.
+pub fn load_public(dir: &Path) -> Result<Vec<GoldenGoal>, String> {
+    let mut goals = Vec::new();
+    for category in PUBLIC_CATEGORIES {
+        if dir.join(format!("{category}.json")).is_file() {
+            goals.extend(load_category(dir, category)?);
+        }
+    }
+    if goals.is_empty() {
+        return Err(format!("{}: no public category file", dir.display()));
+    }
+    Ok(goals)
+}
+
+fn load_category(dir: &Path, category: &str) -> Result<Vec<GoldenGoal>, String> {
+    let path = dir.join(format!("{category}.json"));
+    let text =
+        std::fs::read_to_string(&path).map_err(|err| format!("{}: {err}", path.display()))?;
+    let file: CategoryFile =
+        serde_json::from_str(&text).map_err(|err| format!("{}: {err}", path.display()))?;
+    if file.category != category {
+        return Err(format!(
+            "{}: category {:?}, expected {category:?}",
+            path.display(),
+            file.category
+        ));
+    }
+    for goal in &file.goals {
+        let checked = if is_public(category) {
+            validate_public(goal)
+        } else {
+            validate(goal)
+        };
+        checked.map_err(|err| format!("{}: {err}", path.display()))?;
+    }
+    Ok(file
+        .goals
+        .into_iter()
+        .map(|goal| GoldenGoal {
+            category: category.to_owned(),
+            goal,
+        })
+        .collect())
+}
+
+/// A public goal: exactly one `core` nugget, the reference answer.
+fn validate_public(goal: &Goal) -> Result<(), String> {
+    let core = goal.of_scope(Scope::Core).count();
+    if goal.nuggets.len() != 1 || core != 1 || goal.nuggets[0].text.trim().is_empty() {
+        return Err(format!("{}: needs exactly one core nugget", goal.id));
+    }
+    Ok(())
 }
 
 /// Longest nugget text, in characters.
@@ -274,5 +326,16 @@ mod tests {
         assert!(serde_json::from_str::<Nugget>(json).is_err());
         let json = r#"{"text":"t","scope":"extra","url":"https://x.example/","volatility":"slow","verified_on":"2026-10-08"}"#;
         assert!(serde_json::from_str::<Nugget>(json).is_err());
+    }
+
+    #[test]
+    fn the_public_goals_load_with_one_core_nugget_each() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden_public");
+        let goals = load_public(&dir).expect("public goals load");
+        assert_eq!(goals.len(), 35);
+        assert!(goals.iter().all(|g| is_public(&g.category)));
+        let mut two = goals[0].goal.clone();
+        two.nuggets.push(two.nuggets[0].clone());
+        assert!(validate_public(&two).is_err());
     }
 }

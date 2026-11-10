@@ -5,7 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use super::claims;
-use super::golden::CATEGORIES;
+use super::golden::all_categories;
 use super::judge::Grade;
 use super::metrics::RunRow;
 use super::runner::Mode;
@@ -138,7 +138,7 @@ fn share(part: usize, whole: usize) -> String {
     }
 }
 
-/// Markdown table: one row per category in [`CATEGORIES`] order, then
+/// Markdown table: one row per category in [`all_categories`] order, then
 /// `all`; followed by the claim-precision table (#123) when any run was
 /// claim-judged.
 pub fn summary_table(rows: &[RunRow]) -> String {
@@ -146,9 +146,8 @@ pub fn summary_table(rows: &[RunRow]) -> String {
         "| category | runs | exit 0 | correct | incorrect | not attempted | core recall | supporting recall | nugget recall | exact quotes | citations | turns | tokens | wall s |\n\
          |---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
-    let groups = CATEGORIES
-        .iter()
-        .map(|category| (*category, Some(*category)))
+    let groups = all_categories()
+        .map(|category| (category, Some(category)))
         .chain(std::iter::once(("all", None)));
     for (label, filter) in groups {
         let selected = rows
