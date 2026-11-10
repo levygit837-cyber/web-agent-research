@@ -81,8 +81,8 @@ The tool keeps two per-user roots, resolved separately. Neither is ever the curr
 
 | Root | Holds | Resolution (first non-empty wins) |
 |---|---|---|
-| Data root | Sessions, under `<data_root>/sessions/` | `WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `$HOME/.local/share/web-agent-research` |
-| Cache root | search cache and `engines.json` (disposable), see "Search cache" | `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research` |
+| Data root | Sessions, under `<data_root>/sessions/` | `WEB_AGENT_RESEARCH_HOME`, else `$XDG_DATA_HOME/web-agent-research`, else `$HOME/.local/share/web-agent-research` (`%USERPROFILE%` stands in for `HOME` on Windows) |
+| Cache root | search cache and `engines.json` (disposable), see "Search cache" | `SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else `$HOME/.cache/web-agent-research` (`%USERPROFILE%` stands in for `HOME` on Windows) |
 
 | Variable | Required | Default | Invalid value |
 |---|---|---|---|

@@ -131,12 +131,23 @@ fn defaulted_sink_failure_sets_one_warning_and_disables_itself() {
 
 #[test]
 fn missing_data_root_warns_instead_of_failing() {
-    let _guard = EnvGuard::lock(vec!["WEB_AGENT_RESEARCH_HOME", "XDG_DATA_HOME", "HOME"]);
-    let home = std::env::var_os("HOME");
+    let _guard = EnvGuard::lock(vec![
+        "WEB_AGENT_RESEARCH_HOME",
+        "XDG_DATA_HOME",
+        "HOME",
+        "USERPROFILE",
+    ]);
+    let saved: Vec<_> = ["HOME", "USERPROFILE"]
+        .into_iter()
+        .map(|key| (key, std::env::var_os(key)))
+        .collect();
     std::env::remove_var("HOME");
+    std::env::remove_var("USERPROFILE");
     let mut sink = SessionSink::new(None, "abc");
-    if let Some(home) = home {
-        std::env::set_var("HOME", home);
+    for (key, value) in saved {
+        if let Some(value) = value {
+            std::env::set_var(key, value);
+        }
     }
     let header = SessionHeader::new("abc".to_owned(), "goal".to_owned(), "small".to_owned());
     sink.append(&header).expect("no root is not an error");

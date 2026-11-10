@@ -110,6 +110,7 @@ fn replay(dir: &Path, repeat: u32, home: &Path) -> (RecordedRun, Metrics) {
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
         .env("WEB_AGENT_RESEARCH_HOME", home)
         .env("SEARCH_CACHE", "off")
+        .envs(std::env::var_os("SYSTEMROOT").map(|v| ("SYSTEMROOT", v)))
         .env("WAR_EVAL_REPLAY", dir)
         .env("GATEWAY_BASE_URL", &stub.base_url)
         .env("GATEWAY_API_KEY", "offline-replay")

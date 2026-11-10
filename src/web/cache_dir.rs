@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// `$SEARCH_CACHE_DIR`, else `$XDG_CACHE_HOME/web-agent-research`, else
-/// `$HOME/.cache/web-agent-research`. `None` when none is set.
+/// `$HOME/.cache/web-agent-research` (`%USERPROFILE%` where `HOME` is unset,
+/// i.e. Windows). `None` when none is set.
 pub(crate) fn cache_root() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("SEARCH_CACHE_DIR").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(dir));
@@ -13,6 +14,7 @@ pub(crate) fn cache_root() -> Option<PathBuf> {
         return Some(PathBuf::from(dir).join("web-agent-research"));
     }
     std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
         .filter(|v| !v.is_empty())
         .map(|home| {
             PathBuf::from(home)
