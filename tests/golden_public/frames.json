@@ -1,0 +1,200 @@
+{
+  "category": "frames",
+  "goals": [
+    {
+      "id": "frames-01",
+      "goal": "As of August 4, 2024, Rosamund Pike voices a character in a podcast about the so-called \"First Female President.\" How many siblings does the character have?",
+      "nuggets": [
+        {
+          "text": "10",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Edith!",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-02",
+      "goal": "Who lived longer one of the Bronte sisters or Jane Austen?",
+      "nuggets": [
+        {
+          "text": "Jane Austen",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Bront%C3%AB_family",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-03",
+      "goal": "What were the last names of the players selected for the Pro Bowl from the NFL team that was featured in the movie \"Ace Ventura: Pet Detective\"? Base the answer on the following specifications:  -- These players were on the team while Wayne Huizenga was the owner  -- The team that these players were on achieved a 10-6 regular season record while still making the playoffs during their Pro Bowl season",
+      "nuggets": [
+        {
+          "text": "Bowens, Thomas, & Madison",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Ace_Ventura:_Pet_Detective",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-04",
+      "goal": "Put these historical events in chronological order, starting with the earliest: The Beatles play Ed Sullivan, the fall of the Berlin Wall, The Great Depression, Atlanta Summer Games, World War I.",
+      "nuggets": [
+        {
+          "text": "World War I, The Great Depression, The Beatles play Ed Sullivan, the fall of the Berlin Wall, Atlanta Summer Games.",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/World_War_I",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-05",
+      "goal": "As of July 1, 2024, if I wanted to give my daughter the middle name of the American woman who is the most decorated female in the history of American gymnastics as her first name and the full first name of the American woman who holds the world record in the 800-meter freestyle as her middle name, what would I name my daughter?",
+      "nuggets": [
+        {
+          "text": "Arianne Kathleen",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Simone_Biles",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-06",
+      "goal": "I'm thinking of a famous house, can you tell me which one from these clues?  * The author of a philosophical work whose frontispiece was designed by Abraham Bosse spent time here. * The son of Francis Talbot and Mary Dacre used this house as a royal jail.",
+      "nuggets": [
+        {
+          "text": "Chatsworth House",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Chatsworth_House",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-07",
+      "goal": "How many years were between the publication of a book considered 'one of the seminal works of fiction of the 20th century', and the Japanese release of the retail version of the game \"Resident Evil: Revelations 2\" for the PS3, of which the author of the 20th century book was a great inspiration for the plot?",
+      "nuggets": [
+        {
+          "text": "100",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Resident_Evil:_Revelations_2#",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-08",
+      "goal": "What horror movie remake did the director who was the first to attempt and failed to make Brokeback Mountian into a film direct in the 90's?",
+      "nuggets": [
+        {
+          "text": "Psycho",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Brokeback_Mountain",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-09",
+      "goal": "What is the shortest possible abbreviation in the United States for the  last to be discovered of the three antileprosy drugs on the World Health Organization's List of Essential Medicines?",
+      "nuggets": [
+        {
+          "text": "R",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/WHO_Model_List_of_Essential_Medicines",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-10",
+      "goal": "The name of which supernova remnant nebula spelled backwards (not including the word \"nubula\") is a homonym for a large sailing ship?",
+      "nuggets": [
+        {
+          "text": "Crab Nebula (\"barc\" is a homonym for \"barque\")",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/List_of_supernova_remnants",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-11",
+      "goal": "I am thinking of a movie where Hans Zimmer won a Grammy Award for his work. He won the Grammy award the same year that he did his first musical score for film director Michael Bay. Can you please tell me the name of that movie?",
+      "nuggets": [
+        {
+          "text": "Crimson Tide",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Michael_Bay",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-12",
+      "goal": "How many times larger was the population of the city of Paris, 19 years after the year designated as The International Year for the Culture of Peace by the United Nations, than the population of Brown County, Kansas according to its 2020 census? Round the answer to the nearest whole number.",
+      "nuggets": [
+        {
+          "text": "228 times larger",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Brown_County,_Kansas",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-13",
+      "goal": "As of August 3rd 2024, what's the name of the university in the city right off exit 183 on I-94 in Michigan?",
+      "nuggets": [
+        {
+          "text": "Eastern Michigan University",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Interstate_94_in_Michigan#",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-14",
+      "goal": "How many years before Starbucks introduced juice-blended Frappuccinos, was the company that is accredited for inventing the Frappuccino, founded?",
+      "nuggets": [
+        {
+          "text": "31 years",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/George_Howell_(entrepreneur)#The_Coffee_Connection",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "frames-15",
+      "goal": "How many more letters does the name of the city that the director of \"Whiplash\" (2014) was born in have compared the name of the city in which the film first premiered?",
+      "nuggets": [
+        {
+          "text": "2",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Whiplash_(2014_film)#",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    }
+  ]
+}

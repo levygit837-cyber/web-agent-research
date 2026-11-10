@@ -1,0 +1,265 @@
+{
+  "category": "simpleqa",
+  "goals": [
+    {
+      "id": "simpleqa-01",
+      "goal": "For how many years did Mohamed Abdelaziz Djaït serve as the Mufti of the Republic of Tunisia?",
+      "nuggets": [
+        {
+          "text": "3",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Mohamed_Abdelaziz_Dja%C3%AFt",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-02",
+      "goal": "What was the age range of the drivers whose EEG data was collected in the 2021 research paper titled \"EEG-Based Driving Fatigue Detection Using a Two-Level Learning Hierarchy Radial Basis Function\" by Ziwu Ren et al.?",
+      "nuggets": [
+        {
+          "text": "23-27",
+          "scope": "core",
+          "url": "https://www.researchgate.net/publication/349291260_EEG-Based_Driving_Fatigue_Detection_Using_a_Two-Level_Learning_Hierarchy_Radial_Basis_Function",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-03",
+      "goal": "In what borough of New York City did ballerina Georgia Hiden die?",
+      "nuggets": [
+        {
+          "text": "Manhattan",
+          "scope": "core",
+          "url": "https://archives.nypl.org/dan/185511",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-04",
+      "goal": "How many innings did Game 5 of the '86 ALCS last?",
+      "nuggets": [
+        {
+          "text": "11",
+          "scope": "core",
+          "url": "https://eu.telegram.com/story/sports/2016/05/26/red-sox-game-5-of-1986-alcs-is-one-of-all-time-greatest/28422969007/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-05",
+      "goal": "What is the population of Port Huron as per the 2020 Census?",
+      "nuggets": [
+        {
+          "text": "28983 (acceptable range: anything between 27533 and 30433)",
+          "scope": "core",
+          "url": "https://www.census.gov/quickfacts/fact/table/US",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-06",
+      "goal": "Who played baritone saxophone on the 1958 album *Basie Reunion*?",
+      "nuggets": [
+        {
+          "text": "Jack Washington",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Basie_Reunion",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-07",
+      "goal": "What TTRPG won the 2016 Indie RPG of the Year award?",
+      "nuggets": [
+        {
+          "text": "Blades in the Dark",
+          "scope": "core",
+          "url": "https://www.indie-rpg-awards.com/2016/game_of_year.shtml",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-08",
+      "goal": "The WWI Q-Ship \"Salvia\" was partially reconstructed with a false counter-stern to resemble what kind of ship?",
+      "nuggets": [
+        {
+          "text": "tramp steamer (or collier)",
+          "scope": "core",
+          "url": "https://www.gutenberg.org/cache/epub/54338/pg54338-images.html",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-09",
+      "goal": "What is the first and last name of the host who interviewed military pilot Eugene Bullard on NBC’s \"Today Show\"?",
+      "nuggets": [
+        {
+          "text": "Dave Garroway",
+          "scope": "core",
+          "url": "https://www.donaldwatkins.com/post/eugene-jacques-bullard-the-first-black-american-fighter-pilot",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-10",
+      "goal": "Off of what coast of Morrowind does the DLC Dragonborn take place?",
+      "nuggets": [
+        {
+          "text": "North",
+          "scope": "core",
+          "url": "https://ztgd.com/reviews/the-elder-scrolls-v-skyrim-dragonborn-dlc/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-11",
+      "goal": "Who was the commencement speaker at Harvard in 2018?",
+      "nuggets": [
+        {
+          "text": "John Lewis",
+          "scope": "core",
+          "url": "https://news.harvard.edu/gazette/story/series/commencement-2018/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-12",
+      "goal": "Who was the recipient of the ISCB Accomplishment by a Senior Scientist Award in 2006?",
+      "nuggets": [
+        {
+          "text": "Michael Waterman",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/ISCB_Senior_Scientist_Award",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-13",
+      "goal": "Who created Ida Mntwana's bronze statue?",
+      "nuggets": [
+        {
+          "text": "Sarah Lovejoy",
+          "scope": "core",
+          "url": "https://www.longmarchtofreedom.co.za/BronzeStatues/Artist/618a93ff4ded043532a567d3",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-14",
+      "goal": "How many goals did the Selkirk Fishermen score in Game 2 of the 1920 Memorial Cup against the Toronto Canoe Club Paddlers?",
+      "nuggets": [
+        {
+          "text": "4",
+          "scope": "core",
+          "url": "https://en-academic.com/dic.nsf/enwiki/4707620",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-15",
+      "goal": "In what city and state is Elizabeth Magie Phillips buried?",
+      "nuggets": [
+        {
+          "text": "Arlington, Virginia",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Lizzie_Magie",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-16",
+      "goal": "At what age was M. S. Subbulakshmi's first recording released?",
+      "nuggets": [
+        {
+          "text": "10 years",
+          "scope": "core",
+          "url": "https://www.javatpoint.com/ms-subbulakshmi",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-17",
+      "goal": "From what undergraduate college did Lt. Gen. (Ret.) Ronald Ray Blanck, D.O., graduate?",
+      "nuggets": [
+        {
+          "text": "Juniata College",
+          "scope": "core",
+          "url": "https://en.wikipedia.org/wiki/Ronald_R._Blanck",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-18",
+      "goal": "What was the name of the location where the stone came from to replace the 199 wooden steps at Whitby Abbey in 1774?",
+      "nuggets": [
+        {
+          "text": "Sneaton",
+          "scope": "core",
+          "url": "https://www.yorkshirecoastalcottages.com/blog/199-steps-whitby/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-19",
+      "goal": "On what radio show was a laugh track first used?",
+      "nuggets": [
+        {
+          "text": "The Bing Crosby – Chesterfield Show",
+          "scope": "core",
+          "url": "https://daily.jstor.org/the-laugh-track-loathe-it-or-love-it/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    },
+    {
+      "id": "simpleqa-20",
+      "goal": "Which Aseprite version had the patch note: \"Added option to enable the 'Snap to Grid' option for the brush preview #4137\"?",
+      "nuggets": [
+        {
+          "text": "v1.3-rc8",
+          "scope": "core",
+          "url": "https://www.aseprite.org/release-notes/",
+          "volatility": "slow",
+          "verified_on": "2026-11-10"
+        }
+      ]
+    }
+  ]
+}

@@ -17,7 +17,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use web_agent_research::web::search::dedup_key;
 
-use super::golden::CATEGORIES;
+use super::golden::all_categories;
 use super::judge::Judge;
 use super::metrics::RunRow;
 
@@ -429,7 +429,7 @@ fn pct(part: usize, whole: usize) -> String {
 }
 
 /// Markdown table of the claim metrics, one row per category in
-/// [`CATEGORIES`] order, then `all`; bullets are pooled over the claim-judged
+/// [`all_categories`] order, then `all`; bullets are pooled over the claim-judged
 /// runs. Empty when no run was claim-judged.
 pub fn table(rows: &[RunRow]) -> String {
     if rows.iter().all(|row| row.claims.is_none()) {
@@ -439,9 +439,8 @@ pub fn table(rows: &[RunRow]) -> String {
         "| category | judged runs | bullets | claim precision | partly | unsupported | contradicted | uncited |\n\
          |---|---|---|---|---|---|---|---|\n",
     );
-    let groups = CATEGORIES
-        .iter()
-        .map(|category| (*category, Some(*category)))
+    let groups = all_categories()
+        .map(|category| (category, Some(category)))
         .chain(std::iter::once(("all", None)));
     for (label, filter) in groups {
         let claims: Vec<&Claims> = rows

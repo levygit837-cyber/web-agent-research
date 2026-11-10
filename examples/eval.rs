@@ -62,6 +62,10 @@ enum Command {
         /// The CLI binary to run.
         #[arg(long, default_value = "target/release/web-agent-research")]
         bin: PathBuf,
+        /// Also load public-benchmark goals from this dir (e.g.
+        /// `tests/golden_public`); `--goal` selects over both sets.
+        #[arg(long)]
+        public: Option<PathBuf>,
         /// Extra `research` flags, after `--`.
         #[arg(last = true)]
         extra_args: Vec<String>,
@@ -81,6 +85,9 @@ enum Command {
         /// sequence.
         #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(u32).range(1..=32))]
         jobs: u32,
+        /// Public-benchmark goals dir the run used (`run --public`).
+        #[arg(long)]
+        public: Option<PathBuf>,
     },
     /// Per-category summary table (Markdown).
     Summary { results: PathBuf },
@@ -114,6 +121,15 @@ fn git_rev() -> Option<String> {
         .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+/// The golden set, plus the public goals of `public` when given.
+fn load_goals(public: Option<&Path>) -> Result<Vec<eval::golden::GoldenGoal>, String> {
+    let mut goals = golden::load(&golden::default_dir())?;
+    if let Some(dir) = public {
+        goals.extend(golden::load_public(dir)?);
+    }
+    Ok(goals)
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn run(
     mode: Mode,
@@ -123,6 +139,7 @@ async fn run(
     out: PathBuf,
     pause_secs: u64,
     bin: PathBuf,
+    public: Option<PathBuf>,
     extra_args: Vec<String>,
 ) -> Result<(), String> {
     if !bin.is_file() {
@@ -134,7 +151,7 @@ async fn run(
     if mode == Mode::Record && env_value("GATEWAY_BASE_URL").is_empty() {
         return Err("record needs GATEWAY_BASE_URL (the proxy's upstream)".to_owned());
     }
-    let selected = golden::select(golden::load(&golden::default_dir())?, &goals)?;
+    let selected = golden::select(load_goals(public.as_deref())?, &goals)?;
     let mut file = if out.is_file() {
         let file = ResultsFile::read(&out)?;
         if file.mode != mode || file.extra_args != extra_args {
@@ -238,7 +255,13 @@ async fn judge_row(judge: Arc<Judge>, work: RowWork) -> RowDone {
     done
 }
 
-async fn judge(path: &Path, model: &str, fixtures: PathBuf, jobs: u32) -> Result<(), String> {
+async fn judge(
+    path: &Path,
+    model: &str,
+    fixtures: PathBuf,
+    jobs: u32,
+    public: Option<&Path>,
+) -> Result<(), String> {
     let mut file = ResultsFile::read(path)?;
     if let Some(pinned) = &file.judge_model {
         if pinned != model {
@@ -249,7 +272,7 @@ async fn judge(path: &Path, model: &str, fixtures: PathBuf, jobs: u32) -> Result
         }
     }
     file.judge_model = Some(model.to_owned());
-    let goals = golden::load(&golden::default_dir())?;
+    let goals = load_goals(public)?;
     let judge = Arc::new(Judge::from_env(model)?);
     // A live run has no recorded pages: its claim metrics stay missing.
     let claim_pass = file.mode != Mode::Live;
@@ -257,7 +280,12 @@ async fn judge(path: &Path, model: &str, fixtures: PathBuf, jobs: u32) -> Result
     let mut todo = Vec::new();
     for (index, row) in file.rows.iter().enumerate() {
         let grade = row.judge.is_none();
-        let claim = claim_pass && row.claims.is_none() && row.answer.is_some();
+        // Public goals have one reference answer and no golden pages: the
+        // nugget grade is the whole judgement.
+        let claim = claim_pass
+            && !golden::is_public(&row.category)
+            && row.claims.is_none()
+            && row.answer.is_some();
         if !grade && !claim {
             continue;
         }
@@ -345,10 +373,11 @@ async fn main() -> ExitCode {
             out,
             pause_secs,
             bin,
+            public,
             extra_args,
         } => {
             run(
-                mode, fixtures, repeats, goals, out, pause_secs, bin, extra_args,
+                mode, fixtures, repeats, goals, out, pause_secs, bin, public, extra_args,
             )
             .await
         }
@@ -357,7 +386,8 @@ async fn main() -> ExitCode {
             model,
             fixtures,
             jobs,
-        } => judge(&results, &model, fixtures, jobs).await,
+            public,
+        } => judge(&results, &model, fixtures, jobs, public.as_deref()).await,
         Command::Summary { results } => {
             ResultsFile::read(&results).map(|file| println!("{}", summary_table(&file.rows)))
         }

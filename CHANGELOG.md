@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--events <path|->` streams Session Events as NDJSON: lifecycle, `search.*`, `fetch.*`, `tool.failed`, `context.truncated` and `answer.verified`; every exit `0` to `9` ends with `session.finished` (#147, #148).
 - `GATEWAY_STREAM=on|off` and `GATEWAY_STREAM_IDLE_SECS`: replies stream as SSE in both wire formats and assemble into the same reply (#152, #153).
 - `--events-detail normal|tokens`: `tokens` adds `model.delta` fragments to `--events`; `model.retry` is always emitted; Progress shows the answer forming and the retry line (#154).
+- eval: `--public tests/golden_public` adds 20 SimpleQA Verified and 15 FRAMES goals (one reference-answer nugget each, no claim pass); `replay-through` records the gateway, so a second model on a copied tape keeps its own transcript; `docs/eval.md` records the 2026-11-10 Haiku 4.5 vs 5.5 run (#167).
 
 ### Fixed
 

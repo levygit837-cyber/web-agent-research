@@ -6,6 +6,7 @@ Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts
 
 ## Pieces
 
+- Public goals: `tests/golden_public/`, 20 SimpleQA Verified and 15 FRAMES questions, opt-in with `--public`. See [Public benchmarks](#public-benchmarks).
 - Golden set (v2): `tests/golden/<category>.json`, 7 categories × 8 goals. Each goal has 3-12 nuggets `{text, scope: core|supporting, url, volatility: never|slow|fast, verified_on}`, each checked against `url` on `verified_on`. Re-verify `fast` nuggets before trusting a recall drop on them. See [Golden set rules](#golden-set-rules).
 - Tool tape (`src/research/agent_loop/tape.rs`): records or replays the `search` and `fetch` tools on the `ToolRegistry` path.
 - Driver: `cargo run --example eval -- <run|judge|summary|compare|pack>`, code in `tests/eval/`.
@@ -23,8 +24,8 @@ Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts
 
 ## Models
 
-- Agent: every eval run uses `claude-haiku-4.5` (`GATEWAY_MODEL`), the model the agent runs in production. `claude-haiku-5.5` replaces it as the main model once the gateway offers it; until then, results from any other agent model are not comparable to the baseline.
-- Judge: a larger model than the agent, never the agent's own model: `gpt-5.6-sol` by default (`--model` takes another larger model). The judge grades; it is not the system under test.
+- Agent: the baseline runs use `claude-haiku-4.5` (`GATEWAY_MODEL`). The gateway offers `claude-haiku-5.5` since 2026-11-10; [Haiku 4.5 vs 5.5](#haiku-45-vs-55-2026-11-10) compares the two, and results from different agent models are never compared as one arm.
+- Judge: a larger model than the agent, never the agent's own model: `gpt-5.6-sol` by default (`--model` takes another larger model, e.g. `claude-sonnet-5.5`). The judge grades; it is not the system under test. Scores from two judge models are not comparable.
 
 ## Tool tape
 
@@ -69,10 +70,10 @@ cargo run --example eval -- run --mode record --fixtures target/eval/fixtures --
 |---|---|---|---|
 | `record` | live, taped into `<fixtures>/<goal id>/` | live, through a recording proxy into `gateway.r<k>.jsonl` | Baseline; new fixtures. |
 | `replay` | from `<fixtures>/<goal id>/` | live | A change to the prompt, loop or model, on fixed web content. |
-| `replay-through` | from `<fixtures>/<goal id>/`; fetch misses live, appended to its `pages.jsonl` | live | A change that reads more pages than the recording did (coverage, gap searches). Copy the frozen dir per arm. |
+| `replay-through` | from `<fixtures>/<goal id>/`; fetch misses live, appended to its `pages.jsonl` | live, through a recording proxy into `gateway.r<k>.jsonl` of the copy | A change that reads more pages than the recording did (coverage, gap searches), or a second model on the first one's web. Copy the frozen dir per arm. |
 | `live` | live, untaped | live | End-to-end, including search and fetch changes. |
 
-Flags: `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--pause-secs` between runs that touch the live web (default 20; engines bot-wall a fast loop, exit `7`; also applied in `replay-through`, which touches the web for fetch misses), `--bin`, and extra `research` flags after `--`. The results file is rewritten after every run; rerunning with the same `--out` resumes.
+Flags: `--public <dir>` (also load the public goals, e.g. `tests/golden_public`; `judge` needs the same flag), `--repeats` (default 3), `--goal <id>` (repeatable; default all), `--pause-secs` between runs that touch the live web (default 20; engines bot-wall a fast loop, exit `7`; also applied in `replay-through`, which touches the web for fetch misses), `--bin`, and extra `research` flags after `--`. The results file is rewritten after every run; rerunning with the same `--out` resumes.
 
 `record` also writes `run.r<k>.json` (goal, flags, `GATEWAY_API_FORMAT`, `GATEWAY_MODEL`, metrics) next to the transcript.
 
@@ -167,6 +168,31 @@ A change to the agent loop, prompts or tool rendering can make a committed trans
 To judge an older record against a newer golden set, copy its results file, set `format` to the current version, drop every row's `judge` and `claims`, and run `eval judge <copy> --fixtures <the tapes it was recorded into>`.
 
 Results judged against different golden revisions are not comparable (the #142 audit moved `correct` by +0.042 on the K=3 control with no change in the answers), so re-judge both sides of a `compare` against the same golden files.
+
+## Public benchmarks
+
+`tests/golden_public/` holds goals sampled once (seed `20261110`, stratified by topic or first reasoning type) from two public sets: 20 of the 1,000 questions of [google/simpleqa-verified](https://huggingface.co/datasets/google/simpleqa-verified) (MIT) and 15 of the 824 of [google/frames-benchmark](https://huggingface.co/datasets/google/frames-benchmark) (Apache-2.0). Each goal has one `core` nugget, the dataset's reference answer, which is not re-verified here and is exempt from the atomic-claim rules. `judge` grades them with the nugget pass only and skips the claim pass (no golden pages to check against). They report as the categories `simpleqa` and `frames`.
+
+Cost: they are obscure on purpose. With a weak search they run up to the Turn budget, and every Turn resends the context, so a public run costs several times a golden run (2026-11-10: 218k input tokens per run on average for `claude-haiku-5.5`, up to 1.2M). The gateway reports `prompt_tokens: 0`, so input cost is only visible as `request_bytes` in `gateway.r<k>.jsonl` (about 4 bytes per token).
+
+## Haiku 4.5 vs 5.5 (2026-11-10)
+
+49 goals (`<category>-01` and `-05` of each golden category, plus every public goal), K=1, at `f7dd6ff`, `SEARCH_ENGINES=duckduckgo,bing,cratesio` (Brave answered 429 and Yahoo 500 that day), `GATEWAY_STREAM=off`, OpenAI format, no `GATEWAY_REASONING_EFFORT` (`claude-haiku-4.5` rejects it). `claude-haiku-5.5` ran `record`; `claude-haiku-4.5` ran `replay-through` on a copy of that tape. Judge `claude-sonnet-5.5`. Results files are not committed.
+
+| | 4.5 | 5.5 | 5.5 - 4.5, 95% CI |
+|---|---|---|---|
+| golden correct (14) | 13 | 14 | |
+| golden claim precision | 60% | 78% | +0.18 [-0.02, +0.38] |
+| SimpleQA correct (20) | 3 | 4 | |
+| FRAMES correct (15) | 4 | 5 | |
+| incorrect, all 49 | 3 | 7 | |
+| `correct`, all 49 | 0.41 | 0.47 | +0.06 [-0.03, +0.15] |
+| `nugget_recall`, all 49 | 0.32 | 0.41 | +0.09 [+0.00, +0.18] |
+| turns per run | 10.1 | 15.9 | +5.8 [+4.3, +7.3] |
+| input tokens (from `request_bytes`) | 5.4M | 10.7M | |
+| wall time | 16 min | 74 min | |
+
+Reading: DuckDuckGo was suspended on a challenge early in the recording, so nearly every Hit came from Bing (6,243 Hits vs 23 from DuckDuckGo). On the public goals that measures the search, not the model: 24 of 35 public runs of 5.5 fetched no page. On the golden goals 5.5 answers more completely and cites better at twice the tokens; 5.5 also guesses more when it finds nothing (7 incorrect vs 3).
 
 ## Streaming parity (2026-10-14)
 
