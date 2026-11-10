@@ -24,7 +24,7 @@ Run-to-run noise is larger than most effects (`docs/harness.md`: citation counts
 
 ## Models
 
-- Agent: every eval run uses `claude-haiku-4.5` (`GATEWAY_MODEL`), the model the agent runs in production. `claude-haiku-5.5` replaces it as the main model once the gateway offers it; until then, results from any other agent model are not comparable to the baseline.
+- Agent: the baseline runs use `claude-haiku-4.5` (`GATEWAY_MODEL`). The gateway offers `claude-haiku-5.5` since 2026-11-10; [Haiku 4.5 vs 5.5](#haiku-45-vs-55-2026-11-10) compares the two, and results from different agent models are never compared as one arm.
 - Judge: a larger model than the agent, never the agent's own model: `gpt-5.6-sol` by default (`--model` takes another larger model, e.g. `claude-sonnet-5.5`). The judge grades; it is not the system under test. Scores from two judge models are not comparable.
 
 ## Tool tape
